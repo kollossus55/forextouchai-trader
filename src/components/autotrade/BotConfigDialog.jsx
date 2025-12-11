@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Shield, BarChart, Settings } from 'lucide-react';
+import { Clock, Shield, BarChart, Settings, Zap } from 'lucide-react';
 
 export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialData }) {
   const { data: availablePairs } = useQuery({
