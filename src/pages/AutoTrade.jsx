@@ -28,12 +28,66 @@ export default function AutoTrade() {
   const queryClient = useQueryClient();
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedBot, setSelectedBot] = useState(null);
+  const [terminalLogs, setTerminalLogs] = useState([]);
   
   const { data: bots } = useQuery({
     queryKey: ['bots'],
     queryFn: () => base44.entities.BotConfig.list(),
     initialData: []
   });
+
+  // AI Trading Engine Simulation
+  useEffect(() => {
+    const runningBots = bots.filter(b => b.status === 'RUNNING');
+    if (runningBots.length === 0) return;
+
+    const interval = setInterval(() => {
+        runningBots.forEach(bot => {
+            // Simulate AI Signal Generation (5% chance per tick)
+            if (Math.random() > 0.95) {
+                const pairs = bot.pairs || ['EUR/USD'];
+                const pair = pairs[Math.floor(Math.random() * pairs.length)];
+                const action = Math.random() > 0.5 ? 'BUY' : 'SELL';
+                const confidence = Math.floor(Math.random() * (99 - 70) + 70); // 70-99%
+
+                // Check strategy rules
+                if (confidence >= (bot.min_confidence || 80)) {
+                    const price = 1.0850 + (Math.random() * 0.01);
+                    const sl = action === 'BUY' ? price - (bot.stop_loss_pips * 0.0001) : price + (bot.stop_loss_pips * 0.0001);
+                    const tp = action === 'BUY' ? price + (bot.take_profit_pips * 0.0001) : price - (bot.take_profit_pips * 0.0001);
+
+                    // Execute Trade
+                    base44.entities.Trade.create({
+                        pair,
+                        type: action,
+                        lot_size: bot.lot_size,
+                        open_price: price,
+                        close_price: 0,
+                        pnl: 0,
+                        status: 'OPEN',
+                        is_auto: true,
+                        bot_id: bot.id
+                    }).then(() => {
+                        addLog(bot.name, `Executed ${action} ${pair} @ ${price.toFixed(5)} | Confidence: ${confidence}%`, 'success');
+                        queryClient.invalidateQueries(['trades']);
+                    });
+                } else {
+                    addLog(bot.name, `Signal ignored: ${pair} confidence ${confidence}% < threshold`, 'info');
+                }
+            } else if (Math.random() > 0.8) {
+                // Keep alive / analysis logs
+                addLog(bot.name, `Analyzing ${bot.pairs?.join(', ')} market structure...`, 'default');
+            }
+        });
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [bots]);
+
+  const addLog = (botName, message, type) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setTerminalLogs(prev => [{ botName, message, type, timestamp }, ...prev].slice(0, 50));
+  };
 
   const createBot = useMutation({
     mutationFn: (data) => base44.entities.BotConfig.create(data),
@@ -202,20 +256,28 @@ export default function AutoTrade() {
                     </div>
                   </div>
 
-                  {/* Mock Terminal Output */}
-                  <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-hidden relative border border-slate-800">
-                    <div className="absolute top-2 right-2 flex gap-1.5">
+                  {/* Live Terminal Output */}
+                  <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-y-auto relative border border-slate-800 flex flex-col-reverse">
+                    <div className="absolute top-2 right-2 flex gap-1.5 z-10">
                       <div className="w-2 h-2 rounded-full bg-red-500/20"></div>
                       <div className="w-2 h-2 rounded-full bg-yellow-500/20"></div>
                       <div className="w-2 h-2 rounded-full bg-green-500/20"></div>
                     </div>
-                    <div className="space-y-1 opacity-70">
-                      <p className="text-slate-400"><span className="text-blue-500">[{new Date().toLocaleTimeString()}]</span> Analyzing market patterns...</p>
-                      <p className="text-slate-400"><span className="text-blue-500">[{new Date().toLocaleTimeString()}]</span> EUR/USD RSI Divergence detected.</p>
-                      <p className="text-emerald-400"><span className="text-blue-500">[{new Date().toLocaleTimeString()}]</span> Signal generated: BUY confidence 87%</p>
-                      <p className="text-slate-400"><span className="text-blue-500">[{new Date().toLocaleTimeString()}]</span> Calculating position size based on risk...</p>
+                    <div className="space-y-1">
+                      {terminalLogs.filter(log => log.botName === bot.name).length > 0 ? (
+                        terminalLogs.filter(log => log.botName === bot.name).map((log, i) => (
+                           <p key={i} className={`${
+                               log.type === 'success' ? 'text-emerald-400' : 
+                               log.type === 'info' ? 'text-amber-400' : 'text-slate-400'
+                           }`}>
+                             <span className="text-blue-500 opacity-70">[{log.timestamp}]</span> {log.message}
+                           </p>
+                        ))
+                      ) : (
+                        <p className="text-slate-500 italic">Waiting for market data...</p>
+                      )}
                       {bot.status === 'RUNNING' && (
-                        <p className="text-emerald-500 animate-pulse">_ Processing tick data...</p>
+                        <p className="text-emerald-500/50 animate-pulse text-[10px]">_ AI Engine Active: Processing ticks</p>
                       )}
                     </div>
                   </div>
