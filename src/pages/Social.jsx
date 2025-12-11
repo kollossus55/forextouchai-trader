@@ -80,7 +80,7 @@ export default function Social() {
           <p className="text-slate-400 mt-1">Connect with top traders and share strategies</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" className="border-slate-700 text-slate-300">
+            <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all shadow-lg shadow-emerald-900/10">
                 <Globe className="w-4 h-4 mr-2" /> Global Chat
             </Button>
         </div>
