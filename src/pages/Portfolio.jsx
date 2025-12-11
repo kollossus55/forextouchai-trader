@@ -33,7 +33,7 @@ export default function Portfolio() {
           </h1>
           <p className="text-slate-400 mt-1">Manage your positions and trade history</p>
         </div>
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+        <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
           <Download className="w-4 h-4 mr-2" /> Export Report
         </Button>
       </div>
@@ -72,7 +72,7 @@ export default function Portfolio() {
       <Tabs defaultValue="open" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
           <TabsTrigger value="open" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Open Positions</TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white">History</TabsTrigger>
+          <TabsTrigger value="history" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Trade History</TabsTrigger>
         </TabsList>
         
         <TabsContent value="open" className="mt-4">
