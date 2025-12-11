@@ -1,4 +1,3 @@
-import Overview from './pages/Overview';
 import Pairs from './pages/Pairs';
 import AutoTrade from './pages/AutoTrade';
 import Portfolio from './pages/Portfolio';
@@ -8,11 +7,11 @@ import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import Home from './pages/Home';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Overview": Overview,
     "Pairs": Pairs,
     "AutoTrade": AutoTrade,
     "Portfolio": Portfolio,
@@ -22,10 +21,11 @@ export const PAGES = {
     "Settings": Settings,
     "Profile": Profile,
     "Admin": Admin,
+    "Home": Home,
 }
 
 export const pagesConfig = {
-    mainPage: "Overview",
+    mainPage: "Pairs",
     Pages: PAGES,
     Layout: __Layout,
 };
