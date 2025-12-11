@@ -11,16 +11,22 @@ import {
   DollarSign,
   PieChart,
   BarChart3,
+  BrainCircuit,
+  Zap
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import SignalCard from '@/components/dashboard/SignalCard';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function Overview() {
+  const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const { data: trades } = useQuery({
     queryKey: ['trades-home'],
@@ -39,6 +45,43 @@ export default function Overview() {
     queryFn: () => base44.entities.NewsItem.list({ sort: { created_date: -1 }, limit: 5 }),
     initialData: []
   });
+
+  const { data: signals } = useQuery({
+    queryKey: ['ai-signals'],
+    queryFn: () => base44.entities.Signal.list({ sort: { created_date: -1 }, limit: 3 }),
+    initialData: []
+  });
+
+  const generateSignalMutation = useMutation({
+    mutationFn: (signalData) => base44.entities.Signal.create(signalData),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['ai-signals']);
+    }
+  });
+
+  const handleGenerateSignals = () => {
+    setIsGenerating(true);
+    // Simulate AI Processing time
+    setTimeout(() => {
+      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'BTC/USD'];
+      const pair = pairs[Math.floor(Math.random() * pairs.length)];
+      const type = Math.random() > 0.5 ? 'BUY' : 'SELL';
+      const price = (Math.random() * 100 + 1000).toFixed(2);
+      
+      generateSignalMutation.mutate({
+        pair,
+        type,
+        entry_price: parseFloat(price),
+        stop_loss: parseFloat((type === 'BUY' ? price * 0.99 : price * 1.01).toFixed(2)),
+        take_profit: parseFloat((type === 'BUY' ? price * 1.02 : price * 0.98).toFixed(2)),
+        confidence: Math.floor(Math.random() * 20) + 80, // 80-99%
+        strategy: 'AI_HYBRID_V2',
+        status: 'PENDING',
+        result_pnl: 0
+      });
+      setIsGenerating(false);
+    }, 2000);
+  };
 
   // Mock MT4 Account Data
   const mt4Account = {
@@ -153,6 +196,46 @@ export default function Overview() {
         
         {/* Left Column: Running Trades (Wide) */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* AI Signal Generator Banner */}
+          <Card className="bg-gradient-to-r from-emerald-900/30 to-slate-900 border-emerald-500/30 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <BrainCircuit className="w-5 h-5 text-emerald-400" /> AI Signal Generator
+                </CardTitle>
+                <CardDescription className="text-emerald-200/60">
+                  Real-time market analysis and setup detection
+                </CardDescription>
+              </div>
+              <Button 
+                onClick={handleGenerateSignals} 
+                disabled={isGenerating}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
+              >
+                {isGenerating ? (
+                   <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+                ) : (
+                   <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
+                )}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 {signals.length === 0 ? (
+                   <div className="col-span-3 text-center py-6 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed">
+                     Click "Scan Market" to generate AI trading signals
+                   </div>
+                 ) : (
+                   signals.map(signal => (
+                     <SignalCard key={signal.id} signal={signal} />
+                   ))
+                 )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>

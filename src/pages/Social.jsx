@@ -12,7 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart2,
-  Globe
+  Globe,
+  BrainCircuit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import SignalCard from '@/components/dashboard/SignalCard';
 
 export default function Social() {
   const queryClient = useQueryClient();
@@ -28,6 +30,12 @@ export default function Social() {
   const { data: posts } = useQuery({
     queryKey: ['posts'],
     queryFn: () => base44.entities.Post.list({ sort: { created_date: -1 }, limit: 20 }),
+    initialData: []
+  });
+
+  const { data: latestSignals } = useQuery({
+    queryKey: ['social-signals'],
+    queryFn: () => base44.entities.Signal.list({ sort: { created_date: -1 }, limit: 2 }),
     initialData: []
   });
 
@@ -238,6 +246,24 @@ export default function Social() {
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          {/* Latest AI Signals Widget for Social */}
+          <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
+             <CardHeader className="pb-3">
+              <CardTitle className="text-white flex items-center gap-2 text-base">
+                <BrainCircuit className="w-4 h-4 text-purple-400" /> Trending Signals
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-400">High confidence setups</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+               {latestSignals.map(signal => (
+                 <SignalCard key={signal.id} signal={signal} />
+               ))}
+               {latestSignals.length === 0 && (
+                 <div className="text-center text-xs text-slate-500 py-4">No recent signals</div>
+               )}
             </CardContent>
           </Card>
         </div>
