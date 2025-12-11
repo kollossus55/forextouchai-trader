@@ -8,6 +8,7 @@ import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import Home from './pages/Home';
+import Overview from './pages/Overview';
 import __Layout from './Layout.jsx';
 
 
@@ -22,6 +23,7 @@ export const PAGES = {
     "Profile": Profile,
     "Admin": Admin,
     "Home": Home,
+    "Overview": Overview,
 }
 
 export const pagesConfig = {

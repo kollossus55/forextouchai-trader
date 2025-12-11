@@ -41,7 +41,7 @@ export default function Layout({ children }) {
   }, []);
 
   const navItems = [
-    { label: 'Overview', icon: LayoutDashboard, path: '/' },
+    { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
     { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
     { label: 'Auto Trade', icon: Bot, path: '/AutoTrade' },
     { label: 'Analytics', icon: LineChart, path: '/Analytics' },
