@@ -60,7 +60,7 @@ export default function Alerts() {
           </h1>
           <p className="text-slate-400 mt-1">System alerts and trading notifications</p>
         </div>
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+        <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
           Clear All
         </Button>
       </div>
