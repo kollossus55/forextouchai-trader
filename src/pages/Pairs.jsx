@@ -34,9 +34,9 @@ export default function Pairs() {
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
   
-  const { data: pairs } = useQuery({
+  const { data: pairs, isLoading } = useQuery({
     queryKey: ['pairs'],
-    queryFn: () => base44.entities.CurrencyPair.list({ limit: 50 }),
+    queryFn: () => base44.entities.CurrencyPair.list(),
     initialData: []
   });
 
@@ -181,6 +181,11 @@ export default function Pairs() {
         </div>
       </div>
 
+      {isLoading ? (
+        <div className="flex justify-center items-center py-20">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        </div>
+      ) : (
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
           <TabsTrigger value="majors" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
@@ -207,6 +212,7 @@ export default function Pairs() {
           </div>
         </TabsContent>
       </Tabs>
+      )}
 
       <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
         <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[425px]">
