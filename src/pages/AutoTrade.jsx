@@ -16,14 +16,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import BotConfigDialog from '@/components/autotrade/BotConfigDialog';
 
 export default function AutoTrade() {
   const queryClient = useQueryClient();
-  const [isNewBotOpen, setIsNewBotOpen] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [selectedBot, setSelectedBot] = useState(null);
   
   const { data: bots } = useQuery({
     queryKey: ['bots'],
@@ -35,8 +33,24 @@ export default function AutoTrade() {
     mutationFn: (data) => base44.entities.BotConfig.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(['bots']);
-      setIsNewBotOpen(false);
+      setIsConfigOpen(false);
     }
+  });
+
+  const updateBot = useMutation({
+    mutationFn: ({id, data}) => base44.entities.BotConfig.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['bots']);
+      setIsConfigOpen(false);
+      setSelectedBot(null);
+    }
+  });
+
+  const deleteBot = useMutation({
+      mutationFn: (id) => base44.entities.BotConfig.delete(id),
+      onSuccess: () => {
+          queryClient.invalidateQueries(['bots']);
+      }
   });
 
   const toggleBot = useMutation({
@@ -46,16 +60,22 @@ export default function AutoTrade() {
     onSuccess: () => queryClient.invalidateQueries(['bots'])
   });
 
-  const [newBot, setNewBot] = useState({
-    name: '',
-    strategy_type: 'AI_PREDICTIVE',
-    risk_level: 'MEDIUM',
-    pairs: ['EUR/USD']
-  });
+  const handleSave = (data) => {
+      if (selectedBot) {
+          updateBot.mutate({ id: selectedBot.id, data });
+      } else {
+          createBot.mutate(data);
+      }
+  };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    createBot.mutate(newBot);
+  const handleEdit = (bot) => {
+      setSelectedBot(bot);
+      setIsConfigOpen(true);
+  };
+
+  const handleCreate = () => {
+      setSelectedBot(null);
+      setIsConfigOpen(true);
   };
 
   return (
@@ -68,66 +88,15 @@ export default function AutoTrade() {
           <p className="text-slate-400 mt-1">Manage your AI automated trading strategies</p>
         </div>
         
-        <Dialog open={isNewBotOpen} onOpenChange={setIsNewBotOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
-              <Plus className="w-4 h-4 mr-2" /> Create New Bot
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-slate-900 border-slate-800 text-white">
-            <DialogHeader>
-              <DialogTitle>Configure New AI Bot</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Bot Name</Label>
-                <Input 
-                  value={newBot.name}
-                  onChange={e => setNewBot({...newBot, name: e.target.value})}
-                  className="bg-slate-950 border-slate-800"
-                  placeholder="e.g. Alpha Scalper"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Strategy</Label>
-                <Select 
-                  value={newBot.strategy_type} 
-                  onValueChange={v => setNewBot({...newBot, strategy_type: v})}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AI_PREDICTIVE">AI Predictive Model</SelectItem>
-                    <SelectItem value="SCALPING">High Frequency Scalping</SelectItem>
-                    <SelectItem value="SWING">Swing Trading</SelectItem>
-                    <SelectItem value="DAY_TRADING">Day Trading</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Risk Level</Label>
-                <Select 
-                  value={newBot.risk_level} 
-                  onValueChange={v => setNewBot({...newBot, risk_level: v})}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LOW">Low (Conservative)</SelectItem>
-                    <SelectItem value="MEDIUM">Medium (Balanced)</SelectItem>
-                    <SelectItem value="HIGH">High (Aggressive)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 mt-4">
-                Deploy Bot
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
+            <Plus className="w-4 h-4 mr-2" /> Create New Bot
+        </Button>
+        <BotConfigDialog 
+            open={isConfigOpen} 
+            onOpenChange={setIsConfigOpen} 
+            onSubmit={handleSave}
+            initialData={selectedBot}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -204,10 +173,10 @@ export default function AutoTrade() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between border-t border-slate-800 pt-4">
-               <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white text-xs">
+               <Button variant="ghost" size="sm" onClick={() => handleEdit(bot)} className="text-slate-400 hover:text-white text-xs">
                  <Settings2 className="w-3 h-3 mr-2" /> Configuration
                </Button>
-               <Button variant="ghost" size="sm" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs">
+               <Button variant="ghost" size="sm" onClick={() => deleteBot.mutate(bot.id)} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs">
                  <Trash2 className="w-3 h-3 mr-2" /> Delete
                </Button>
             </CardFooter>
