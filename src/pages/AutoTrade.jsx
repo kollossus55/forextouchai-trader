@@ -10,7 +10,10 @@ import {
   Trash2,
   Cpu,
   Zap,
-  ShieldAlert
+  ShieldAlert,
+  Clock,
+  BrainCircuit,
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -132,7 +135,7 @@ export default function AutoTrade() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4 mt-2 mb-6">
+              <div className="grid grid-cols-2 gap-4 mt-2 mb-4">
                 <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/50">
                   <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
                     <ShieldAlert className="w-3 h-3" /> Risk Level
@@ -151,6 +154,30 @@ export default function AutoTrade() {
                   <div className="font-semibold text-emerald-400">
                     +12.4% <span className="text-slate-500 text-xs font-normal">this week</span>
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-6">
+                <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
+                   <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
+                     <Target className="w-3 h-3" />
+                     <span>Lot Size</span>
+                   </div>
+                   <span className="text-slate-200 font-mono text-sm">{bot.lot_size || 0.1}</span>
+                </div>
+                <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
+                   <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
+                     <BrainCircuit className="w-3 h-3" />
+                     <span>Min Conf.</span>
+                   </div>
+                   <span className="text-emerald-400 font-mono text-sm">{bot.min_confidence || 80}%</span>
+                </div>
+                <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
+                   <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
+                     <Clock className="w-3 h-3" />
+                     <span>Schedule</span>
+                   </div>
+                   <span className="text-slate-200 font-mono text-xs">{bot.trading_start_time || '08:00'} - {bot.trading_end_time || '17:00'}</span>
                 </div>
               </div>
 
