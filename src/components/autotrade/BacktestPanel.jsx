@@ -1,0 +1,195 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+
+export default function BacktestPanel() {
+  const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [results, setResults] = useState(null);
+
+  const runBacktest = () => {
+    setIsRunning(true);
+    setProgress(0);
+    setResults(null);
+    
+    // Simulate backtesting process
+    let current = 0;
+    const interval = setInterval(() => {
+      current += 5;
+      setProgress(current);
+      if (current >= 100) {
+        clearInterval(interval);
+        setIsRunning(false);
+        setResults({
+          totalTrades: 142,
+          winRate: 68.5,
+          totalPnl: 12450.00,
+          profitFactor: 2.1,
+          maxDrawdown: 4.5,
+          sharpeRatio: 1.8
+        });
+      }
+    }, 100);
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="lg:col-span-1 space-y-6">
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-white text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5 text-emerald-400" /> Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Strategy</Label>
+              <Select defaultValue="momentum">
+                <SelectTrigger className="bg-slate-950 border-slate-800">
+                  <SelectValue placeholder="Select Strategy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="momentum">Momentum Alpha V2</SelectItem>
+                  <SelectItem value="scalper">Quick Scalper</SelectItem>
+                  <SelectItem value="swing">Swing King</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Symbol</Label>
+              <Select defaultValue="eurusd">
+                <SelectTrigger className="bg-slate-950 border-slate-800">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eurusd">EUR/USD</SelectItem>
+                  <SelectItem value="gbpusd">GBP/USD</SelectItem>
+                  <SelectItem value="xauusd">XAU/USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Timeframe</Label>
+              <Select defaultValue="h1">
+                <SelectTrigger className="bg-slate-950 border-slate-800">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="m15">M15 (15 Minutes)</SelectItem>
+                  <SelectItem value="h1">H1 (1 Hour)</SelectItem>
+                  <SelectItem value="h4">H4 (4 Hours)</SelectItem>
+                  <SelectItem value="d1">D1 (Daily)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Period</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="date" className="bg-slate-950 border-slate-800 text-xs" />
+                <Input type="date" className="bg-slate-950 border-slate-800 text-xs" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Initial Balance</Label>
+              <Input type="number" defaultValue="10000" className="bg-slate-950 border-slate-800" />
+            </div>
+
+            <Button 
+              className="w-full bg-emerald-600 hover:bg-emerald-700 mt-4" 
+              onClick={runBacktest}
+              disabled={isRunning}
+            >
+              {isRunning ? 'Running Simulation...' : <><Play className="w-4 h-4 mr-2" /> Start Backtest</>}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="lg:col-span-3 space-y-6">
+        {/* Results Area */}
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm min-h-[400px] flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-white text-lg flex items-center gap-2">
+              <BarChart className="w-5 h-5 text-blue-400" /> Simulation Results
+            </CardTitle>
+            {results && (
+              <Button variant="outline" size="sm" className="border-slate-700 text-slate-300">
+                <FileText className="w-4 h-4 mr-2" /> Export Report
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="flex-1">
+            {isRunning ? (
+              <div className="flex flex-col items-center justify-center h-full py-20">
+                <div className="w-full max-w-md space-y-4">
+                  <div className="flex justify-between text-sm text-slate-400">
+                    <span>Processing tick data...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2 bg-slate-800" indicatorClassName="bg-emerald-500" />
+                  <p className="text-xs text-center text-slate-500 animate-pulse">Calculating indicators and trade logic on 12 months of historical data</p>
+                </div>
+              </div>
+            ) : results ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Key Metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Total Net Profit</div>
+                    <div className="text-emerald-400 font-bold text-lg">+${results.totalPnl.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Win Rate</div>
+                    <div className="text-blue-400 font-bold text-lg">{results.winRate}%</div>
+                  </div>
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Profit Factor</div>
+                    <div className="text-slate-200 font-bold text-lg">{results.profitFactor}</div>
+                  </div>
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Max Drawdown</div>
+                    <div className="text-rose-400 font-bold text-lg">{results.maxDrawdown}%</div>
+                  </div>
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Total Trades</div>
+                    <div className="text-slate-200 font-bold text-lg">{results.totalTrades}</div>
+                  </div>
+                  <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <div className="text-slate-500 text-xs mb-1">Sharpe Ratio</div>
+                    <div className="text-amber-400 font-bold text-lg">{results.sharpeRatio}</div>
+                  </div>
+                </div>
+
+                {/* Equity Chart Placeholder */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-lg p-6 h-64 relative">
+                  <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                    <TrendingUp className="w-24 h-24 text-emerald-500" />
+                  </div>
+                  <div className="flex items-end justify-between h-full w-full gap-1 pt-8 px-4">
+                    {[30, 35, 32, 40, 45, 42, 48, 55, 52, 58, 65, 62, 70, 75, 72, 80, 85, 82, 90, 95].map((h, i) => (
+                      <div key={i} className="w-full bg-emerald-500/20 hover:bg-emerald-500/40 transition-colors rounded-t" style={{height: `${h}%`}}></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
+                <Play className="w-12 h-12 mb-4 opacity-20" />
+                <p>Select parameters and start backtest to see results</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

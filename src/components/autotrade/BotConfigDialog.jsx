@@ -143,65 +143,87 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
             {/* Risk Tab */}
             <TabsContent value="risk" className="space-y-6 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Risk Level</Label>
-                  <Select 
-                    value={formData.risk_level} 
-                    onValueChange={v => setFormData({...formData, risk_level: v})}
-                  >
-                    <SelectTrigger className="bg-slate-950 border-slate-800">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW">Low (Conservative)</SelectItem>
-                      <SelectItem value="MEDIUM">Medium (Balanced)</SelectItem>
-                      <SelectItem value="HIGH">High (Aggressive)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Lot Size</Label>
-                  <Input 
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={formData.lot_size}
-                    onChange={e => setFormData({...formData, lot_size: parseFloat(e.target.value)})}
-                    className="bg-slate-950 border-slate-800"
+              <div className="flex items-center justify-between p-3 mb-4 rounded bg-slate-950 border border-slate-800">
+                  <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <div className="flex flex-col">
+                          <span className="text-sm font-medium">AI Dynamic Risk Management</span>
+                          <span className="text-[10px] text-slate-500">Auto-adjust Stop Loss & Lot Size based on volatility</span>
+                      </div>
+                  </div>
+                  <Switch 
+                      checked={formData.use_ai_risk || false} 
+                      onCheckedChange={v => setFormData({...formData, use_ai_risk: v})} 
+                      className="data-[state=checked]:bg-emerald-600"
                   />
-                </div>
-              </div>
-              
-              <div className="space-y-4 pt-2">
-                <div className="flex justify-between">
-                   <Label>Stop Loss (Pips)</Label>
-                   <span className="text-xs text-slate-400">{formData.stop_loss_pips} pips</span>
-                </div>
-                <Slider 
-                  value={[formData.stop_loss_pips]} 
-                  min={5} 
-                  max={200} 
-                  step={5}
-                  onValueChange={([v]) => setFormData({...formData, stop_loss_pips: v})}
-                  className="py-1"
-                />
               </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                   <Label>Take Profit (Pips)</Label>
-                   <span className="text-xs text-slate-400">{formData.take_profit_pips} pips</span>
-                </div>
-                <Slider 
-                  value={[formData.take_profit_pips]} 
-                  min={5} 
-                  max={500} 
-                  step={5}
-                  onValueChange={([v]) => setFormData({...formData, take_profit_pips: v})}
-                  className="py-1"
-                />
+              <div className={`space-y-6 transition-opacity ${formData.use_ai_risk ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                      <Label>Risk Level</Label>
+                      <Select 
+                      value={formData.risk_level} 
+                      onValueChange={v => setFormData({...formData, risk_level: v})}
+                      >
+                      <SelectTrigger className="bg-slate-950 border-slate-800">
+                          <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="LOW">Low (Conservative)</SelectItem>
+                          <SelectItem value="MEDIUM">Medium (Balanced)</SelectItem>
+                          <SelectItem value="HIGH">High (Aggressive)</SelectItem>
+                      </SelectContent>
+                      </Select>
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Lot Size</Label>
+                      <Input 
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={formData.lot_size}
+                      onChange={e => setFormData({...formData, lot_size: parseFloat(e.target.value)})}
+                      className="bg-slate-950 border-slate-800"
+                      />
+                  </div>
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                  <div className="flex justify-between">
+                      <Label>Stop Loss (Pips)</Label>
+                      <span className="text-xs text-slate-400">{formData.stop_loss_pips} pips</span>
+                  </div>
+                  <Slider 
+                      value={[formData.stop_loss_pips]} 
+                      min={5} 
+                      max={200} 
+                      step={5}
+                      onValueChange={([v]) => setFormData({...formData, stop_loss_pips: v})}
+                      className="py-1"
+                  />
+                  </div>
+
+                  <div className="space-y-4">
+                  <div className="flex justify-between">
+                      <Label>Take Profit (Pips)</Label>
+                      <span className="text-xs text-slate-400">{formData.take_profit_pips} pips</span>
+                  </div>
+                  <Slider 
+                      value={[formData.take_profit_pips]} 
+                      min={5} 
+                      max={500} 
+                      step={5}
+                      onValueChange={([v]) => setFormData({...formData, take_profit_pips: v})}
+                      className="py-1"
+                  />
+                  </div>
               </div>
+              {formData.use_ai_risk && (
+                   <div className="text-xs text-emerald-400 text-center italic">
+                       AI will automatically override manual settings based on real-time market conditions.
+                   </div>
+              )}
             </TabsContent>
 
             {/* Schedule Tab */}
@@ -237,6 +259,22 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
             {/* AI Tab */}
             <TabsContent value="ai" className="space-y-6 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
+
+               <div className="flex items-center justify-between p-3 rounded bg-emerald-500/10 border border-emerald-500/20 mb-4">
+                  <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-emerald-400" />
+                      <div className="flex flex-col">
+                          <span className="text-sm font-medium text-emerald-400">Automated Order Execution</span>
+                          <span className="text-[10px] text-emerald-200/60">Allow AI to open/close trades on MT4/MT5 directly</span>
+                      </div>
+                  </div>
+                  <Switch 
+                      checked={formData.auto_execution || false} 
+                      onCheckedChange={v => setFormData({...formData, auto_execution: v})} 
+                      className="data-[state=checked]:bg-emerald-600"
+                  />
+              </div>
+
                <div className="space-y-4">
                 <div className="flex justify-between">
                    <Label>Minimum AI Confidence</Label>
