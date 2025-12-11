@@ -1,4 +1,6 @@
 import React, { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,9 +9,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Clock, Shield, BarChart, Settings } from 'lucide-react';
 
 export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialData }) {
+  const { data: availablePairs } = useQuery({
+    queryKey: ['pairs-list'],
+    queryFn: () => base44.entities.CurrencyPair.list(),
+    initialData: []
+  });
+
   const [formData, setFormData] = React.useState({
     name: '',
     strategy_type: 'AI_PREDICTIVE',
@@ -102,13 +111,30 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Active Pairs (Comma separated)</Label>
-                <Input 
-                  value={formData.pairs.join(', ')}
-                  onChange={e => setFormData({...formData, pairs: e.target.value.split(',').map(s => s.trim())})}
-                  className="bg-slate-950 border-slate-800"
-                  placeholder="EUR/USD, GBP/USD"
-                />
+                <Label>Active Pairs</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-md max-h-40 overflow-y-auto">
+                    {availablePairs.map(pair => (
+                        <Badge 
+                            key={pair.id}
+                            variant="outline"
+                            className={`cursor-pointer transition-all select-none ${formData.pairs.includes(pair.symbol) 
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30' 
+                                : 'text-slate-400 border-slate-700 hover:text-slate-200 hover:border-slate-500'}`}
+                            onClick={() => {
+                                const current = formData.pairs;
+                                if (current.includes(pair.symbol)) {
+                                    setFormData({...formData, pairs: current.filter(p => p !== pair.symbol)});
+                                } else {
+                                    setFormData({...formData, pairs: [...current, pair.symbol]});
+                                }
+                            }}
+                        >
+                            {pair.symbol}
+                        </Badge>
+                    ))}
+                    {availablePairs.length === 0 && <span className="text-xs text-slate-500">No pairs available. Please check Pairs tab.</span>}
+                </div>
+                <p className="text-[10px] text-slate-500">Select which currency pairs this bot should trade.</p>
               </div>
             </TabsContent>
 
