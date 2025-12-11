@@ -108,7 +108,7 @@ export default function Settings() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">Test Connection</Button>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all">Test Connection</Button>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -157,10 +157,10 @@ export default function Settings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:text-white">
+              <Button className="w-full justify-start bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
                 <Key className="w-4 h-4 mr-2" /> Change Password
               </Button>
-              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:text-white">
+              <Button className="w-full justify-start bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
                 <Smartphone className="w-4 h-4 mr-2" /> Enable 2FA
               </Button>
             </CardContent>
