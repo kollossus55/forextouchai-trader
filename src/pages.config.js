@@ -5,6 +5,9 @@ import Portfolio from './pages/Portfolio';
 import Analytics from './pages/Analytics';
 import Social from './pages/Social';
 import Alerts from './pages/Alerts';
+import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+import Admin from './pages/Admin';
 import __Layout from './Layout.jsx';
 
 
@@ -16,6 +19,9 @@ export const PAGES = {
     "Analytics": Analytics,
     "Social": Social,
     "Alerts": Alerts,
+    "Settings": Settings,
+    "Profile": Profile,
+    "Admin": Admin,
 }
 
 export const pagesConfig = {
