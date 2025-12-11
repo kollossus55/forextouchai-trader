@@ -7,13 +7,20 @@ import {
   Globe, 
   CreditCard,
   Monitor,
-  Key
+  Key,
+  Volume2,
+  Clock,
+  Moon,
+  Laptop,
+  Languages,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 
@@ -44,31 +51,98 @@ export default function Settings() {
         </TabsList>
         
         <TabsContent value="general" className="mt-6 space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Monitor className="w-5 h-5 text-blue-400" /> Display Settings
-              </CardTitle>
-              <CardDescription className="text-slate-400">Customize your dashboard appearance</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-slate-200">Dark Mode</Label>
-                  <p className="text-xs text-slate-500">Enable dark theme for the interface</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Monitor className="w-5 h-5 text-blue-400" /> Appearance
+                </CardTitle>
+                <CardDescription className="text-slate-400">Customize visual interface</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
+                  <div className="flex items-center gap-3">
+                    <Moon className="w-4 h-4 text-slate-400" />
+                    <div className="space-y-0.5">
+                      <Label className="text-slate-200">Dark Mode</Label>
+                      <p className="text-xs text-slate-500">Optimized for night trading</p>
+                    </div>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
                 </div>
-                <Switch checked={true} />
-              </div>
-              <Separator className="bg-slate-800" />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-slate-200">Compact View</Label>
-                  <p className="text-xs text-slate-500">Show more data with less spacing</p>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
+                  <div className="flex items-center gap-3">
+                    <Laptop className="w-4 h-4 text-slate-400" />
+                    <div className="space-y-0.5">
+                      <Label className="text-slate-200">Compact Density</Label>
+                      <p className="text-xs text-slate-500">Show more data on screen</p>
+                    </div>
+                  </div>
+                  <Switch className="data-[state=checked]:bg-emerald-600" />
                 </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-purple-400" /> Localization
+                </CardTitle>
+                <CardDescription className="text-slate-400">Language and region settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-200 flex items-center gap-2">
+                    <Languages className="w-3.5 h-3.5 text-slate-400" /> Interface Language
+                  </Label>
+                  <Select defaultValue="en">
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                      <SelectValue placeholder="Select Language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English (US)</SelectItem>
+                      <SelectItem value="es">Español</SelectItem>
+                      <SelectItem value="fr">Français</SelectItem>
+                      <SelectItem value="de">Deutsch</SelectItem>
+                      <SelectItem value="jp">日本語</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-200 flex items-center gap-2">
+                    <DollarSign className="w-3.5 h-3.5 text-slate-400" /> Base Currency
+                  </Label>
+                  <Select defaultValue="usd">
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                      <SelectValue placeholder="Select Currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="usd">USD - US Dollar</SelectItem>
+                      <SelectItem value="eur">EUR - Euro</SelectItem>
+                      <SelectItem value="gbp">GBP - British Pound</SelectItem>
+                      <SelectItem value="jpy">JPY - Japanese Yen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-200 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" /> Timezone
+                  </Label>
+                  <Select defaultValue="utc">
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                      <SelectValue placeholder="Select Timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="utc">UTC (GMT+0)</SelectItem>
+                      <SelectItem value="ny">New York (GMT-5)</SelectItem>
+                      <SelectItem value="london">London (GMT+0)</SelectItem>
+                      <SelectItem value="tokyo">Tokyo (GMT+9)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="trading" className="mt-6 space-y-6">
@@ -115,38 +189,103 @@ export default function Settings() {
 
         <TabsContent value="notifications" className="mt-6 space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Bell className="w-5 h-5 text-amber-400" /> Alert Preferences
-              </CardTitle>
-              <CardDescription className="text-slate-400">Choose how you want to be notified</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="space-y-1">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-amber-400" /> Notification Channels
+                </CardTitle>
+                <CardDescription className="text-slate-400">Global notification settings</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-emerald-400">Enable All</Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-slate-200">Trade Execution</Label>
-                  <p className="text-xs text-slate-500">Notify when a trade is opened or closed</p>
+            <CardContent className="space-y-6 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/30 border border-slate-800/30">
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="w-4 h-4 text-emerald-500" />
+                    <Label className="text-slate-200">Push Notifications</Label>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
                 </div>
-                <Switch checked={true} />
-              </div>
-              <Separator className="bg-slate-800" />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-slate-200">New AI Signals</Label>
-                  <p className="text-xs text-slate-500">Notify when a new high-confidence signal is found</p>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/30 border border-slate-800/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold">@</div>
+                    <Label className="text-slate-200">Email Alerts</Label>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
                 </div>
-                <Switch checked={true} />
-              </div>
-              <Separator className="bg-slate-800" />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-slate-200">Email Digest</Label>
-                  <p className="text-xs text-slate-500">Daily summary of performance</p>
-                </div>
-                <Switch />
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white text-base">Trading Activity</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-slate-300">Order Execution</Label>
+                    <p className="text-[10px] text-slate-500">Entry and exit notifications</p>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                </div>
+                <Separator className="bg-slate-800/50" />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-slate-300">Stop Loss / Take Profit</Label>
+                    <p className="text-[10px] text-slate-500">When limits are hit</p>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                </div>
+                <Separator className="bg-slate-800/50" />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-slate-300">Margin Calls</Label>
+                    <p className="text-[10px] text-slate-500">Critical account warnings</p>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white text-base">Market Intelligence</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-slate-300">AI Signals</Label>
+                    <p className="text-[10px] text-slate-500">New high-probability setups</p>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                </div>
+                <Separator className="bg-slate-800/50" />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-slate-300">High Impact News</Label>
+                    <p className="text-[10px] text-slate-500">Major economic events</p>
+                  </div>
+                  <Switch className="data-[state=checked]:bg-emerald-600" />
+                </div>
+                <Separator className="bg-slate-800/50" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="space-y-0.5">
+                      <Label className="text-slate-300">Sound Effects</Label>
+                      <p className="text-[10px] text-slate-500">Play sounds on alerts</p>
+                    </div>
+                  </div>
+                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="security" className="mt-6 space-y-6">
