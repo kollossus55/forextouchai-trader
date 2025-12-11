@@ -107,6 +107,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                     <SelectItem value="SCALPING">High Frequency Scalping</SelectItem>
                     <SelectItem value="SWING">Swing Trading</SelectItem>
                     <SelectItem value="DAY_TRADING">Day Trading</SelectItem>
+                    <SelectItem value="PRICE_ACTION">Price Action Analysis</SelectItem>
+                    <SelectItem value="PATTERN_TRADING">Chart Pattern Trading</SelectItem>
+                    <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

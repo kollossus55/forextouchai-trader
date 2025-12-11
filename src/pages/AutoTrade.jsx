@@ -165,12 +165,16 @@ export default function AutoTrade() {
                    </div>
                    <span className="text-slate-200 font-mono text-sm">{bot.lot_size || 0.1}</span>
                 </div>
-                <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
-                   <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
-                     <BrainCircuit className="w-3 h-3" />
-                     <span>Min Conf.</span>
+                <div className="bg-emerald-500/10 p-2 rounded border border-emerald-500/30 flex flex-col justify-center relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-8 h-8 bg-emerald-500/10 rounded-bl-full -mr-1 -mt-1 transition-all group-hover:bg-emerald-500/20"></div>
+                   <div className="flex items-center gap-1.5 text-emerald-300/80 text-[10px] mb-0.5 font-medium z-10">
+                     <BrainCircuit className="w-3.5 h-3.5" />
+                     <span>AI Confidence</span>
                    </div>
-                   <span className="text-emerald-400 font-mono text-sm">{bot.min_confidence || 80}%</span>
+                   <div className="flex items-end gap-1 z-10">
+                      <span className="text-emerald-400 font-bold text-xl tracking-tight">{bot.min_confidence || 80}</span>
+                      <span className="text-emerald-500/70 text-xs mb-1 font-medium">%</span>
+                   </div>
                 </div>
                 <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
