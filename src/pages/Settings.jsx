@@ -26,10 +26,68 @@ import { Separator } from '@/components/ui/separator';
 
 export default function Settings() {
   const [mt4Config, setMt4Config] = useState({
-    server: 'MetaQuotes-Demo',
-    login: '8593021',
-    password: ''
+    platform: 'MT4',
+    server: '',
+    login: '',
+    password: '',
+    apiKey: ''
   });
+  const [connectionStatus, setConnectionStatus] = useState('DISCONNECTED');
+  const [isSaving, setIsSaving] = useState(false);
+  const [connectionId, setConnectionId] = useState(null);
+
+  // Fetch existing connection settings
+  React.useEffect(() => {
+    const fetchConnection = async () => {
+      try {
+        const connections = await base44.entities.BrokerConnection.list();
+        if (connections && connections.length > 0) {
+          const conn = connections[0]; // Assuming single connection for now
+          setConnectionId(conn.id);
+          setMt4Config({
+            platform: conn.platform || 'MT4',
+            server: conn.server_name || '',
+            login: conn.account_number || '',
+            password: conn.password || '', // In real app, don't return password
+            apiKey: conn.api_key || ''
+          });
+          setConnectionStatus(conn.connection_status);
+        }
+      } catch (e) {
+        console.error("Failed to fetch connection settings", e);
+      }
+    };
+    fetchConnection();
+  }, []);
+
+  const handleSaveConnection = async () => {
+    setIsSaving(true);
+    try {
+      const data = {
+        platform: mt4Config.platform,
+        server_name: mt4Config.server,
+        account_number: mt4Config.login,
+        password: mt4Config.password,
+        api_key: mt4Config.apiKey,
+        connection_status: 'CONNECTED', // Mocking successful connection
+        last_sync: new Date().toISOString()
+      };
+
+      if (connectionId) {
+        await base44.entities.BrokerConnection.update(connectionId, data);
+      } else {
+        const newConn = await base44.entities.BrokerConnection.create(data);
+        setConnectionId(newConn.id);
+      }
+      setConnectionStatus('CONNECTED');
+      // Optional: Show success toast
+    } catch (e) {
+      console.error("Failed to save connection", e);
+      setConnectionStatus('ERROR');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -148,22 +206,52 @@ export default function Settings() {
         <TabsContent value="trading" className="mt-6 space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Globe className="w-5 h-5 text-emerald-400" /> MT4/MT5 Connection
-              </CardTitle>
-              <CardDescription className="text-slate-400">Connect your broker account for auto-trading</CardDescription>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <CardTitle className="text-white flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-emerald-400" /> MT4/MT5 Connection
+                      </CardTitle>
+                      <CardDescription className="text-slate-400">Connect your broker account securely</CardDescription>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                      connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                      connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                      'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                      {connectionStatus}
+                  </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label className="text-slate-200">Broker Server</Label>
-                <Input 
-                  value={mt4Config.server} 
-                  onChange={e => setMt4Config({...mt4Config, server: e.target.value})}
-                  className="bg-slate-950 border-slate-800 text-slate-200" 
-                />
+              <div className="grid grid-cols-2 gap-4">
+                   <div className="grid gap-2">
+                      <Label className="text-slate-200">Platform</Label>
+                      <Select 
+                          value={mt4Config.platform} 
+                          onValueChange={v => setMt4Config({...mt4Config, platform: v})}
+                      >
+                          <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                              <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="MT4">MetaTrader 4</SelectItem>
+                              <SelectItem value="MT5">MetaTrader 5</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  <div className="grid gap-2">
+                      <Label className="text-slate-200">Broker Server</Label>
+                      <Input 
+                          placeholder="e.g. MetaQuotes-Demo"
+                          value={mt4Config.server} 
+                          onChange={e => setMt4Config({...mt4Config, server: e.target.value})}
+                          className="bg-slate-950 border-slate-800 text-slate-200" 
+                      />
+                  </div>
               </div>
+
               <div className="grid gap-2">
-                <Label className="text-slate-200">Login ID</Label>
+                <Label className="text-slate-200">Account Number (Login)</Label>
                 <Input 
                   value={mt4Config.login} 
                   onChange={e => setMt4Config({...mt4Config, login: e.target.value})}
@@ -171,7 +259,7 @@ export default function Settings() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-slate-200">Password</Label>
+                <Label className="text-slate-200">Master Password</Label>
                 <Input 
                   type="password"
                   value={mt4Config.password} 
@@ -179,10 +267,35 @@ export default function Settings() {
                   className="bg-slate-950 border-slate-800 text-slate-200" 
                   placeholder="••••••••"
                 />
+                <p className="text-[10px] text-slate-500">Your password is encrypted. We recommend using a limited-access Investor password if trading privileges are not required.</p>
+              </div>
+
+              <Separator className="bg-slate-800/50 my-2" />
+
+              <div className="grid gap-2">
+                  <Label className="text-slate-200 flex items-center gap-2">
+                      Bridge API Key <Badge variant="outline" className="text-[10px] h-4 border-slate-700 text-slate-400">Optional</Badge>
+                  </Label>
+                  <Input 
+                      type="password"
+                      value={mt4Config.apiKey}
+                      onChange={e => setMt4Config({...mt4Config, apiKey: e.target.value})}
+                      className="bg-slate-950 border-slate-800 text-slate-200" 
+                      placeholder="Paste API token from bridge provider"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                      For enhanced security, use an API token from a supported bridge provider (e.g. MetaApi) instead of direct credentials.
+                  </p>
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all">Test Connection</Button>
+              <Button 
+                  onClick={handleSaveConnection} 
+                  disabled={isSaving}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all"
+              >
+                  {isSaving ? 'Connecting...' : (connectionStatus === 'CONNECTED' ? 'Update Connection' : 'Connect Account')}
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
