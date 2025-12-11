@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { 
   Search, 
@@ -7,19 +7,32 @@ import {
   TrendingDown, 
   BarChart2, 
   ArrowRightLeft,
-  Filter,
   BrainCircuit,
-  Target
+  CheckCircle2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
 
 export default function Pairs() {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [selectedPair, setSelectedPair] = useState(null);
+  const [tradeType, setTradeType] = useState('BUY');
+  const [volume, setVolume] = useState('0.10');
   
   const { data: pairs } = useQuery({
     queryKey: ['pairs'],
@@ -27,7 +40,36 @@ export default function Pairs() {
     initialData: []
   });
 
-  // Helper to categorize if not set in DB (fallback)
+  const createTrade = useMutation({
+    mutationFn: (data) => base44.entities.Trade.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['trades-home']); // Refresh dashboard trades
+      setTradeModalOpen(false);
+      // Optional: Show success toast or notification
+    }
+  });
+
+  const handleTradeClick = (pair, type) => {
+    setSelectedPair(pair);
+    setTradeType(type);
+    setTradeModalOpen(true);
+  };
+
+  const executeTrade = () => {
+    if (!selectedPair) return;
+    
+    createTrade.mutate({
+      pair: selectedPair.symbol,
+      type: tradeType,
+      lot_size: parseFloat(volume),
+      open_price: selectedPair.current_price, // simplified execution
+      close_price: 0,
+      pnl: 0,
+      status: 'OPEN',
+      is_auto: false
+    });
+  };
+
   const getCategory = (pair) => {
     if (pair.category) return pair.category;
     const majors = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD'];
@@ -105,13 +147,13 @@ export default function Pairs() {
         <div className="grid grid-cols-2 gap-2">
           <Button 
             className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-600/20 transition-all"
-            onClick={() => console.log('Buy', pair.symbol)}
+            onClick={() => handleTradeClick(pair, 'BUY')}
           >
             Buy
           </Button>
           <Button 
             className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-600/20 transition-all"
-            onClick={() => console.log('Sell', pair.symbol)}
+            onClick={() => handleTradeClick(pair, 'SELL')}
           >
             Sell
           </Button>
@@ -165,6 +207,49 @@ export default function Pairs() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-emerald-500" />
+              Execute Market Order
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {selectedPair?.symbol} • <span className={tradeType === 'BUY' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{tradeType}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-slate-400">Volume</Label>
+              <Input 
+                value={volume}
+                onChange={(e) => setVolume(e.target.value)}
+                className="col-span-3 bg-slate-950 border-slate-800" 
+                type="number"
+                step="0.01"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-slate-400">Price</Label>
+              <div className="col-span-3 font-mono text-slate-200">
+                {selectedPair?.current_price}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTradeModalOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+              Cancel
+            </Button>
+            <Button 
+              onClick={executeTrade}
+              className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}
+            >
+              {tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
