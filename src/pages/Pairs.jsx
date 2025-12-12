@@ -113,11 +113,14 @@ export default function Pairs() {
   const executeTrade = () => {
     if (!selectedPair) return;
     
+    // Use the simulated live price for execution accuracy
+    const executionPrice = liveData[selectedPair.id]?.current_price || selectedPair.current_price;
+
     createTrade.mutate({
       pair: selectedPair.symbol,
       type: tradeType,
       lot_size: parseFloat(volume),
-      open_price: selectedPair.current_price, // simplified execution
+      open_price: executionPrice,
       close_price: 0,
       pnl: 0,
       status: 'OPEN',
@@ -344,7 +347,7 @@ export default function Pairs() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right text-slate-400">Price</Label>
               <div className="col-span-3 font-mono text-slate-200">
-                {selectedPair?.current_price}
+                {selectedPair && (liveData[selectedPair.id]?.current_price || selectedPair.current_price).toFixed(5)}
               </div>
             </div>
           </div>
