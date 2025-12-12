@@ -13,8 +13,9 @@ import {
   PieChart,
   BarChart3,
   BrainCircuit,
-  Zap
-} from 'lucide-react';
+  Zap,
+  ExternalLink
+  } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -453,9 +454,20 @@ export default function Overview() {
                         </span>
                       </div>
                       <span className="font-bold text-slate-300 text-xs">{event.currency}</span>
-                    </div>
-                    <p className="text-sm font-medium text-slate-200 mb-2">{event.title}</p>
-                    <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-500">
+                      </div>
+                      <div className="flex items-center justify-between mb-2 group/link">
+                      <p className="text-sm font-medium text-slate-200">{event.title}</p>
+                      <a 
+                          href={event.url || `https://www.google.com/search?q=${encodeURIComponent(event.title + " " + event.currency + " economic event")}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="opacity-0 group-hover/link:opacity-100 transition-opacity p-1 hover:bg-slate-800 rounded"
+                          title="View Event Details"
+                      >
+                          <ExternalLink className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                      </a>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-500">
                       <div>
                         <span className="block text-slate-600">Actual</span>
                         <span className="text-slate-300 font-mono">{event.actual || '--'}</span>
