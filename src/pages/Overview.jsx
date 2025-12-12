@@ -61,7 +61,8 @@ export default function Overview() {
 
   const { data: trades } = useQuery({
     queryKey: ['trades-home'],
-    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 10),
+    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 10),
+    refetchInterval: 3000, // Refresh UI every 3s to show live PnL updates
     initialData: []
   });
 

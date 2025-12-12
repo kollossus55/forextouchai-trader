@@ -212,7 +212,7 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.29"
+#property version   "1.30"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
@@ -226,7 +226,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.29 Initialized - Stealth Mode Added");
+   Print("ForexTouchAI Bridge v1.30 Initialized - Full 2-Way Sync");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -367,17 +367,59 @@ void OnTick()
    if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
       lastSync = TimeCurrent();
 
+      // --- PART 1: SEND ACCOUNT & TRADE DATA TO APP (POST) ---
+      string syncJson = "{\"account\":{" 
+          + "\"balance\":" + DoubleToString(AccountBalance(), 2) + ","
+          + "\"equity\":" + DoubleToString(AccountEquity(), 2) + ","
+          + "\"margin\":" + DoubleToString(AccountMargin(), 2) + ","
+          + "\"free_margin\":" + DoubleToString(AccountFreeMargin(), 2) + ","
+          + "\"margin_level\":" + DoubleToString(AccountMargin() > 0 ? AccountEquity()/AccountMargin()*100 : 0, 2)
+          + "}, \"trades\":[";
+
+      int tradeCount = 0;
+      for(int i=0; i<OrdersTotal(); i++) {
+         if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+            if(tradeCount > 0) syncJson += ",";
+            string type = (OrderType() == OP_BUY) ? "BUY" : "SELL";
+            double currentPrice = (OrderType() == OP_BUY) ? MarketInfo(OrderSymbol(), MODE_BID) : MarketInfo(OrderSymbol(), MODE_ASK);
+
+            syncJson += "{" 
+                + "\"ticket\":" + IntegerToString(OrderTicket()) + ","
+                + "\"symbol\":\"" + OrderSymbol() + "\","
+                + "\"type\":\"" + type + "\","
+                + "\"lots\":" + DoubleToString(OrderLots(), 2) + ","
+                + "\"open_price\":" + DoubleToString(OrderOpenPrice(), 5) + ","
+                + "\"current_price\":" + DoubleToString(currentPrice, 5) + ","
+                + "\"pnl\":" + DoubleToString(OrderProfit() + OrderSwap() + OrderCommission(), 2) + ","
+                + "\"magic\":" + IntegerToString(OrderMagicNumber())
+                + "}";
+            tradeCount++;
+         }
+      }
+      syncJson += "]}";
+
       string cookie=NULL, headers; 
-      char post[], result[];
+      char postData[];
+      StringToCharArray(syncJson, postData);
+      char resultData[];
 
-      // 1. Fetch Latest Pending Signal from Backend Function
-      // Note: This calls the 'bridge' function we created
+      // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
+      int res = WebRequest("POST", url, "Content-Type: application/json\r\n", 500, postData, resultData, headers);
 
-      int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
+      if(res != 200) {
+          if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS.");
+          else Print("Sync Post Error: " + IntegerToString(res));
+      }
 
-      if (res == 200) {
-         string json = CharArrayToString(result);
+      // --- PART 2: FETCH SIGNALS (GET) ---
+      // Re-using the same endpoint with GET for signals
+      char getPost[], getResult[];
+      string getHeaders;
+      int getRes = WebRequest("GET", url, cookie, NULL, 500, getPost, 0, getResult, getHeaders);
+
+      if (getRes == 200) {
+         string json = CharArrayToString(getResult);
 
          string id = GetJsonValue(json, "id");
          string status = GetJsonValue(json, "status");
