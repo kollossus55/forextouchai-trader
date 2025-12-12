@@ -181,7 +181,7 @@ void OnTick()
       Print("Syncing with ForexTouchAI...");
    }
   }
-//+------------------------------------------------------------------+\`;
+//+------------------------------------------------------------------+`;
 
     const element = document.createElement("a");
     const file = new Blob([mql4Code], {type: 'text/plain'});
