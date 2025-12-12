@@ -212,7 +212,7 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.25"
+#property version   "1.26"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
@@ -225,7 +225,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.25 Initialized");
+   Print("ForexTouchAI Bridge v1.26 Initialized");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -338,7 +338,8 @@ void OnTick()
          }
 
       } else {
-         Print("Sync Error: " + IntegerToString(res));
+         if (res == 404 || res == 401) Print("Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS in App Settings.");
+         else Print("Sync Error: " + IntegerToString(res));
       }
    }
   }
