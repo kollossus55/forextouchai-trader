@@ -239,29 +239,40 @@ void OnDeinit(const int reason)
 void OnTick()
   {
    static datetime lastSync = 0;
-   // Sync every 1 second for faster trade execution
-   if(TimeCurrent() - lastSync >= 1) { 
+   if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
       lastSync = TimeCurrent();
 
-      // 1. Send Account Info (Balance, Equity) to Dashboard
-      string payload = "account=" + IntegerToString(AccountNumber()) + 
-                     "&balance=" + DoubleToString(AccountBalance(), 2) + 
-                     "&equity=" + DoubleToString(AccountEquity(), 2) +
-                     "&margin=" + DoubleToString(AccountMargin(), 2);
+      // 1. Send Heartbeat & Account Data
+      string cookie=NULL, headers; 
+      char post[], result[];
+      string url = AppUrl + "/api/integrations/mt4/sync";
 
-      // Send data to API
-      // WebRequest("POST", AppUrl + "/api/sync", headers, timeout, data, result, response_headers);
+      // 2. Fetch Pending Trades
+      // Note: In a real environment, you would parse the JSON response here.
+      // For this version, we will check the response for trade commands.
 
-      // 2. Check for NEW pending orders from Dashboard
-      // This simulation assumes the API returns a list of pending orders
-      // In a real implementation, you would parse the JSON response
+      int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
 
-      Print("Syncing with ForexTouchAI: Connected | Balance: " + DoubleToString(AccountBalance(), 2));
+      if (res == 200) {
+         string response = CharArrayToString(result);
+         Print("Server Response: " + StringSubstr(response, 0, 50) + "...");
 
-      // MOCK: Check if any new trades need execution
-      // logic to OrderSend(Symbol(), OP_SELL/OP_BUY, ...);
+         // LOGIC TO PARSE AND EXECUTE TRADES
+         // Example: if response contains "BUY EURUSD"
+         // OrderSend("EURUSD", OP_BUY, 0.1, Ask, 3, 0, 0, "AI Trade", 0, 0, clrGreen);
+      } else {
+         Print("Sync Error: " + IntegerToString(res) + " - Check URL and WebRequest permissions");
+      }
    }
   }
+
+// Helper to execute trades
+void ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
+   double price = (cmd == OP_BUY) ? MarketInfo(symbol, MODE_ASK) : MarketInfo(symbol, MODE_BID);
+   int ticket = OrderSend(symbol, cmd, volume, price, 3, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
+   if(ticket < 0) Print("OrderSend failed with error #", GetLastError());
+   else Print("Trade Executed Successfully: Ticket #", ticket);
+}
 //+------------------------------------------------------------------+`;
 
     const element = document.createElement("a");
