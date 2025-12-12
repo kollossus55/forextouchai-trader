@@ -133,12 +133,15 @@ export default function Pairs() {
 
   const filteredPairs = pairs.filter(pair => 
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
+
+  const maxConfidence = Math.max(...pairs.map(p => p.ai_confidence || 0));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
 
   const PairCard = ({ pair }) => {
+    const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 0;
     // Use simulated live data if available, else fallback to static
     const live = liveData[pair.id] || { 
       current_price: pair.current_price, 
@@ -147,12 +150,27 @@ export default function Pairs() {
     };
 
     return (
-      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm hover:border-emerald-500/30 transition-all group overflow-hidden">
+      <Card className={`bg-slate-900/50 backdrop-blur-sm transition-all group overflow-hidden ${
+          isTopPick 
+            ? 'border-2 border-amber-400/50 shadow-[0_0_20px_-5px_rgba(251,191,36,0.2)]' 
+            : 'border border-slate-800 hover:border-emerald-500/30'
+        }`}>
         <div className={`h-1 w-full ${
+          isTopPick ? 'bg-gradient-to-r from-amber-300 via-amber-500 to-amber-300' :
           pair.ai_signal === 'BUY' ? 'bg-emerald-500' : 
           pair.ai_signal === 'SELL' ? 'bg-rose-500' : 'bg-slate-700'
         }`} />
-        <CardContent className="p-5">
+        <CardContent className="p-5 relative">
+          {isTopPick && (
+            <div className="absolute -top-3 -right-3">
+               <span className="relative flex h-6 w-6">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-6 w-6 bg-amber-500 items-center justify-center">
+                    <Activity className="h-3 w-3 text-amber-950" />
+                  </span>
+               </span>
+            </div>
+          )}
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex items-center justify-center font-bold text-slate-200 shadow-inner">
@@ -161,9 +179,7 @@ export default function Pairs() {
               <div>
                 <h3 className="font-bold text-lg text-white leading-none flex items-center gap-2">
                   {pair.symbol}
-                  <div className="flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-                  </div>
+                  {isTopPick && <Badge className="bg-amber-500/20 text-amber-300 border-0 text-[10px] px-1 py-0 h-4">Top Pick</Badge>}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-[10px] h-5 border-slate-700 text-slate-400">
