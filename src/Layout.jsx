@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { createPageUrl } from '@/utils';
+import { Toaster } from 'sonner';
 
 export default function Layout({ children }) {
   const location = useLocation();
@@ -117,6 +118,7 @@ export default function Layout({ children }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Toaster position="top-right" theme="dark" />
         {/* Header */}
         <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center justify-between px-4 lg:px-8 sticky top-0 z-40">
           <button 

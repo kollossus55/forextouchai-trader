@@ -29,6 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 export default function Settings() {
   const [mt4Config, setMt4Config] = useState({
@@ -49,6 +50,18 @@ export default function Settings() {
   const [isSaving, setIsSaving] = useState(false);
   const [connectionId, setConnectionId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isTestLoading, setIsTestLoading] = useState(false);
+  const [user, setUser] = useState(null);
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const u = await base44.auth.me();
+        setUser(u);
+      } catch (e) { console.error(e); }
+    };
+    fetchUser();
+  }, []);
 
   // Fetch existing connection settings
   React.useEffect(() => {
@@ -146,6 +159,47 @@ export default function Settings() {
       setErrorMessage('Test Failed: Connection timed out');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    setIsTestLoading(true);
+    try {
+        await base44.entities.Alert.create({
+            title: "Test Notification",
+            message: "This is a test push notification from Settings.",
+            type: "INFO",
+            is_read: false
+        });
+        toast.info("Test Notification Received", {
+            description: "This is how in-app alerts will appear.",
+            duration: 4000
+        });
+    } catch (e) {
+        toast.error("Failed to send test alert");
+    } finally {
+        setIsTestLoading(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!user?.email) {
+        toast.error("User email not found");
+        return;
+    }
+    setIsTestLoading(true);
+    try {
+        await base44.integrations.Core.SendEmail({
+            to: user.email,
+            subject: "ForexTouchAI: Test Alert",
+            body: "This is a test email alert to verify your notification settings. You will receive alerts here for major market events and trade executions."
+        });
+        toast.success(`Test email sent to ${user.email}`);
+    } catch (e) {
+        console.error(e);
+        toast.error("Failed to send test email. Please try again.");
+    } finally {
+        setIsTestLoading(false);
     }
   };
 
@@ -496,16 +550,32 @@ void OnTick()
                 <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/30 border border-slate-800/30">
                   <div className="flex items-center gap-3">
                     <Smartphone className="w-4 h-4 text-emerald-500" />
-                    <Label className="text-slate-200">Push Notifications</Label>
+                    <div>
+                        <Label className="text-slate-200 block">Push Notifications</Label>
+                        <p className="text-[10px] text-slate-500">Receive in-app toasts and alerts</p>
+                    </div>
                   </div>
-                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                  <div className="flex items-center gap-3">
+                      <Button variant="outline" size="sm" onClick={handleTestPush} disabled={isTestLoading} className="h-7 text-xs border-slate-700 text-slate-400">
+                          Test
+                      </Button>
+                      <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/30 border border-slate-800/30">
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold">@</div>
-                    <Label className="text-slate-200">Email Alerts</Label>
+                    <div>
+                        <Label className="text-slate-200 block">Email Alerts</Label>
+                        <p className="text-[10px] text-slate-500">Sent to {user?.email || 'your email'}</p>
+                    </div>
                   </div>
-                  <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                  <div className="flex items-center gap-3">
+                      <Button variant="outline" size="sm" onClick={handleTestEmail} disabled={isTestLoading} className="h-7 text-xs border-slate-700 text-slate-400">
+                          Test
+                      </Button>
+                      <Switch checked={true} className="data-[state=checked]:bg-emerald-600" />
+                  </div>
                 </div>
               </div>
             </CardContent>
