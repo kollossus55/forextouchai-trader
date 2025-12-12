@@ -91,20 +91,20 @@ export default function Overview() {
     }, 2000);
   };
 
-  // Mock MT4 Account Data (Balance/Equity would come from live API in production)
+  // MT4 Account Data
   const mt4Account = {
     broker: activeConnection ? activeConnection.server_name.split('-')[0] : "Demo Broker",
     server: activeConnection ? activeConnection.server_name : "Demo-Server",
     accountNumber: activeConnection ? activeConnection.account_number : "---",
     platform: activeConnection ? activeConnection.platform : "MT4",
-    leverage: "1:500",
-    currency: "USD",
-    balance: 24560.00,
-    equity: 24684.50,
-    margin: 1245.00,
-    freeMargin: 23439.50,
-    marginLevel: 1982.69,
-    profit: 124.50
+    leverage: activeConnection?.leverage || "1:500",
+    currency: activeConnection?.currency || "USD",
+    balance: activeConnection?.balance || 0,
+    equity: activeConnection?.equity || 0,
+    margin: activeConnection?.margin || 0,
+    freeMargin: activeConnection?.free_margin || 0,
+    marginLevel: activeConnection?.margin_level || 0,
+    profit: (activeConnection?.equity || 0) - (activeConnection?.balance || 0)
   };
 
   const refreshConnection = () => {
