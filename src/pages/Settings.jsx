@@ -62,6 +62,11 @@ export default function Settings() {
   }, []);
 
   const handleSaveConnection = async () => {
+    if (!mt4Config.server || !mt4Config.login) {
+       setConnectionStatus('ERROR');
+       return;
+    }
+
     setIsSaving(true);
     try {
       const data = {
@@ -81,7 +86,6 @@ export default function Settings() {
         setConnectionId(newConn.id);
       }
       setConnectionStatus('CONNECTED');
-      // Optional: Show success toast
     } catch (e) {
       console.error("Failed to save connection", e);
       setConnectionStatus('ERROR');
@@ -219,7 +223,7 @@ export default function Settings() {
                       connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
                       'bg-slate-800 text-slate-400 border-slate-700'
                   }`}>
-                      {connectionStatus}
+                      {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
                   </div>
               </div>
             </CardHeader>
@@ -294,10 +298,15 @@ export default function Settings() {
                   onClick={handleSaveConnection} 
                   disabled={isSaving}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all"
-              >
+                  >
                   {isSaving ? 'Connecting...' : (connectionStatus === 'CONNECTED' ? 'Update Connection' : 'Connect Account')}
-              </Button>
-            </CardFooter>
+                  </Button>
+                  {connectionStatus === 'ERROR' && (
+                  <p className="text-xs text-rose-400 text-center mt-2">
+                     {!mt4Config.server || !mt4Config.login ? 'Please fill in Broker Server and Account Number' : 'Failed to connect. Please check credentials.'}
+                  </p>
+                  )}
+                  </CardFooter>
           </Card>
 
           <Card className="bg-slate-900/50 border-slate-800">
