@@ -504,7 +504,7 @@ void OnTick()
                 <Laptop className="w-5 h-5 text-blue-400" /> Bridge EA Installation
               </CardTitle>
               <CardDescription className="text-slate-400">
-                Required if you are hosting MT4/MT5 on your own VPS or PC.
+                Required to sync Balance, Equity, and Live Trades from your terminal to this dashboard.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
