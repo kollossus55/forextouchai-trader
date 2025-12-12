@@ -14,7 +14,11 @@ import {
   Moon,
   Laptop,
   Languages,
-  DollarSign
+  DollarSign,
+  Database,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -33,6 +37,13 @@ export default function Settings() {
     login: '',
     password: '',
     apiKey: ''
+  });
+
+  const [dataSources, setDataSources] = useState({
+    crypto: 'coincap',
+    forex: 'openex',
+    cryptoKey: '',
+    forexKey: ''
   });
   const [connectionStatus, setConnectionStatus] = useState('DISCONNECTED');
   const [isSaving, setIsSaving] = useState(false);
@@ -208,6 +219,7 @@ void OnTick()
           <TabsTrigger value="general" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">General</TabsTrigger>
           <TabsTrigger value="trading" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">Trading Platform</TabsTrigger>
           <TabsTrigger value="notifications" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">Notifications</TabsTrigger>
+          <TabsTrigger value="market_data" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">Market Data</TabsTrigger>
           <TabsTrigger value="security" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">Security</TabsTrigger>
         </TabsList>
         
@@ -564,6 +576,126 @@ void OnTick()
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="market_data" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <div className="flex justify-between">
+                  <div>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Database className="w-5 h-5 text-amber-400" /> Crypto Feed
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">Digital asset price sources</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="h-6 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                     <CheckCircle2 className="w-3 h-3 mr-1" /> Active
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-200">Provider</Label>
+                  <Select 
+                    value={dataSources.crypto} 
+                    onValueChange={(v) => setDataSources({...dataSources, crypto: v})}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="coincap">CoinCap (Free / Public)</SelectItem>
+                      <SelectItem value="coingecko">CoinGecko (Free / Public)</SelectItem>
+                      <SelectItem value="binance">Binance API (Requires Key)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {dataSources.crypto === 'binance' && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2">
+                    <Label className="text-slate-200">API Key</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Binance API Key"
+                      value={dataSources.cryptoKey}
+                      onChange={(e) => setDataSources({...dataSources, cryptoKey: e.target.value})}
+                      className="bg-slate-950 border-slate-800 text-slate-200" 
+                    />
+                  </div>
+                )}
+
+                <div className="bg-slate-950/30 p-3 rounded border border-slate-800/50 flex items-start gap-2">
+                   <RefreshCw className="w-4 h-4 text-slate-500 mt-0.5" />
+                   <div className="space-y-1">
+                     <p className="text-xs text-slate-300">Update Frequency: <strong>Real-time</strong></p>
+                     <p className="text-[10px] text-slate-500">Supports BTC, ETH, SOL, XRP and major alts.</p>
+                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <div className="flex justify-between">
+                  <div>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-blue-400" /> Forex Feed
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">Fiat currency exchange rates</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="h-6 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                     <CheckCircle2 className="w-3 h-3 mr-1" /> Active
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-200">Provider</Label>
+                  <Select 
+                    value={dataSources.forex} 
+                    onValueChange={(v) => setDataSources({...dataSources, forex: v})}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openex">Open Exchange Rates (Free)</SelectItem>
+                      <SelectItem value="alphavantage">Alpha Vantage (API Key)</SelectItem>
+                      <SelectItem value="fixer">Fixer.io (API Key)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(dataSources.forex === 'alphavantage' || dataSources.forex === 'fixer') && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2">
+                    <Label className="text-slate-200">API Key</Label>
+                    <Input 
+                      type="password"
+                      placeholder={`Paste your ${dataSources.forex === 'alphavantage' ? 'Alpha Vantage' : 'Fixer.io'} Key`}
+                      value={dataSources.forexKey}
+                      onChange={(e) => setDataSources({...dataSources, forexKey: e.target.value})}
+                      className="bg-slate-950 border-slate-800 text-slate-200" 
+                    />
+                  </div>
+                )}
+
+                <div className="bg-slate-950/30 p-3 rounded border border-slate-800/50 flex items-start gap-2">
+                   <AlertCircle className="w-4 h-4 text-slate-500 mt-0.5" />
+                   <div className="space-y-1">
+                     <p className="text-xs text-slate-300">Update Frequency: <strong>15 min / Daily</strong></p>
+                     <p className="text-[10px] text-slate-500">Free tier providers may have rate limits or delayed data.</p>
+                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="flex justify-end">
+            <Button className="bg-emerald-600 hover:bg-emerald-700">
+               Save Data Settings
+            </Button>
           </div>
         </TabsContent>
 
