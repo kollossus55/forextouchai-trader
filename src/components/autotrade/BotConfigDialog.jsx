@@ -183,7 +183,10 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                       step="0.01"
                       min="0.01"
                       value={formData.lot_size}
-                      onChange={e => setFormData({...formData, lot_size: parseFloat(e.target.value)})}
+                      onChange={e => {
+                    const val = parseFloat(e.target.value);
+                    setFormData({...formData, lot_size: isNaN(val) ? 0.1 : val});
+                  }}
                       className="bg-slate-950 border-slate-800"
                       />
                   </div>
