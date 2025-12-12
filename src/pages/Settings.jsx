@@ -321,7 +321,7 @@ export default function Settings() {
                 </ol>
               </div>
               <div className="flex items-center gap-4">
-                <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800">
+                <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all">
                   <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
                 </Button>
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white ml-auto">
