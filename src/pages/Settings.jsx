@@ -345,15 +345,15 @@ export default function Settings() {
                               variant="outline" 
                               onClick={handleTestConnection}
                               disabled={isSaving}
-                              className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              className="flex-1 bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 hover:border-blue-500/30 transition-all"
                           >
                               Test Connection
                           </Button>
                           <Button 
-                              variant="destructive" 
+                              variant="outline" 
                               onClick={handleDisconnect}
                               disabled={isSaving}
-                              className="flex-1 bg-rose-900/20 hover:bg-rose-900/40 border border-rose-800/50 text-rose-300 hover:text-rose-200"
+                              className="flex-1 bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30 transition-all"
                           >
                               Disconnect
                           </Button>
