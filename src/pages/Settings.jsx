@@ -139,7 +139,7 @@ export default function Settings() {
   };
 
   const handleDownloadBridge = () => {
-    const mql4Code = \`//+------------------------------------------------------------------+
+    const mql4Code = `//+------------------------------------------------------------------+
 //|                                          ForexTouchAI_Bridge.mq4 |
 //|                                     Copyright 2024, ForexTouchAI |
 //|                                       https://www.forextouchai.com |
