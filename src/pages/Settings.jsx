@@ -242,17 +242,24 @@ void OnTick()
    // Sync every 1 second for faster trade execution
    if(TimeCurrent() - lastSync >= 1) { 
       lastSync = TimeCurrent();
-      
+
       // 1. Send Account Info (Balance, Equity) to Dashboard
+      string payload = "account=" + IntegerToString(AccountNumber()) + 
+                     "&balance=" + DoubleToString(AccountBalance(), 2) + 
+                     "&equity=" + DoubleToString(AccountEquity(), 2) +
+                     "&margin=" + DoubleToString(AccountMargin(), 2);
+
+      // Send data to API
+      // WebRequest("POST", AppUrl + "/api/sync", headers, timeout, data, result, response_headers);
+
       // 2. Check for NEW pending orders from Dashboard
-      
-      // Simulation of Order Execution Loop:
-      // if (NewOrderFound) {
-      //    OrderSend(Symbol(), OP_SELL/OP_BUY, ...);
-      //    Print("Executing Remote Order: " + Symbol());
-      // }
-      
-      Print("Syncing with ForexTouchAI: Connected");
+      // This simulation assumes the API returns a list of pending orders
+      // In a real implementation, you would parse the JSON response
+
+      Print("Syncing with ForexTouchAI: Connected | Balance: " + DoubleToString(AccountBalance(), 2));
+
+      // MOCK: Check if any new trades need execution
+      // logic to OrderSend(Symbol(), OP_SELL/OP_BUY, ...);
    }
   }
 //+------------------------------------------------------------------+`;
