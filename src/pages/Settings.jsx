@@ -296,8 +296,9 @@ void OnTick()
       string cookie=NULL, headers; 
       char post[], result[];
 
-      // 1. Fetch Latest Pending Signal
-      string url = AppUrl + "/api/entities/Signal?sort=-created_date&limit=1";
+      // 1. Fetch Latest Pending Signal from Backend Function
+      // Note: This calls the 'bridge' function we created
+      string url = AppUrl + "/functions/bridge";
 
       int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
 
