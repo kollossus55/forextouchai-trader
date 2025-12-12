@@ -75,10 +75,10 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         <form onSubmit={handleSubmit} className="mt-4">
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-4 bg-slate-950 border border-slate-800">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="risk">Risk & Lots</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule</TabsTrigger>
-              <TabsTrigger value="ai">AI Thresholds</TabsTrigger>
+              <TabsTrigger value="general" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">General</TabsTrigger>
+              <TabsTrigger value="risk" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white">Risk & Lots</TabsTrigger>
+              <TabsTrigger value="schedule" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Schedule</TabsTrigger>
+              <TabsTrigger value="ai" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">AI Thresholds</TabsTrigger>
             </TabsList>
 
             {/* General Tab */}
@@ -142,12 +142,12 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
             </TabsContent>
 
             {/* Risk Tab */}
-            <TabsContent value="risk" className="space-y-6 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
-              <div className="flex items-center justify-between p-3 mb-4 rounded bg-slate-950 border border-slate-800">
+            <TabsContent value="risk" className="space-y-6 mt-4 bg-gradient-to-br from-rose-900/10 to-slate-900/50 p-4 rounded-lg border border-rose-500/20">
+              <div className="flex items-center justify-between p-3 mb-4 rounded bg-slate-950 border border-rose-500/30">
                   <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <Shield className="w-4 h-4 text-rose-400" />
                       <div className="flex flex-col">
-                          <span className="text-sm font-medium">AI Dynamic Risk Management</span>
+                          <span className="text-sm font-medium text-rose-100">AI Dynamic Risk Management</span>
                           <span className="text-[10px] text-slate-500">Auto-adjust Stop Loss & Lot Size based on volatility</span>
                       </div>
                   </div>
@@ -230,9 +230,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
             </TabsContent>
 
             {/* Schedule Tab */}
-            <TabsContent value="schedule" className="space-y-4 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
-              <div className="flex items-center gap-2 mb-2 text-slate-400 text-sm">
-                <Clock className="w-4 h-4" />
+            <TabsContent value="schedule" className="space-y-4 mt-4 bg-gradient-to-br from-blue-900/10 to-slate-900/50 p-4 rounded-lg border border-blue-500/20">
+              <div className="flex items-center gap-2 mb-2 text-blue-300 text-sm">
+                <Clock className="w-4 h-4 text-blue-400" />
                 <span>Trading Hours (Server Time)</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -261,13 +261,13 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
             </TabsContent>
 
             {/* AI Tab */}
-            <TabsContent value="ai" className="space-y-6 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
+            <TabsContent value="ai" className="space-y-6 mt-4 bg-gradient-to-br from-purple-900/10 to-slate-900/50 p-4 rounded-lg border border-purple-500/20">
 
-               <div className="flex items-center justify-between p-3 rounded bg-emerald-500/10 border border-emerald-500/20 mb-4">
+               <div className="flex items-center justify-between p-3 rounded bg-purple-500/10 border border-purple-500/20 mb-4">
                   <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-emerald-400" />
+                      <Zap className="w-4 h-4 text-purple-400" />
                       <div className="flex flex-col">
-                          <span className="text-sm font-medium text-emerald-400">Automated Order Execution</span>
+                          <span className="text-sm font-medium text-purple-400">Automated Order Execution</span>
                           <span className="text-[10px] text-emerald-200/60">Allow AI to open/close trades on MT4/MT5 directly</span>
                       </div>
                   </div>
