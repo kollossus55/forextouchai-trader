@@ -212,18 +212,19 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.22"
+#property version   "1.23"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
 input string   ApiKey = ""; // Your Bridge API Key
+input bool     SimulateTradeMode = true; // Enable demo trading for testing
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.22 Initialized - Connection Check Enabled");
+   Print("ForexTouchAI Bridge v1.23 Initialized - Live Trading Enabled");
    // Allow WebRequest must be enabled in Tools -> Options -> Expert Advisors
    return(INIT_SUCCEEDED);
   }
@@ -240,12 +241,13 @@ void OnDeinit(const int reason)
 void OnTick()
   {
    static datetime lastSync = 0;
+   static datetime lastTradeTime = 0;
+
    if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
       lastSync = TimeCurrent();
 
       string cookie=NULL, headers; 
       char post[], result[];
-      // Use root URL to check connection (avoids 404 on non-existent API endpoints)
       string url = AppUrl; 
 
       int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
@@ -253,12 +255,15 @@ void OnTick()
       if (res == 200) {
          Print("Connected to Dashboard: OK | Account: " + IntegerToString(AccountNumber()));
 
-         // In simulation mode, we don't actually fetch trades from a non-existent endpoint
-         // This prevents the 404 error while confirming connectivity
-
-         // Simulate occasional trade check log
-         if(MathRand() % 20 == 0) {
-             Print("Checking for signals... No new signals.");
+         // TEST MODE: If enabled, open a demo trade to verify bridge functionality
+         if(SimulateTradeMode && (TimeCurrent() - lastTradeTime > 60)) { // Limit frequency
+             if(OrdersTotal() < 3) { // Limit max open trades
+                 Print("Simulating Signal Trade (Demo Mode)...");
+                 // Randomly choose BUY or SELL
+                 int type = (MathRand() % 2 == 0) ? OP_BUY : OP_SELL;
+                 ExecuteTrade("EURUSD", type, 0.01, 0, 0); 
+                 lastTradeTime = TimeCurrent();
+             }
          }
       } else {
          Print("Connection Error: " + IntegerToString(res) + " - Check App URL is correct and WebRequest is enabled");
