@@ -61,25 +61,25 @@ export default function Overview() {
 
   const { data: trades } = useQuery({
     queryKey: ['trades-home'],
-    queryFn: () => base44.entities.Trade.list({ filter: { status: 'OPEN' }, sort: { created_date: -1 }, limit: 10 }),
+    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 10),
     initialData: []
   });
 
   const { data: events } = useQuery({
     queryKey: ['economic-events'],
-    queryFn: () => base44.entities.EconomicEvent.list({ sort: { time: 1 }, limit: 5 }),
+    queryFn: () => base44.entities.EconomicEvent.list('time', 5),
     initialData: []
   });
 
   const { data: news } = useQuery({
     queryKey: ['market-news'],
-    queryFn: () => base44.entities.NewsItem.list({ sort: { created_date: -1 }, limit: 5 }),
+    queryFn: () => base44.entities.NewsItem.list('-created_date', 5),
     initialData: []
   });
 
   const { data: signals } = useQuery({
     queryKey: ['ai-signals'],
-    queryFn: () => base44.entities.Signal.list({ sort: { created_date: -1 }, limit: 3 }),
+    queryFn: () => base44.entities.Signal.list('-created_date', 3),
     initialData: []
   });
 
