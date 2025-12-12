@@ -212,7 +212,7 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.20"
+#property version   "1.21"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
@@ -223,7 +223,7 @@ input string   ApiKey = ""; // Your Bridge API Key
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.2 Initialized - Live Trading Enabled");
+   Print("ForexTouchAI Bridge v1.21 Initialized - Live Trading Enabled");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
