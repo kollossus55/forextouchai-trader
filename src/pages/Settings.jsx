@@ -212,11 +212,12 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.28"
+#property version   "1.29"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
+input bool     StealthMode = false; // Hide SL/TP from broker
 
 string lastProcessedSignalId = "";
 
@@ -225,7 +226,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.28 Initialized - Fix Error 130");
+   Print("ForexTouchAI Bridge v1.29 Initialized - Stealth Mode Added");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -279,15 +280,24 @@ int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
    if(tp > 0) tp = NormalizeDouble(tp, digits);
    price = NormalizeDouble(price, digits);
 
-   // Try standard execution first
-   int ticket = OrderSend(symbol, cmd, volume, price, 10, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
+   double orderSL = sl;
+   double orderTP = tp;
+
+   // If Stealth Mode is ON, send 0 to broker
+   if(StealthMode) {
+      orderSL = 0; 
+      orderTP = 0;
+   }
+
+   // Execute Trade
+   int ticket = OrderSend(symbol, cmd, volume, price, 10, orderSL, orderTP, "ForexTouchAI", 12345, 0, clrBlue);
    
    if(ticket < 0) {
       int err = GetLastError();
       Print("OrderSend failed with error #", err);
       
-      // Retry for Error 130 (Invalid Stops) - ECN Mode (Open then Modify)
-      if(err == 130) {
+      // Retry for Error 130 (Invalid Stops)
+      if(err == 130 && !StealthMode) {
           Print("Error 130 detected. Retrying with 0 SL/TP (ECN Mode)...");
           ticket = OrderSend(symbol, cmd, volume, price, 10, 0, 0, "ForexTouchAI", 12345, 0, clrBlue);
           if(ticket > 0) {
@@ -295,8 +305,6 @@ int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
               if(OrderSelect(ticket, SELECT_BY_TICKET)) {
                   if(!OrderModify(ticket, OrderOpenPrice(), sl, tp, 0, clrBlue)) {
                       Print("OrderModify failed error #", GetLastError());
-                  } else {
-                      Print("SL/TP Applied Successfully");
                   }
               }
           }
@@ -305,6 +313,11 @@ int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
    
    if(ticket > 0) {
       Print("Trade Executed Successfully: Ticket #", ticket);
+      // Save Stealth Stops if enabled
+      if(StealthMode) {
+         GlobalVariableSet("FT_SL_" + IntegerToString(ticket), sl);
+         GlobalVariableSet("FT_TP_" + IntegerToString(ticket), tp);
+      }
       return ticket;
    }
    return -1;
@@ -315,6 +328,41 @@ int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
 //+------------------------------------------------------------------+
 void OnTick()
   {
+   // Stealth Mode Logic: Monitor and Close Virtual Stops
+   if(StealthMode) {
+      for(int i=0; i<OrdersTotal(); i++) {
+         if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+            if(OrderMagicNumber() == 12345 && OrderSymbol() == Symbol()) {
+               double sl = GlobalVariableGet("FT_SL_" + IntegerToString(OrderTicket()));
+               double tp = GlobalVariableGet("FT_TP_" + IntegerToString(OrderTicket()));
+               
+               // Skip if no virtual stops recorded
+               if(sl == 0 && tp == 0) continue;
+
+               double bid = MarketInfo(OrderSymbol(), MODE_BID);
+               double ask = MarketInfo(OrderSymbol(), MODE_ASK);
+               bool close = false;
+               double closePrice = 0;
+
+               if(OrderType() == OP_BUY) {
+                  if((sl > 0 && bid <= sl) || (tp > 0 && bid >= tp)) { close = true; closePrice = bid; }
+               }
+               else if(OrderType() == OP_SELL) {
+                  if((sl > 0 && ask >= sl) || (tp > 0 && ask <= tp)) { close = true; closePrice = ask; }
+               }
+
+               if(close) {
+                  Print("Stealth Mode: Closing Ticket #" + IntegerToString(OrderTicket()));
+                  if(OrderClose(OrderTicket(), OrderLots(), closePrice, 3, clrRed)) {
+                     GlobalVariableDel("FT_SL_" + IntegerToString(OrderTicket()));
+                     GlobalVariableDel("FT_TP_" + IntegerToString(OrderTicket()));
+                  }
+               }
+            }
+         }
+      }
+   }
+
    static datetime lastSync = 0;
    if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
       lastSync = TimeCurrent();
@@ -639,6 +687,7 @@ void OnTick()
                   <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
                   <li>Open it in MetaEditor, compile, and attach to <strong>ONLY ONE</strong> chart.</li>
                   <li>Enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options and add your App URL.</li>
+                  <li><strong>New:</strong> Set <code>StealthMode = true</code> in EA settings to hide SL/TP from broker.</li>
                   <li>If you see Error 404, verify Backend Functions are enabled.</li>
                 </ol>
               </div>
