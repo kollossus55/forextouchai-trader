@@ -138,6 +138,27 @@ export default function Settings() {
     }
   };
 
+  const handleDownloadBridge = () => {
+    const element = document.createElement("a");
+    const file = new Blob([
+      "// ForexTouchAI Bridge EA - DEMO VERSION\n" +
+      "// \n" +
+      "// This file is a placeholder for the actual compiled MQL4 Expert Advisor (.ex4).\n" +
+      "// In a production environment, this would be the actual binary file to place in your MetaTrader 4 Experts folder.\n" +
+      "// \n" +
+      "// Instructions:\n" +
+      "// 1. Place this file in MQL4/Experts\n" +
+      "// 2. Refresh Expert Advisors in MT4\n" +
+      "// 3. Attach to chart\n" +
+      "// 4. Enable WebRequest and add the app URL"
+    ], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "ForexTouchAI_Bridge_Demo.ex4";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -401,7 +422,10 @@ export default function Settings() {
                 <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all">
                   <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white ml-auto">
+                <Button 
+                  onClick={handleDownloadBridge}
+                  className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
+                >
                   Download Bridge EA (.ex4)
                 </Button>
               </div>
