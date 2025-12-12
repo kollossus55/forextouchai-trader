@@ -299,6 +299,37 @@ export default function Settings() {
               </Button>
             </CardFooter>
           </Card>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Laptop className="w-5 h-5 text-blue-400" /> Bridge EA Installation
+              </CardTitle>
+              <CardDescription className="text-slate-400">
+                Required if you are hosting MT4/MT5 on your own VPS or PC.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
+                <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
+                <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
+                  <li>Download the <span className="text-emerald-400">Base44_Bridge.ex4</span> file below.</li>
+                  <li>Place it in your MT4 <strong>MQL4/Experts</strong> folder.</li>
+                  <li>In MT4, go to Tools &gt; Options &gt; Expert Advisors.</li>
+                  <li>Enable <strong>"Allow WebRequest"</strong> and add your app URL.</li>
+                  <li>Attach the EA to any chart. It will sync trades automatically.</li>
+                </ol>
+              </div>
+              <div className="flex items-center gap-4">
+                <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800">
+                  <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white ml-auto">
+                  Download Bridge EA (.ex4)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6 space-y-6">
