@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BotConfigDialog from '@/components/autotrade/BotConfigDialog';
 import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
-import { MarketDataService } from '@/utils/MarketDataService';
+import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function AutoTrade() {
   const queryClient = useQueryClient();
