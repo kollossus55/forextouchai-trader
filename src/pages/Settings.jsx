@@ -607,11 +607,11 @@ void OnTick()
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
+                  <li>Enable <strong>Backend Functions</strong> in your App Settings (Required for API access).</li>
                   <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
-                  <li>Place it in your MT4 <strong>MQL4/Experts</strong> folder.</li>
-                  <li>Open it in <strong>MetaEditor</strong> and click <strong>Compile</strong> to generate the .ex4 file.</li>
-                  <li>In MT4, enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options &gt; Expert Advisors.</li>
-                  <li>Attach the compiled EA to <strong>ONLY ONE</strong> chart to avoid duplicate trades.</li>
+                  <li>Open it in MetaEditor, compile, and attach to <strong>ONLY ONE</strong> chart.</li>
+                  <li>Enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options and add your App URL.</li>
+                  <li>If you see Error 404, verify Backend Functions are enabled.</li>
                 </ol>
               </div>
               <div className="flex items-center gap-4">
