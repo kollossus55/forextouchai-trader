@@ -212,7 +212,7 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.26"
+#property version   "1.27"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
@@ -225,7 +225,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.26 Initialized");
+   Print("ForexTouchAI Bridge v1.27 Initialized - Backend Function Mode");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
