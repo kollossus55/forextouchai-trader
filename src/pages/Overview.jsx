@@ -21,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Overview() {
   const queryClient = useQueryClient();
@@ -67,23 +68,46 @@ export default function Overview() {
     }
   });
 
-  const handleGenerateSignals = () => {
+  useEffect(() => {
+    MarketDataService.initialize();
+  }, []);
+
+  const handleGenerateSignals = async () => {
     setIsGenerating(true);
+    // Refresh market data before generating
+    await MarketDataService.fetchAll();
+    
     // Simulate AI Processing time
     setTimeout(() => {
       const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'BTC/USD'];
       const pair = pairs[Math.floor(Math.random() * pairs.length)];
+      
+      // Get Real Price
+      const currentPrice = MarketDataService.getPrice(pair);
+      
+      // AI Logic Simulation
       const type = Math.random() > 0.5 ? 'BUY' : 'SELL';
-      const price = (Math.random() * 100 + 1000).toFixed(2);
+      const price = currentPrice;
+      
+      // Calculate SL/TP based on pair volatility (approx)
+      const isJpy = pair.includes('JPY');
+      const isCrypto = pair.includes('BTC');
+      const pipMult = isJpy ? 0.01 : (isCrypto ? 10 : 0.0001);
+      
+      const slPips = isCrypto ? 50 : 30;
+      const tpPips = isCrypto ? 150 : 60;
+      
+      const sl = type === 'BUY' ? price - (slPips * pipMult) : price + (slPips * pipMult);
+      const tp = type === 'BUY' ? price + (tpPips * pipMult) : price - (tpPips * pipMult);
       
       generateSignalMutation.mutate({
         pair,
         type,
-        entry_price: parseFloat(price),
-        stop_loss: parseFloat((type === 'BUY' ? price * 0.99 : price * 1.01).toFixed(2)),
-        take_profit: parseFloat((type === 'BUY' ? price * 1.02 : price * 0.98).toFixed(2)),
-        confidence: Math.floor(Math.random() * 20) + 80, // 80-99%
-        strategy: 'AI_HYBRID_V2',
+        entry_price: parseFloat(price.toFixed(isJpy || isCrypto ? 2 : 5)),
+        stop_loss: parseFloat(sl.toFixed(isJpy || isCrypto ? 2 : 5)),
+        take_profit: parseFloat(tp.toFixed(isJpy || isCrypto ? 2 : 5)),
+        confidence: Math.floor(Math.random() * 15) + 85, // 85-99%
+        strategy: 'AI_SMART_SCALPER',
         status: 'PENDING',
         result_pnl: 0
       });
