@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BotConfigDialog from '@/components/autotrade/BotConfigDialog';
 import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
+import { MarketDataService } from '@/utils/MarketDataService';
 
 export default function AutoTrade() {
   const queryClient = useQueryClient();
@@ -36,39 +37,59 @@ export default function AutoTrade() {
     initialData: []
   });
 
+  // Initialize Market Data Service
+  useEffect(() => {
+    MarketDataService.initialize();
+  }, []);
+
   // AI Trading Engine Simulation
   useEffect(() => {
     const runningBots = bots.filter(b => b.status === 'RUNNING');
     if (runningBots.length === 0) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
+        // Update market data periodically in background
+        await MarketDataService.fetchAll();
+
         runningBots.forEach(bot => {
             // Simulate AI Signal Generation (5% chance per tick)
             if (Math.random() > 0.95) {
-                const pairs = bot.pairs || ['EUR/USD'];
+                const pairs = bot.pairs && bot.pairs.length > 0 ? bot.pairs : ['EUR/USD'];
                 const pair = pairs[Math.floor(Math.random() * pairs.length)];
+                
+                // Get Real Market Price
+                const realPrice = MarketDataService.getPrice(pair);
+                
+                // Determine action based on simple trend simulation (random for demo, but uses real price)
                 const action = Math.random() > 0.5 ? 'BUY' : 'SELL';
                 const confidence = Math.floor(Math.random() * (99 - 70) + 70); // 70-99%
 
                 // Check strategy rules
                 if (confidence >= (bot.min_confidence || 80)) {
-                    const price = 1.0850 + (Math.random() * 0.01);
-                    const sl = action === 'BUY' ? price - (bot.stop_loss_pips * 0.0001) : price + (bot.stop_loss_pips * 0.0001);
-                    const tp = action === 'BUY' ? price + (bot.take_profit_pips * 0.0001) : price - (bot.take_profit_pips * 0.0001);
+                    // Calculate SL/TP based on pip value (approximate for non-forex for simplicity)
+                    const pipMultiplier = pair.includes('JPY') ? 0.01 : 0.0001;
+                    
+                    const sl = action === 'BUY' 
+                        ? realPrice - (bot.stop_loss_pips * pipMultiplier) 
+                        : realPrice + (bot.stop_loss_pips * pipMultiplier);
+                        
+                    const tp = action === 'BUY' 
+                        ? realPrice + (bot.take_profit_pips * pipMultiplier) 
+                        : realPrice - (bot.take_profit_pips * pipMultiplier);
 
                     // Execute Trade
                     base44.entities.Trade.create({
                         pair,
                         type: action,
                         lot_size: bot.lot_size || 0.1,
-                        open_price: price,
+                        open_price: realPrice,
                         close_price: 0,
                         pnl: 0,
                         status: 'OPEN',
                         is_auto: true,
                         bot_id: bot.id
                     }).then(() => {
-                        addLog(bot.name, `Executed ${action} ${pair} @ ${price.toFixed(5)} | Confidence: ${confidence}%`, 'success');
+                        addLog(bot.name, `Executed ${action} ${pair} @ ${realPrice.toFixed(5)} | Confidence: ${confidence}%`, 'success');
                         queryClient.invalidateQueries(['trades']);
                     });
                 } else {
