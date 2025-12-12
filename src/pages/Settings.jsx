@@ -253,7 +253,7 @@ void OnTick()
       int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
 
       if (res == 200) {
-         Print("Connected to Dashboard: OK | Account: " + IntegerToString(AccountNumber()));
+         Print("Connected to Dashboard: OK | Ver: 1.23 | Account: " + IntegerToString(AccountNumber()));
 
          // TEST MODE: If enabled, open a demo trade to verify bridge functionality
          if(SimulateTradeMode && (TimeCurrent() - lastTradeTime > 60)) { // Limit frequency
