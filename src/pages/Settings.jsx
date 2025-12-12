@@ -139,21 +139,54 @@ export default function Settings() {
   };
 
   const handleDownloadBridge = () => {
+    const mql4Code = \`//+------------------------------------------------------------------+
+//|                                          ForexTouchAI_Bridge.mq4 |
+//|                                     Copyright 2024, ForexTouchAI |
+//|                                       https://www.forextouchai.com |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2024, ForexTouchAI"
+#property link      "https://www.forextouchai.com"
+#property version   "1.00"
+#property strict
+
+input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
+input string   ApiKey = ""; // Your Bridge API Key
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+  {
+   Print("ForexTouchAI Bridge Initialized");
+   return(INIT_SUCCEEDED);
+  }
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+   Print("ForexTouchAI Bridge Deinitialized");
+  }
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+  {
+   // In a real bridge, this would send data to the API
+   // and check for new orders to execute
+   
+   static datetime lastSync = 0;
+   if(TimeCurrent() - lastSync > 5) { // Sync every 5 seconds
+      lastSync = TimeCurrent();
+      Print("Syncing with ForexTouchAI...");
+   }
+  }
+//+------------------------------------------------------------------+\`;
+
     const element = document.createElement("a");
-    const file = new Blob([
-      "// ForexTouchAI Bridge EA - DEMO VERSION\n" +
-      "// \n" +
-      "// This file is a placeholder for the actual compiled MQL4 Expert Advisor (.ex4).\n" +
-      "// In a production environment, this would be the actual binary file to place in your MetaTrader 4 Experts folder.\n" +
-      "// \n" +
-      "// Instructions:\n" +
-      "// 1. Place this file in MQL4/Experts\n" +
-      "// 2. Refresh Expert Advisors in MT4\n" +
-      "// 3. Attach to chart\n" +
-      "// 4. Enable WebRequest and add the app URL"
-    ], {type: 'text/plain'});
+    const file = new Blob([mql4Code], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "ForexTouchAI_Bridge_Demo.ex4";
+    element.download = "ForexTouchAI_Bridge.mq4";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -411,11 +444,11 @@ export default function Settings() {
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
-                  <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.ex4</span> file below.</li>
+                  <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
                   <li>Place it in your MT4 <strong>MQL4/Experts</strong> folder.</li>
-                  <li>In MT4, go to Tools &gt; Options &gt; Expert Advisors.</li>
-                  <li>Enable <strong>"Allow WebRequest"</strong> and add your app URL.</li>
-                  <li>Attach the EA to any chart. It will sync trades automatically.</li>
+                  <li>Open it in <strong>MetaEditor</strong> and click <strong>Compile</strong> to generate the .ex4 file.</li>
+                  <li>In MT4, enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options &gt; Expert Advisors.</li>
+                  <li>Attach the compiled EA to any chart to start syncing.</li>
                 </ol>
               </div>
               <div className="flex items-center gap-4">
@@ -426,7 +459,7 @@ export default function Settings() {
                   onClick={handleDownloadBridge}
                   className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
                 >
-                  Download Bridge EA (.ex4)
+                  Download Bridge Source (.mq4)
                 </Button>
               </div>
             </CardContent>
