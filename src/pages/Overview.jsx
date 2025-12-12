@@ -24,9 +24,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function Overview() {
   const queryClient = useQueryClient();
-  const [isConnected, setIsConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const { data: connections } = useQuery({
+    queryKey: ['broker-connections'],
+    queryFn: () => base44.entities.BrokerConnection.list(),
+    initialData: []
+  });
+
+  const activeConnection = connections?.[0] || null;
+  const isConnected = activeConnection?.connection_status === 'CONNECTED';
 
   const { data: trades } = useQuery({
     queryKey: ['trades-home'],
@@ -83,11 +91,12 @@ export default function Overview() {
     }, 2000);
   };
 
-  // Mock MT4 Account Data
+  // Mock MT4 Account Data (Balance/Equity would come from live API in production)
   const mt4Account = {
-    broker: "IC Markets",
-    server: "ICMarkets-Demo01",
-    accountNumber: "8593021",
+    broker: activeConnection ? activeConnection.server_name.split('-')[0] : "Demo Broker",
+    server: activeConnection ? activeConnection.server_name : "Demo-Server",
+    accountNumber: activeConnection ? activeConnection.account_number : "---",
+    platform: activeConnection ? activeConnection.platform : "MT4",
     leverage: "1:500",
     currency: "USD",
     balance: 24560.00,
@@ -99,11 +108,8 @@ export default function Overview() {
   };
 
   const refreshConnection = () => {
-    setIsConnected(false);
-    setTimeout(() => {
-      setIsConnected(true);
-      setLastUpdated(new Date());
-    }, 1500);
+    queryClient.invalidateQueries(['broker-connections']);
+    setLastUpdated(new Date());
   };
 
   return (
@@ -117,14 +123,21 @@ export default function Overview() {
         <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-800 backdrop-blur-sm">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium ${isConnected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
             {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-            {isConnected ? 'Connected to MT4' : 'Disconnected'}
+            {isConnected ? `Connected to ${activeConnection?.platform || 'MT4'}` : 'Disconnected'}
           </div>
+          {activeConnection && (
+              <div className="hidden md:flex items-center gap-2 px-2 text-xs text-slate-400 border-l border-slate-700 pl-3">
+                  <span className="font-mono text-slate-300">{activeConnection.server_name}</span>
+                  <span className="opacity-50">#</span>
+                  <span className="font-mono text-slate-300">{activeConnection.account_number}</span>
+              </div>
+          )}
           <div className="h-6 w-[1px] bg-slate-700 mx-1"></div>
           <span className="text-xs text-slate-500 mr-2">
             Last update: {lastUpdated.toLocaleTimeString()}
           </span>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={refreshConnection}>
-            <RefreshCw className={`w-4 h-4 ${!isConnected ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4`} />
           </Button>
         </div>
       </div>
@@ -140,8 +153,9 @@ export default function Overview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-            <p className="text-xs text-slate-500 mt-1">
-              Broker: <span className="text-slate-300">{mt4Account.broker}</span>
+            <p className="text-xs text-slate-500 mt-1 flex justify-between">
+              <span>Broker: <span className="text-slate-300">{mt4Account.broker}</span></span>
+              {activeConnection && <span className="text-emerald-400 text-[10px] border border-emerald-500/20 px-1 rounded bg-emerald-500/10">Live</span>}
             </p>
           </CardContent>
         </Card>
