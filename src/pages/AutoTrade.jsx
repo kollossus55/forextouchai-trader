@@ -85,20 +85,20 @@ export default function AutoTrade() {
                         ? realPrice + (bot.take_profit_pips * pipMultiplier) 
                         : realPrice - (bot.take_profit_pips * pipMultiplier);
 
-                    // Execute Trade
-                    base44.entities.Trade.create({
+                    // Generate Signal for MT4
+                    base44.entities.Signal.create({
                         pair,
                         type: action,
-                        lot_size: bot.lot_size || 0.1,
-                        open_price: realPrice,
-                        close_price: 0,
-                        pnl: 0,
-                        status: 'OPEN',
-                        is_auto: true,
-                        bot_id: bot.id
+                        entry_price: parseFloat(realPrice.toFixed(5)),
+                        stop_loss: parseFloat(sl.toFixed(5)),
+                        take_profit: parseFloat(tp.toFixed(5)),
+                        confidence: confidence,
+                        strategy: bot.strategy_type,
+                        status: 'PENDING',
+                        result_pnl: 0
                     }).then(() => {
-                        addLog(bot.name, `Executed ${action} ${pair} @ ${realPrice.toFixed(5)} | Confidence: ${confidence}%`, 'success');
-                        queryClient.invalidateQueries(['trades']);
+                        addLog(bot.name, `Signal Sent to MT4: ${action} ${pair} @ ${realPrice.toFixed(5)}`, 'success');
+                        queryClient.invalidateQueries(['ai-signals']);
                     });
                 } else {
                     addLog(bot.name, `Signal ignored: ${pair} confidence ${confidence}% < threshold`, 'info');
