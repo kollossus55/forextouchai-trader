@@ -368,13 +368,13 @@ void OnTick()
       lastSync = TimeCurrent();
 
       // --- PART 1: SEND ACCOUNT & TRADE DATA TO APP (POST) ---
-      string syncJson = "{\"account\":{" 
-          + "\"balance\":" + DoubleToString(AccountBalance(), 2) + ","
-          + "\"equity\":" + DoubleToString(AccountEquity(), 2) + ","
-          + "\"margin\":" + DoubleToString(AccountMargin(), 2) + ","
-          + "\"free_margin\":" + DoubleToString(AccountFreeMargin(), 2) + ","
-          + "\"margin_level\":" + DoubleToString(AccountMargin() > 0 ? AccountEquity()/AccountMargin()*100 : 0, 2)
-          + "}, \"trades\":[";
+      string syncJson = "{\\"account\\":{" 
+          + "\\"balance\\":" + DoubleToString(AccountBalance(), 2) + ","
+          + "\\"equity\\":" + DoubleToString(AccountEquity(), 2) + ","
+          + "\\"margin\\":" + DoubleToString(AccountMargin(), 2) + ","
+          + "\\"free_margin\\":" + DoubleToString(AccountFreeMargin(), 2) + ","
+          + "\\"margin_level\\":" + DoubleToString(AccountMargin() > 0 ? AccountEquity()/AccountMargin()*100 : 0, 2)
+          + "}, \\"trades\\":[";
 
       int tradeCount = 0;
       for(int i=0; i<OrdersTotal(); i++) {
@@ -384,14 +384,14 @@ void OnTick()
             double currentPrice = (OrderType() == OP_BUY) ? MarketInfo(OrderSymbol(), MODE_BID) : MarketInfo(OrderSymbol(), MODE_ASK);
 
             syncJson += "{" 
-                + "\"ticket\":" + IntegerToString(OrderTicket()) + ","
-                + "\"symbol\":\"" + OrderSymbol() + "\","
-                + "\"type\":\"" + type + "\","
-                + "\"lots\":" + DoubleToString(OrderLots(), 2) + ","
-                + "\"open_price\":" + DoubleToString(OrderOpenPrice(), 5) + ","
-                + "\"current_price\":" + DoubleToString(currentPrice, 5) + ","
-                + "\"pnl\":" + DoubleToString(OrderProfit() + OrderSwap() + OrderCommission(), 2) + ","
-                + "\"magic\":" + IntegerToString(OrderMagicNumber())
+                + "\\"ticket\\":" + IntegerToString(OrderTicket()) + ","
+                + "\\"symbol\\":\\"" + OrderSymbol() + "\\","
+                + "\\"type\\":\\"" + type + "\\","
+                + "\\"lots\\":" + DoubleToString(OrderLots(), 2) + ","
+                + "\\"open_price\\":" + DoubleToString(OrderOpenPrice(), 5) + ","
+                + "\\"current_price\\":" + DoubleToString(currentPrice, 5) + ","
+                + "\\"pnl\\":" + DoubleToString(OrderProfit() + OrderSwap() + OrderCommission(), 2) + ","
+                + "\\"magic\\":" + IntegerToString(OrderMagicNumber())
                 + "}";
             tradeCount++;
          }
@@ -405,7 +405,7 @@ void OnTick()
 
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
-      int res = WebRequest("POST", url, "Content-Type: application/json\r\n", 500, postData, resultData, headers);
+      int res = WebRequest("POST", url, "Content-Type: application/json\\r\\n", 500, postData, resultData, headers);
 
       if(res != 200) {
           if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS.");
