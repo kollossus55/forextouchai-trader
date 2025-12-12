@@ -212,66 +212,52 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.23"
+#property version   "1.24"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
-input string   ApiKey = ""; // Your Bridge API Key
-input bool     SimulateTradeMode = true; // Enable demo trading for testing
+input string   ApiKey = ""; // Your Bridge API Key (if auth required)
+input bool     SimulateTradeMode = false; // Set to true for connection testing
+
+string lastProcessedSignalId = "";
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.23 Initialized - Live Trading Enabled");
-   // Allow WebRequest must be enabled in Tools -> Options -> Expert Advisors
+   Print("ForexTouchAI Bridge v1.24 Initialized - Signal Sync Enabled");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
-void OnDeinit(const int reason)
-  {
-   Print("ForexTouchAI Bridge Deinitialized");
-  }
+void OnDeinit(const int reason) { Print("Bridge Deinitialized"); }
+
 //+------------------------------------------------------------------+
-//| Expert tick function                                             |
+//| Simple JSON Extractor (Helper)                                   |
 //+------------------------------------------------------------------+
-void OnTick()
-  {
-   static datetime lastSync = 0;
-   static datetime lastTradeTime = 0;
+string GetJsonValue(string json, string key) {
+   int keyPos = StringFind(json, "\\"" + key + "\\"");
+   if(keyPos < 0) return "";
+   
+   int valStart = StringFind(json, ":", keyPos) + 1;
+   int valEnd = StringFind(json, ",", valStart);
+   int braceEnd = StringFind(json, "}", valStart);
+   if(valEnd < 0 || (braceEnd > 0 && braceEnd < valEnd)) valEnd = braceEnd;
+   
+   string val = StringSubstr(json, valStart, valEnd - valStart);
+   
+   // Clean quotes and spaces
+   StringReplace(val, "\\"", "");
+   StringReplace(val, " ", "");
+   StringReplace(val, "\\n", "");
+   return val;
+}
 
-   if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
-      lastSync = TimeCurrent();
-
-      string cookie=NULL, headers; 
-      char post[], result[];
-      string url = AppUrl; 
-
-      int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
-
-      if (res == 200) {
-         Print("Connected to Dashboard: OK | Ver: 1.23 | Account: " + IntegerToString(AccountNumber()));
-
-         // TEST MODE: If enabled, open a demo trade to verify bridge functionality
-         if(SimulateTradeMode && (TimeCurrent() - lastTradeTime > 60)) { // Limit frequency
-             if(OrdersTotal() < 3) { // Limit max open trades
-                 Print("Simulating Signal Trade (Demo Mode)...");
-                 // Randomly choose BUY or SELL
-                 int type = (MathRand() % 2 == 0) ? OP_BUY : OP_SELL;
-                 ExecuteTrade("EURUSD", type, 0.01, 0, 0); 
-                 lastTradeTime = TimeCurrent();
-             }
-         }
-      } else {
-         Print("Connection Error: " + IntegerToString(res) + " - Check App URL is correct and WebRequest is enabled");
-      }
-   }
-  }
-
-// Helper to execute trades
+//+------------------------------------------------------------------+
+//| Helper to execute trades                                         |
+//+------------------------------------------------------------------+
 int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
    double price = (cmd == OP_BUY) ? MarketInfo(symbol, MODE_ASK) : MarketInfo(symbol, MODE_BID);
    int ticket = OrderSend(symbol, cmd, volume, price, 3, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
@@ -284,6 +270,67 @@ int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
       return ticket;
    }
 }
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+  {
+   static datetime lastSync = 0;
+   if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
+      lastSync = TimeCurrent();
+      
+      string cookie=NULL, headers; 
+      char post[], result[];
+      
+      // 1. Fetch Latest Pending Signal
+      // URL Encoded query={"status":"PENDING"} -> %7B%22status%22%3A%22PENDING%22%7D
+      string url = AppUrl + "/api/entities/Signal?sort=-created_date&limit=1";
+      
+      int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
+      
+      if (res == 200) {
+         string json = CharArrayToString(result);
+         
+         // Basic parsing to check if we have a signal
+         string id = GetJsonValue(json, "id");
+         string status = GetJsonValue(json, "status");
+         
+         // If valid new pending signal found
+         if (status == "PENDING" && id != "" && id != lastProcessedSignalId) {
+             Print("New Signal Found: " + id);
+             
+             string pair = GetJsonValue(json, "pair");
+             string typeStr = GetJsonValue(json, "type");
+             string slStr = GetJsonValue(json, "stop_loss");
+             string tpStr = GetJsonValue(json, "take_profit");
+             
+             // Clean up format (EUR/USD -> EURUSD)
+             StringReplace(pair, "/", ""); 
+             
+             int cmd = (typeStr == "BUY") ? OP_BUY : OP_SELL;
+             double sl = StringToDouble(slStr);
+             double tp = StringToDouble(tpStr);
+             
+             // Execute
+             int ticket = ExecuteTrade(pair, cmd, 0.1, sl, tp);
+             
+             if (ticket > 0) {
+                 lastProcessedSignalId = id;
+                 Print("Signal Executed. ID: " + id);
+                 // Note: Status update on server requires backend logic or PATCH request
+             }
+         } else {
+             // Heartbeat
+             if(MathRand() % 10 == 0) Print("Bridge Connected. Waiting for signals... (Last ID: " + lastProcessedSignalId + ")");
+         }
+         
+      } else {
+         Print("Sync Error: " + IntegerToString(res) + " - Ensure App is Public or Auth is handled.");
+      }
+   }
+  }
+
 //+------------------------------------------------------------------+`;
 
     const element = document.createElement("a");
