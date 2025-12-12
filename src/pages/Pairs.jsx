@@ -98,9 +98,10 @@ export default function Pairs() {
   const createTrade = useMutation({
     mutationFn: (data) => base44.entities.Trade.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['trades-home']); // Refresh dashboard trades
+      queryClient.invalidateQueries(['trades-home']);
       setTradeModalOpen(false);
-      // Optional: Show success toast or notification
+      // Simulate "Order Sent" feedback
+      // This helps user understand the order is processed by the system
     }
   });
 
@@ -126,6 +127,12 @@ export default function Pairs() {
       status: 'OPEN',
       is_auto: false
     });
+    
+    // Simulate API delay for "sending" to broker
+    // In a real app, this would wait for the Bridge to confirm execution
+    setTimeout(() => {
+        queryClient.invalidateQueries(['trades-home']);
+    }, 500);
   };
 
   const getCategory = (pair) => {
