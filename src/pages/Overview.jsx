@@ -107,45 +107,37 @@ export default function Overview() {
 
   const handleGenerateSignals = async () => {
     setIsGenerating(true);
-    // Refresh market data before generating
-    await MarketDataService.fetchAll();
-    
-    // Simulate AI Processing time
-    setTimeout(() => {
+    try {
+      // Refresh market data before generating
+      await MarketDataService.fetchAll();
       const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'BTC/USD'];
-      const pair = pairs[Math.floor(Math.random() * pairs.length)];
-      
-      // Get Real Price
-      const currentPrice = MarketDataService.getPrice(pair);
-      
-      // AI Logic Simulation
-      const type = Math.random() > 0.5 ? 'BUY' : 'SELL';
-      const price = currentPrice;
-      
-      // Calculate SL/TP based on pair volatility (approx)
-      const isJpy = pair.includes('JPY');
-      const isCrypto = pair.includes('BTC');
-      const pipMult = isJpy ? 0.01 : (isCrypto ? 10 : 0.0001);
-      
-      const slPips = isCrypto ? 50 : 30;
-      const tpPips = isCrypto ? 150 : 60;
-      
-      const sl = type === 'BUY' ? price - (slPips * pipMult) : price + (slPips * pipMult);
-      const tp = type === 'BUY' ? price + (tpPips * pipMult) : price - (tpPips * pipMult);
-      
-      generateSignalMutation.mutate({
-        pair,
-        type,
-        entry_price: parseFloat(price.toFixed(isJpy || isCrypto ? 2 : 5)),
-        stop_loss: parseFloat(sl.toFixed(isJpy || isCrypto ? 2 : 5)),
-        take_profit: parseFloat(tp.toFixed(isJpy || isCrypto ? 2 : 5)),
-        confidence: Math.floor(Math.random() * 15) + 85, // 85-99%
-        strategy: 'AI_SMART_SCALPER',
-        status: 'ANALYSIS',
-        result_pnl: 0
+
+      // Invoke Backend Function for Real AI Analysis
+      const { data: aiSignal } = await base44.functions.invoke('analyzeMarket', {
+          pairs,
+          marketData: MarketDataService.prices
       });
-      setIsGenerating(false);
-    }, 2000);
+
+      if (aiSignal && aiSignal.pair) {
+          generateSignalMutation.mutate({
+              pair: aiSignal.pair,
+              type: aiSignal.type,
+              entry_price: Number(aiSignal.entry_price),
+              stop_loss: Number(aiSignal.stop_loss),
+              take_profit: Number(aiSignal.take_profit),
+              confidence: Number(aiSignal.confidence),
+              strategy: aiSignal.strategy, // AI generated strategy name
+              status: 'ANALYSIS',
+              result_pnl: 0
+          });
+          toast.success("AI Analysis Complete", { description: `Found setup for ${aiSignal.pair}` });
+      }
+    } catch (error) {
+        console.error("AI Generation Failed:", error);
+        toast.error("Failed to generate signal", { description: "Please check OpenAI API Key" });
+    } finally {
+        setIsGenerating(false);
+    }
   };
 
   // MT4 Account Data (with simulation fallback)
