@@ -212,12 +212,11 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.24"
+#property version   "1.25"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
-input bool     SimulateTradeMode = false; // Set to true for connection testing
 
 string lastProcessedSignalId = "";
 
@@ -226,7 +225,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.24 Initialized - Signal Sync Enabled");
+   Print("ForexTouchAI Bridge v1.25 Initialized");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -240,19 +239,33 @@ void OnDeinit(const int reason) { Print("Bridge Deinitialized"); }
 string GetJsonValue(string json, string key) {
    int keyPos = StringFind(json, "\\"" + key + "\\"");
    if(keyPos < 0) return "";
-   
+
    int valStart = StringFind(json, ":", keyPos) + 1;
    int valEnd = StringFind(json, ",", valStart);
    int braceEnd = StringFind(json, "}", valStart);
    if(valEnd < 0 || (braceEnd > 0 && braceEnd < valEnd)) valEnd = braceEnd;
-   
+
    string val = StringSubstr(json, valStart, valEnd - valStart);
-   
+
    // Clean quotes and spaces
    StringReplace(val, "\\"", "");
    StringReplace(val, " ", "");
    StringReplace(val, "\\n", "");
    return val;
+}
+
+//+------------------------------------------------------------------+
+//| Check if trade already exists for this pair                      |
+//+------------------------------------------------------------------+
+bool IsTradeOpen(string symbol) {
+   for(int i=0; i<OrdersTotal(); i++) {
+      if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+         if(OrderSymbol() == symbol && OrderMagicNumber() == 12345 && OrderType() <= OP_SELL) {
+            return true;
+         }
+      }
+   }
+   return false;
 }
 
 //+------------------------------------------------------------------+
@@ -279,54 +292,53 @@ void OnTick()
    static datetime lastSync = 0;
    if(TimeCurrent() - lastSync >= 5) { // Sync every 5 seconds
       lastSync = TimeCurrent();
-      
+
       string cookie=NULL, headers; 
       char post[], result[];
-      
+
       // 1. Fetch Latest Pending Signal
-      // URL Encoded query={"status":"PENDING"} -> %7B%22status%22%3A%22PENDING%22%7D
       string url = AppUrl + "/api/entities/Signal?sort=-created_date&limit=1";
-      
+
       int res = WebRequest("GET", url, cookie, NULL, 500, post, 0, result, headers);
-      
+
       if (res == 200) {
          string json = CharArrayToString(result);
-         
-         // Basic parsing to check if we have a signal
+
          string id = GetJsonValue(json, "id");
          string status = GetJsonValue(json, "status");
-         
-         // If valid new pending signal found
+
          if (status == "PENDING" && id != "" && id != lastProcessedSignalId) {
              Print("New Signal Found: " + id);
-             
+
              string pair = GetJsonValue(json, "pair");
              string typeStr = GetJsonValue(json, "type");
              string slStr = GetJsonValue(json, "stop_loss");
              string tpStr = GetJsonValue(json, "take_profit");
-             
-             // Clean up format (EUR/USD -> EURUSD)
+
              StringReplace(pair, "/", ""); 
-             
+
              int cmd = (typeStr == "BUY") ? OP_BUY : OP_SELL;
              double sl = StringToDouble(slStr);
              double tp = StringToDouble(tpStr);
-             
-             // Execute
-             int ticket = ExecuteTrade(pair, cmd, 0.1, sl, tp);
-             
-             if (ticket > 0) {
-                 lastProcessedSignalId = id;
-                 Print("Signal Executed. ID: " + id);
-                 // Note: Status update on server requires backend logic or PATCH request
+
+             // Check for existing trades to avoid duplicates/stacking
+             if (!IsTradeOpen(pair)) {
+                 int ticket = ExecuteTrade(pair, cmd, 0.1, sl, tp);
+                 if (ticket > 0) {
+                     lastProcessedSignalId = id;
+                     Print("Signal Executed. ID: " + id);
+                 }
+             } else {
+                 Print("Signal Skipped: Active trade already exists for " + pair);
+                 lastProcessedSignalId = id; // Mark processed to stop checking
              }
          } else {
              // Heartbeat
-             if(MathRand() % 10 == 0) Print("Bridge Connected. Waiting for signals... (Last ID: " + lastProcessedSignalId + ")");
+             if(MathRand() % 10 == 0) Print("Bridge Connected. Waiting for signals...");
          }
-         
+
       } else {
-         Print("Sync Error: " + IntegerToString(res) + " - Ensure App is Public or Auth is handled.");
+         Print("Sync Error: " + IntegerToString(res));
       }
    }
   }
@@ -599,7 +611,7 @@ void OnTick()
                   <li>Place it in your MT4 <strong>MQL4/Experts</strong> folder.</li>
                   <li>Open it in <strong>MetaEditor</strong> and click <strong>Compile</strong> to generate the .ex4 file.</li>
                   <li>In MT4, enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options &gt; Expert Advisors.</li>
-                  <li>Attach the compiled EA to any chart to start syncing.</li>
+                  <li>Attach the compiled EA to <strong>ONLY ONE</strong> chart to avoid duplicate trades.</li>
                 </ol>
               </div>
               <div className="flex items-center gap-4">
