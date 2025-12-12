@@ -2,10 +2,12 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, ArrowDownRight, Target, Shield, Copy } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Target, Shield, Play, CheckCircle2, Clock } from 'lucide-react';
 
-export default function SignalCard({ signal, onCopy }) {
+export default function SignalCard({ signal, onExecute }) {
   const isBuy = signal.type === 'BUY';
+  const isPending = signal.status === 'PENDING';
+  const isActive = signal.status === 'ACTIVE';
   
   return (
     <Card className="bg-slate-900/40 border-slate-800 hover:border-slate-700 transition-all group">
@@ -58,13 +60,22 @@ export default function SignalCard({ signal, onCopy }) {
           </div>
         </div>
 
-        <Button 
-          variant="secondary" 
-          className="w-full h-8 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300"
-          onClick={() => onCopy && onCopy(signal)}
-        >
-          <Copy className="w-3 h-3 mr-2" /> Copy to Trade
-        </Button>
+        {signal.status === 'ANALYSIS' ? (
+            <Button 
+              className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => onExecute && onExecute(signal)}
+            >
+              <Play className="w-3 h-3 mr-2" /> Execute on MT4
+            </Button>
+        ) : (
+            <Button 
+              variant="secondary" 
+              disabled
+              className={`w-full h-8 text-xs ${isPending ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}
+            >
+              {isPending ? <><Clock className="w-3 h-3 mr-2" /> Sending to MT4...</> : <><CheckCircle2 className="w-3 h-3 mr-2" /> Active on Terminal</>}
+            </Button>
+        )}
       </CardContent>
     </Card>
   );

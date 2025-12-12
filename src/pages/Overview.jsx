@@ -91,6 +91,14 @@ export default function Overview() {
     }
   });
 
+  const executeSignalMutation = useMutation({
+    mutationFn: (signal) => base44.entities.Signal.update(signal.id, { status: 'PENDING' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['ai-signals']);
+      toast.success("Trade Sent to MT4");
+    }
+  });
+
   useEffect(() => {
     MarketDataService.initialize();
   }, []);
@@ -131,7 +139,7 @@ export default function Overview() {
         take_profit: parseFloat(tp.toFixed(isJpy || isCrypto ? 2 : 5)),
         confidence: Math.floor(Math.random() * 15) + 85, // 85-99%
         strategy: 'AI_SMART_SCALPER',
-        status: 'PENDING',
+        status: 'ANALYSIS',
         result_pnl: 0
       });
       setIsGenerating(false);
@@ -310,7 +318,11 @@ export default function Overview() {
                </div>
              ) : (
                signals.map(signal => (
-                 <SignalCard key={signal.id} signal={signal} />
+                 <SignalCard 
+                    key={signal.id} 
+                    signal={signal} 
+                    onExecute={() => executeSignalMutation.mutate(signal)} 
+                  />
                ))
              )}
           </div>
