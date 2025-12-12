@@ -255,72 +255,74 @@ export default function Overview() {
         </Card>
       </div>
 
+      {/* AI Signal Generator Banner */}
+      <Card className="bg-gradient-to-r from-emerald-900/30 to-slate-900 border-emerald-500/30 relative overflow-hidden mb-6">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="text-white flex items-center gap-2">
+              <BrainCircuit className="w-5 h-5 text-emerald-400" /> AI Signal Generator
+            </CardTitle>
+            <CardDescription className="text-emerald-200/60">
+              Real-time market analysis and setup detection
+            </CardDescription>
+          </div>
+          <Button 
+            onClick={handleGenerateSignals} 
+            disabled={isGenerating}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
+          >
+            {isGenerating ? (
+               <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+            ) : (
+               <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
+            )}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             {isGenerating ? (
+                // Scanning Animation State
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-[180px] rounded-xl bg-slate-900/40 border border-slate-800 p-4 animate-pulse relative overflow-hidden">
+                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent skew-x-12 translate-x-[-100%] animate-[shimmer_1s_infinite]"></div>
+                       <div className="flex gap-3 mb-4">
+                         <div className="w-10 h-10 rounded-lg bg-slate-800"></div>
+                         <div className="space-y-2">
+                           <div className="h-4 w-16 bg-slate-800 rounded"></div>
+                           <div className="h-3 w-12 bg-slate-800 rounded"></div>
+                         </div>
+                       </div>
+                       <div className="space-y-2 mt-4">
+                          <div className="h-8 bg-slate-800/50 rounded"></div>
+                          <div className="h-8 bg-slate-800/50 rounded"></div>
+                       </div>
+                    </div>
+                  ))}
+                </>
+             ) : signals.length === 0 ? (
+               <div className="col-span-3 text-center py-8 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed flex flex-col items-center justify-center gap-2">
+                 <BrainCircuit className="w-8 h-8 text-slate-600 mb-2 opacity-50" />
+                 <p>AI Engine Standby</p>
+                 <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
+               </div>
+             ) : (
+               signals.map(signal => (
+                 <SignalCard key={signal.id} signal={signal} />
+               ))
+             )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column: Running Trades (Wide) */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* AI Signal Generator Banner */}
-          <Card className="bg-gradient-to-r from-emerald-900/30 to-slate-900 border-emerald-500/30 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <BrainCircuit className="w-5 h-5 text-emerald-400" /> AI Signal Generator
-                </CardTitle>
-                <CardDescription className="text-emerald-200/60">
-                  Real-time market analysis and setup detection
-                </CardDescription>
-              </div>
-              <Button 
-                onClick={handleGenerateSignals} 
-                disabled={isGenerating}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
-              >
-                {isGenerating ? (
-                   <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
-                ) : (
-                   <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
-                )}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 {isGenerating ? (
-                    // Scanning Animation State
-                    <>
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-[180px] rounded-xl bg-slate-900/40 border border-slate-800 p-4 animate-pulse relative overflow-hidden">
-                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent skew-x-12 translate-x-[-100%] animate-[shimmer_1s_infinite]"></div>
-                           <div className="flex gap-3 mb-4">
-                             <div className="w-10 h-10 rounded-lg bg-slate-800"></div>
-                             <div className="space-y-2">
-                               <div className="h-4 w-16 bg-slate-800 rounded"></div>
-                               <div className="h-3 w-12 bg-slate-800 rounded"></div>
-                             </div>
-                           </div>
-                           <div className="space-y-2 mt-4">
-                              <div className="h-8 bg-slate-800/50 rounded"></div>
-                              <div className="h-8 bg-slate-800/50 rounded"></div>
-                           </div>
-                        </div>
-                      ))}
-                    </>
-                 ) : signals.length === 0 ? (
-                   <div className="col-span-3 text-center py-8 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed flex flex-col items-center justify-center gap-2">
-                     <BrainCircuit className="w-8 h-8 text-slate-600 mb-2 opacity-50" />
-                     <p>AI Engine Standby</p>
-                     <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
-                   </div>
-                 ) : (
-                   signals.map(signal => (
-                     <SignalCard key={signal.id} signal={signal} />
-                   ))
-                 )}
-              </div>
-            </CardContent>
-          </Card>
+
 
           <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
