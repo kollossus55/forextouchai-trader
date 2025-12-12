@@ -272,11 +272,17 @@ void OnTick()
   }
 
 // Helper to execute trades
-void ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
+int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
    double price = (cmd == OP_BUY) ? MarketInfo(symbol, MODE_ASK) : MarketInfo(symbol, MODE_BID);
    int ticket = OrderSend(symbol, cmd, volume, price, 3, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
-   if(ticket < 0) Print("OrderSend failed with error #", GetLastError());
-   else Print("Trade Executed Successfully: Ticket #", ticket);
+   if(ticket < 0) {
+      Print("OrderSend failed with error #", GetLastError());
+      return -1;
+   }
+   else {
+      Print("Trade Executed Successfully: Ticket #", ticket);
+      return ticket;
+   }
 }
 //+------------------------------------------------------------------+`;
 
