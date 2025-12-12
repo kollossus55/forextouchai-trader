@@ -72,7 +72,7 @@ export default function Layout({ children }) {
             <LineChart className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
-            ForexAI
+            ForexTouchAI
           </span>
           <button 
             className="ml-auto lg:hidden text-slate-400"
