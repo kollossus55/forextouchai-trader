@@ -212,7 +212,7 @@ export default function Settings() {
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "1.27"
+#property version   "1.28"
 #property strict
 
 input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
@@ -225,7 +225,7 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.27 Initialized - Backend Function Mode");
+   Print("ForexTouchAI Bridge v1.28 Initialized - Fix Error 130");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -273,15 +273,41 @@ bool IsTradeOpen(string symbol) {
 //+------------------------------------------------------------------+
 int ExecuteTrade(string symbol, int cmd, double volume, double sl, double tp) {
    double price = (cmd == OP_BUY) ? MarketInfo(symbol, MODE_ASK) : MarketInfo(symbol, MODE_BID);
-   int ticket = OrderSend(symbol, cmd, volume, price, 3, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
+   int digits = (int)MarketInfo(symbol, MODE_DIGITS);
+   
+   if(sl > 0) sl = NormalizeDouble(sl, digits);
+   if(tp > 0) tp = NormalizeDouble(tp, digits);
+   price = NormalizeDouble(price, digits);
+
+   // Try standard execution first
+   int ticket = OrderSend(symbol, cmd, volume, price, 10, sl, tp, "ForexTouchAI", 12345, 0, clrBlue);
+   
    if(ticket < 0) {
-      Print("OrderSend failed with error #", GetLastError());
-      return -1;
+      int err = GetLastError();
+      Print("OrderSend failed with error #", err);
+      
+      // Retry for Error 130 (Invalid Stops) - ECN Mode (Open then Modify)
+      if(err == 130) {
+          Print("Error 130 detected. Retrying with 0 SL/TP (ECN Mode)...");
+          ticket = OrderSend(symbol, cmd, volume, price, 10, 0, 0, "ForexTouchAI", 12345, 0, clrBlue);
+          if(ticket > 0) {
+              Print("ECN Trade Opened. Applying SL/TP...");
+              if(OrderSelect(ticket, SELECT_BY_TICKET)) {
+                  if(!OrderModify(ticket, OrderOpenPrice(), sl, tp, 0, clrBlue)) {
+                      Print("OrderModify failed error #", GetLastError());
+                  } else {
+                      Print("SL/TP Applied Successfully");
+                  }
+              }
+          }
+      }
    }
-   else {
+   
+   if(ticket > 0) {
       Print("Trade Executed Successfully: Ticket #", ticket);
       return ticket;
    }
+   return -1;
 }
 
 //+------------------------------------------------------------------+
