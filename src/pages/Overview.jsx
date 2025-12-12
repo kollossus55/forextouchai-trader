@@ -261,9 +261,31 @@ export default function Overview() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 {signals.length === 0 ? (
-                   <div className="col-span-3 text-center py-6 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed">
-                     Click "Scan Market" to generate AI trading signals
+                 {isGenerating ? (
+                    // Scanning Animation State
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-[180px] rounded-xl bg-slate-900/40 border border-slate-800 p-4 animate-pulse relative overflow-hidden">
+                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent skew-x-12 translate-x-[-100%] animate-[shimmer_1s_infinite]"></div>
+                           <div className="flex gap-3 mb-4">
+                             <div className="w-10 h-10 rounded-lg bg-slate-800"></div>
+                             <div className="space-y-2">
+                               <div className="h-4 w-16 bg-slate-800 rounded"></div>
+                               <div className="h-3 w-12 bg-slate-800 rounded"></div>
+                             </div>
+                           </div>
+                           <div className="space-y-2 mt-4">
+                              <div className="h-8 bg-slate-800/50 rounded"></div>
+                              <div className="h-8 bg-slate-800/50 rounded"></div>
+                           </div>
+                        </div>
+                      ))}
+                    </>
+                 ) : signals.length === 0 ? (
+                   <div className="col-span-3 text-center py-8 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed flex flex-col items-center justify-center gap-2">
+                     <BrainCircuit className="w-8 h-8 text-slate-600 mb-2 opacity-50" />
+                     <p>AI Engine Standby</p>
+                     <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
                    </div>
                  ) : (
                    signals.map(signal => (
