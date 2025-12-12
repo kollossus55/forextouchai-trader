@@ -18,8 +18,9 @@ import {
   Database,
   RefreshCw,
   CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+  AlertCircle,
+  Activity
+  } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -767,7 +768,43 @@ void OnTick()
                Save Data Settings
             </Button>
           </div>
-        </TabsContent>
+
+          <Card className="bg-slate-900/50 border-slate-800 mt-6">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-500" /> Active Data Connections
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-500/10 rounded-full">
+                        <Database className="w-4 h-4 text-amber-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">Crypto Feed</p>
+                        <p className="text-xs text-slate-400 capitalize">{dataSources.crypto} API</p>
+                      </div>
+                   </div>
+                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Connected</Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-500/10 rounded-full">
+                        <Globe className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">Forex Feed</p>
+                        <p className="text-xs text-slate-400 capitalize">{dataSources.forex} API</p>
+                      </div>
+                   </div>
+                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Connected</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          </TabsContent>
 
         <TabsContent value="security" className="mt-6 space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
