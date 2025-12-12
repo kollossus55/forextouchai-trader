@@ -66,13 +66,21 @@ export default function AutoTrade() {
 
                 // Check strategy rules
                 if (confidence >= (bot.min_confidence || 80)) {
-                    // Calculate SL/TP based on pip value (approximate for non-forex for simplicity)
-                    const pipMultiplier = pair.includes('JPY') ? 0.01 : 0.0001;
-                    
+                    // Calculate SL/TP based on pip value
+                    const isJpy = pair.includes('JPY');
+                    const isCrypto = pair.includes('BTC') || pair.includes('ETH') || pair.includes('SOL');
+                    const isGold = pair.includes('XAU');
+
+                    // Adjust pip multiplier for different asset classes
+                    let pipMultiplier = 0.0001;
+                    if (isJpy) pipMultiplier = 0.01;
+                    if (isGold) pipMultiplier = 0.1;
+                    if (isCrypto) pipMultiplier = 10.0; // Crypto "pips" are much larger
+
                     const sl = action === 'BUY' 
                         ? realPrice - (bot.stop_loss_pips * pipMultiplier) 
                         : realPrice + (bot.stop_loss_pips * pipMultiplier);
-                        
+
                     const tp = action === 'BUY' 
                         ? realPrice + (bot.take_profit_pips * pipMultiplier) 
                         : realPrice - (bot.take_profit_pips * pipMultiplier);
