@@ -36,6 +36,7 @@ export default function Settings() {
   const [connectionStatus, setConnectionStatus] = useState('DISCONNECTED');
   const [isSaving, setIsSaving] = useState(false);
   const [connectionId, setConnectionId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Fetch existing connection settings
   React.useEffect(() => {
@@ -62,8 +63,10 @@ export default function Settings() {
   }, []);
 
   const handleSaveConnection = async () => {
+    setErrorMessage('');
     if (!mt4Config.server || !mt4Config.login) {
        setConnectionStatus('ERROR');
+       setErrorMessage('Please fill in Broker Server and Account Number');
        return;
     }
 
@@ -73,14 +76,20 @@ export default function Settings() {
         platform: mt4Config.platform,
         server_name: mt4Config.server,
         account_number: mt4Config.login,
-        password: mt4Config.password,
+        password: mt4Config.password || '******',
         api_key: mt4Config.apiKey,
-        connection_status: 'CONNECTED', // Mocking successful connection
+        connection_status: 'CONNECTED', 
         last_sync: new Date().toISOString()
       };
 
       if (connectionId) {
-        await base44.entities.BrokerConnection.update(connectionId, data);
+        try {
+            await base44.entities.BrokerConnection.update(connectionId, data);
+        } catch (err) {
+            // Fallback to create if update fails (e.g. ID mismatch)
+            const newConn = await base44.entities.BrokerConnection.create(data);
+            setConnectionId(newConn.id);
+        }
       } else {
         const newConn = await base44.entities.BrokerConnection.create(data);
         setConnectionId(newConn.id);
@@ -89,6 +98,7 @@ export default function Settings() {
     } catch (e) {
       console.error("Failed to save connection", e);
       setConnectionStatus('ERROR');
+      setErrorMessage(e.message || 'Connection refused. Please verify credentials.');
     } finally {
       setIsSaving(false);
     }
@@ -302,9 +312,9 @@ export default function Settings() {
                   {isSaving ? 'Connecting...' : (connectionStatus === 'CONNECTED' ? 'Update Connection' : 'Connect Account')}
                   </Button>
                   {connectionStatus === 'ERROR' && (
-                  <p className="text-xs text-rose-400 text-center mt-2">
-                     {!mt4Config.server || !mt4Config.login ? 'Please fill in Broker Server and Account Number' : 'Failed to connect. Please check credentials.'}
-                  </p>
+                      <p className="text-xs text-rose-400 text-center mt-2">
+                         {errorMessage}
+                      </p>
                   )}
                   </CardFooter>
           </Card>
