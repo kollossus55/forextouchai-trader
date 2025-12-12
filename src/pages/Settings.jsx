@@ -400,12 +400,15 @@ void OnTick()
 
       string cookie=NULL, headers; 
       char postData[];
-      StringToCharArray(syncJson, postData);
+      // Convert string to char array, EXCLUDING the null terminator to avoid JSON errors
+      StringToCharArray(syncJson, postData, 0, StringLen(syncJson));
       char resultData[];
 
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
-      int res = WebRequest("POST", url, "Content-Type: application/json\\r\\n", 500, postData, resultData, headers);
+      // Ensure Content-Type is set correctly
+      string reqHeaders = "Content-Type: application/json\\r\\n";
+      int res = WebRequest("POST", url, reqHeaders, 500, postData, resultData, headers);
 
       if(res != 200) {
           if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS.");
