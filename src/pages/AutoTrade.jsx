@@ -60,7 +60,7 @@ export default function AutoTrade() {
                     base44.entities.Trade.create({
                         pair,
                         type: action,
-                        lot_size: bot.lot_size,
+                        lot_size: bot.lot_size || 0.1,
                         open_price: price,
                         close_price: 0,
                         pnl: 0,
