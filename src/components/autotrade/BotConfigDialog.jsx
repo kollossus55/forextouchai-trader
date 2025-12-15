@@ -37,7 +37,13 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     if (initialData) {
       setFormData({
         ...initialData,
-        pairs: initialData.pairs || ['EUR/USD']
+        pairs: initialData.pairs || ['EUR/USD'],
+        sl_tp_mode: initialData.sl_tp_mode || 'FIXED',
+        atr_period: initialData.atr_period || 14,
+        atr_multiplier_sl: initialData.atr_multiplier_sl || 1.5,
+        atr_multiplier_tp: initialData.atr_multiplier_tp || 3.0,
+        money_management: initialData.money_management || 'FIXED',
+        martingale_multiplier: initialData.martingale_multiplier || 2.0
       });
     } else {
       // Reset to defaults for new bot
@@ -52,7 +58,13 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         stop_loss_pips: 30,
         take_profit_pips: 60,
         max_open_trades: 3,
-        pairs: ['EUR/USD']
+        pairs: ['EUR/USD'],
+        sl_tp_mode: 'FIXED',
+        atr_period: 14,
+        atr_multiplier_sl: 1.5,
+        atr_multiplier_tp: 3.0,
+        money_management: 'FIXED',
+        martingale_multiplier: 2.0
       });
     }
   }, [initialData, open]);
@@ -143,85 +155,152 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
             {/* Risk Tab */}
             <TabsContent value="risk" className="space-y-6 mt-4 bg-gradient-to-br from-rose-900/10 to-slate-900/50 p-4 rounded-lg border border-rose-500/20">
-              <div className="flex items-center justify-between p-3 mb-4 rounded bg-slate-950 border border-rose-500/30">
-                  <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-rose-400" />
-                      <div className="flex flex-col">
-                          <span className="text-sm font-medium text-rose-100">AI Dynamic Risk Management</span>
-                          <span className="text-[10px] text-slate-500">Auto-adjust Stop Loss & Lot Size based on volatility</span>
-                      </div>
-                  </div>
-                  <Switch 
-                      checked={formData.use_ai_risk || false} 
-                      onCheckedChange={v => setFormData({...formData, use_ai_risk: v})} 
-                      className="data-[state=checked]:bg-emerald-600"
-                  />
-              </div>
+            <div className="flex items-center justify-between p-3 mb-4 rounded bg-slate-950 border border-rose-500/30">
+                <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-rose-400" />
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-rose-100">AI Dynamic Risk Management</span>
+                        <span className="text-[10px] text-slate-500">Auto-adjust Stop Loss & Lot Size based on volatility</span>
+                    </div>
+                </div>
+                <Switch 
+                    checked={formData.use_ai_risk || false} 
+                    onCheckedChange={v => setFormData({...formData, use_ai_risk: v})} 
+                    className="data-[state=checked]:bg-emerald-600"
+                />
+            </div>
 
-              <div className={`space-y-6 transition-opacity ${formData.use_ai_risk ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                  <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label>Risk Level</Label>
-                      <Select 
-                      value={formData.risk_level} 
-                      onValueChange={v => setFormData({...formData, risk_level: v})}
-                      >
-                      <SelectTrigger className="bg-slate-950 border-slate-800">
-                          <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="LOW">Low (Conservative)</SelectItem>
-                          <SelectItem value="MEDIUM">Medium (Balanced)</SelectItem>
-                          <SelectItem value="HIGH">High (Aggressive)</SelectItem>
-                      </SelectContent>
-                      </Select>
-                  </div>
-                  <div className="space-y-2">
-                      <Label>Lot Size</Label>
-                      <Input 
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={formData.lot_size}
-                      onChange={e => {
-                    const val = parseFloat(e.target.value);
-                    setFormData({...formData, lot_size: isNaN(val) ? 0.1 : val});
-                  }}
-                      className="bg-slate-950 border-slate-800"
-                      />
-                  </div>
-                  </div>
+            <div className={`space-y-6 transition-opacity ${formData.use_ai_risk ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                {/* Money Management Section */}
+                <div className="p-4 rounded border border-slate-800 bg-slate-950/30 space-y-4">
+                    <Label className="text-rose-200">Money Management</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs text-slate-400">Mode</Label>
+                            <Select 
+                              value={formData.money_management} 
+                              onValueChange={v => setFormData({...formData, money_management: v})}
+                            >
+                                <SelectTrigger className="bg-slate-950 border-slate-800 h-8 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="FIXED">Fixed Lot Size</SelectItem>
+                                    <SelectItem value="MARTINGALE">Martingale</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {formData.money_management === 'MARTINGALE' ? (
+                             <div className="space-y-2 animate-in fade-in slide-in-from-left-2">
+                                <Label className="text-xs text-slate-400">Multiplier</Label>
+                                <Input 
+                                    type="number" 
+                                    step="0.1"
+                                    value={formData.martingale_multiplier}
+                                    onChange={e => setFormData({...formData, martingale_multiplier: parseFloat(e.target.value)})}
+                                    className="bg-slate-950 border-slate-800 h-8 text-xs" 
+                                />
+                             </div>
+                        ) : (
+                             <div className="space-y-2">
+                                <Label className="text-xs text-slate-400">Lot Size</Label>
+                                <Input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={formData.lot_size}
+                                    onChange={e => setFormData({...formData, lot_size: parseFloat(e.target.value)})}
+                                    className="bg-slate-950 border-slate-800 h-8 text-xs" 
+                                />
+                             </div>
+                        )}
+                    </div>
+                </div>
 
-                  <div className="space-y-4 pt-2">
-                  <div className="flex justify-between">
-                      <Label>Stop Loss (Pips)</Label>
-                      <span className="text-xs text-slate-400">{formData.stop_loss_pips} pips</span>
-                  </div>
-                  <Slider 
-                      value={[formData.stop_loss_pips]} 
-                      min={5} 
-                      max={200} 
-                      step={5}
-                      onValueChange={([v]) => setFormData({...formData, stop_loss_pips: v})}
-                      className="py-1"
-                  />
-                  </div>
+                {/* SL/TP Config Section */}
+                <div className="p-4 rounded border border-slate-800 bg-slate-950/30 space-y-4">
+                    <div className="flex justify-between items-center">
+                        <Label className="text-rose-200">Stop Loss & Take Profit</Label>
+                        <Select 
+                           value={formData.sl_tp_mode} 
+                           onValueChange={v => setFormData({...formData, sl_tp_mode: v})}
+                        >
+                            <SelectTrigger className="bg-slate-950 border-slate-800 h-7 text-xs w-32">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="FIXED">Fixed Pips</SelectItem>
+                                <SelectItem value="ATR">ATR Based</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                  <div className="space-y-4">
-                  <div className="flex justify-between">
-                      <Label>Take Profit (Pips)</Label>
-                      <span className="text-xs text-slate-400">{formData.take_profit_pips} pips</span>
-                  </div>
-                  <Slider 
-                      value={[formData.take_profit_pips]} 
-                      min={5} 
-                      max={500} 
-                      step={5}
-                      onValueChange={([v]) => setFormData({...formData, take_profit_pips: v})}
-                      className="py-1"
-                  />
-                  </div>
-              </div>
+                    {formData.sl_tp_mode === 'FIXED' ? (
+                        <>
+                          <div className="space-y-4 pt-2 animate-in fade-in">
+                              <div className="flex justify-between">
+                                  <Label>Stop Loss (Pips)</Label>
+                                  <span className="text-xs text-slate-400">{formData.stop_loss_pips} pips</span>
+                              </div>
+                              <Slider 
+                                  value={[formData.stop_loss_pips]} 
+                                  min={5} 
+                                  max={200} 
+                                  step={5}
+                                  onValueChange={([v]) => setFormData({...formData, stop_loss_pips: v})}
+                                  className="py-1"
+                              />
+                          </div>
+
+                          <div className="space-y-4">
+                              <div className="flex justify-between">
+                                  <Label>Take Profit (Pips)</Label>
+                                  <span className="text-xs text-slate-400">{formData.take_profit_pips} pips</span>
+                              </div>
+                              <Slider 
+                                  value={[formData.take_profit_pips]} 
+                                  min={5} 
+                                  max={500} 
+                                  step={5}
+                                  onValueChange={([v]) => setFormData({...formData, take_profit_pips: v})}
+                                  className="py-1"
+                              />
+                          </div>
+                        </>
+                    ) : (
+                        <div className="grid grid-cols-3 gap-4 animate-in fade-in">
+                            <div className="space-y-2">
+                                <Label className="text-xs text-slate-400">ATR Period</Label>
+                                <Input 
+                                    type="number"
+                                    value={formData.atr_period}
+                                    onChange={e => setFormData({...formData, atr_period: parseInt(e.target.value)})}
+                                    className="bg-slate-950 border-slate-800 h-8 text-xs"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs text-slate-400">SL Multiplier</Label>
+                                <Input 
+                                    type="number"
+                                    step="0.1"
+                                    value={formData.atr_multiplier_sl}
+                                    onChange={e => setFormData({...formData, atr_multiplier_sl: parseFloat(e.target.value)})}
+                                    className="bg-slate-950 border-slate-800 h-8 text-xs"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs text-slate-400">TP Multiplier</Label>
+                                <Input 
+                                    type="number"
+                                    step="0.1"
+                                    value={formData.atr_multiplier_tp}
+                                    onChange={e => setFormData({...formData, atr_multiplier_tp: parseFloat(e.target.value)})}
+                                    className="bg-slate-950 border-slate-800 h-8 text-xs"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
               {formData.use_ai_risk && (
                    <div className="text-xs text-emerald-400 text-center italic">
                        AI will automatically override manual settings based on real-time market conditions.
