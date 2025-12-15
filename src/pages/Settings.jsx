@@ -264,8 +264,29 @@ int OnInit()
    if(StringSubstr(ServiceUrl, StringLen(ServiceUrl)-1, 1) == "/") 
       ServiceUrl = StringSubstr(ServiceUrl, 0, StringLen(ServiceUrl)-1);
 
-   Print("ForexTouchAI Bridge v1.34 Init. Target: " + ServiceUrl);
-   if (ServiceUrl == "") Print("CRITICAL ERROR: AppUrl is empty! Check inputs.");
+   Print("ForexTouchAI Bridge v1.35 Init. Target: " + ServiceUrl);
+   if (ServiceUrl == "") { Print("CRITICAL ERROR: AppUrl is empty! Check inputs."); return(INIT_FAILED); }
+
+   // --- IMMEDIATE CONNECTION TEST ---
+   Print("Attempting connection test to: " + ServiceUrl + "/functions/bridge");
+   char post[], result[];
+   string headers = "Content-Type: application/json\r\nX-Connect-Token: " + ApiKey;
+   string resHeaders;
+   int res = WebRequest("GET", ServiceUrl + "/functions/bridge", headers, 5000, post, result, resHeaders);
+
+   if(res == 200) {
+       Print("✅ CONNECTION SUCCESSFUL! Bridge is online.");
+   } else {
+       Print("❌ CONNECTION FAILED! Status Code: " + IntegerToString(res));
+       if(res == -1) {
+           int err = GetLastError();
+           Print("   -> MT4 Error: " + IntegerToString(err));
+           Print("   -> ACTION REQUIRED: Open Tools > Options > Expert Advisors");
+           Print("   -> Ensure 'Allow WebRequest' is CHECKED");
+           Print("   -> Ensure '" + ServiceUrl + "' is in the allowed list (exact match!)");
+       }
+   }
+
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
