@@ -436,8 +436,15 @@ void OnTick()
       int res = WebRequest("POST", url, reqHeaders, 5000, postData, resultData, headers);
 
       if(res != 200) {
-          if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS.");
-          else Print("Sync Post Error: " + IntegerToString(res));
+      if (res == -1) {
+        int err = GetLastError();
+        Print("Sync Error -1. IMPORTANT: Go to Tools > Options > Expert Advisors.");
+        Print("1. Check 'Allow WebRequest'");
+        Print("2. Add this URL to the list: " + AppUrl);
+        Print("Internal Error Code: " + IntegerToString(err));
+      }
+      else if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS or Check App URL.");
+      else Print("Sync Post Error: " + IntegerToString(res));
       }
 
       // --- PART 2: FETCH SIGNALS (GET) ---
@@ -779,9 +786,10 @@ void OnTick()
                   <li>Enable <strong>Backend Functions</strong> in your App Settings (Required for API access).</li>
                   <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
                   <li>Open it in MetaEditor, compile, and attach to <strong>ONLY ONE</strong> chart.</li>
-                  <li>Enable <strong>"Allow WebRequest"</strong> in Tools &gt; Options and add your App URL.</li>
-                  <li><strong>New:</strong> Set <code>StealthMode = true</code> in EA settings to hide SL/TP from broker.</li>
-                  <li>If you see Error 404, verify Backend Functions are enabled.</li>
+                  <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors in MT4.</li>
+                  <li>Check <strong>"Allow WebRequest..."</strong> and add your App URL to the list.</li>
+                  <li><strong>Error -1</strong> means the URL is missing from the allowed list or WebRequest is disabled.</li>
+                  <li><strong>Error 404/401</strong> means Backend Functions are disabled or the URL is incorrect.</li>
                 </ol>
               </div>
               <div className="flex items-center gap-4">
