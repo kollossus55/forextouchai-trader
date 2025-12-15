@@ -29,6 +29,8 @@ export default function AutoTrade() {
   const queryClient = useQueryClient();
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedBot, setSelectedBot] = useState(null);
+  const [backtestBot, setBacktestBot] = useState(null);
+  const [activeTab, setActiveTab] = useState("bots");
   const [terminalLogs, setTerminalLogs] = useState([]);
   
   const { data: bots } = useQuery({
@@ -188,7 +190,7 @@ export default function AutoTrade() {
         />
       </div>
 
-      <Tabs defaultValue="bots" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800 mb-6 w-full justify-start h-auto p-1">
           <TabsTrigger value="bots" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
             Active Bots
@@ -315,6 +317,12 @@ export default function AutoTrade() {
                    <Button variant="ghost" size="sm" onClick={() => handleEdit(bot)} className="text-slate-400 hover:text-white text-xs">
                      <Settings2 className="w-3 h-3 mr-2" /> Configuration
                    </Button>
+                   <Button variant="ghost" size="sm" onClick={() => {
+                       setBacktestBot(bot);
+                       setActiveTab("backtest");
+                   }} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs">
+                     <Clock className="w-3 h-3 mr-2" /> Backtest
+                   </Button>
                    <Button variant="ghost" size="sm" onClick={() => deleteBot.mutate(bot.id)} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs">
                      <Trash2 className="w-3 h-3 mr-2" /> Delete
                    </Button>
@@ -337,7 +345,7 @@ export default function AutoTrade() {
         </TabsContent>
 
         <TabsContent value="backtest" className="mt-0">
-          <BacktestPanel />
+          <BacktestPanel preselectedBot={backtestBot} />
         </TabsContent>
       </Tabs>
     </div>

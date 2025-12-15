@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,10 +9,25 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
-export default function BacktestPanel() {
+export default function BacktestPanel({ preselectedBot }) {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState(null);
+  const [selectedBotId, setSelectedBotId] = useState(preselectedBot?.id || '');
+
+  const { data: bots } = useQuery({
+    queryKey: ['bots-list'],
+    queryFn: () => base44.entities.BotConfig.list(),
+    initialData: []
+  });
+
+  useEffect(() => {
+    if (preselectedBot) {
+        setSelectedBotId(preselectedBot.id);
+    }
+  }, [preselectedBot]);
+
+  const selectedBotConfig = bots.find(b => b.id === selectedBotId);
 
   const runBacktest = () => {
     setIsRunning(true);
@@ -48,17 +65,22 @@ export default function BacktestPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Strategy</Label>
-              <Select defaultValue="momentum">
+              <Label>Select Bot to Backtest</Label>
+              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
                 <SelectTrigger className="bg-slate-950 border-slate-800">
-                  <SelectValue placeholder="Select Strategy" />
+                  <SelectValue placeholder="Select a bot..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="momentum">Momentum Alpha V2</SelectItem>
-                  <SelectItem value="scalper">Quick Scalper</SelectItem>
-                  <SelectItem value="swing">Swing King</SelectItem>
+                  {bots.map(bot => (
+                      <SelectItem key={bot.id} value={bot.id}>{bot.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {selectedBotConfig && (
+                  <div className="text-xs text-slate-500 mt-1">
+                      Strategy: {selectedBotConfig.strategy_type} | Risk: {selectedBotConfig.risk_level}
+                  </div>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -68,9 +90,17 @@ export default function BacktestPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="eurusd">EUR/USD</SelectItem>
-                  <SelectItem value="gbpusd">GBP/USD</SelectItem>
-                  <SelectItem value="xauusd">XAU/USD</SelectItem>
+                  {selectedBotConfig?.pairs?.length > 0 ? (
+                      selectedBotConfig.pairs.map(pair => (
+                          <SelectItem key={pair} value={pair.toLowerCase().replace('/', '')}>{pair}</SelectItem>
+                      ))
+                  ) : (
+                      <>
+                        <SelectItem value="eurusd">EUR/USD</SelectItem>
+                        <SelectItem value="gbpusd">GBP/USD</SelectItem>
+                        <SelectItem value="xauusd">XAU/USD</SelectItem>
+                      </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
