@@ -270,7 +270,7 @@ int OnInit()
    // --- IMMEDIATE CONNECTION TEST ---
    Print("Attempting connection test to: " + ServiceUrl + "/functions/bridge");
    char post[], result[];
-   string headers = "Content-Type: application/json\r\nX-Connect-Token: " + ApiKey;
+   string headers = "Content-Type: application/json\\r\\nX-Connect-Token: " + ApiKey;
    string resHeaders;
    int res = WebRequest("GET", ServiceUrl + "/functions/bridge", headers, 5000, post, result, resHeaders);
 
