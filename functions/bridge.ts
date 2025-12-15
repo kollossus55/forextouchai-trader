@@ -2,6 +2,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 Deno.serve(async (req) => {
     try {
+        // Initialize client - if Authorization header is garbage/custom, it might throw, 
+        // so we use X-Connect-Token in the EA now to keep Authorization clean (anonymous).
         const base44 = createClientFromRequest(req);
         
         // Handle Trade Sync (POST)

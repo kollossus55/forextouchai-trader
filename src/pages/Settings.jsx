@@ -424,7 +424,8 @@ void OnTick()
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
       // Ensure Content-Type is set correctly. 
-      string reqHeaders = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
+      // Using X-Connect-Token instead of Authorization to avoid JWT validation errors on the backend SDK
+      string reqHeaders = "Content-Type: application/json\\r\\nX-Connect-Token: " + ApiKey + "\\r\\n";
       
       // Reset output variables
       ArrayResize(resultData, 0);
