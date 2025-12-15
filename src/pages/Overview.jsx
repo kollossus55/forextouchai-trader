@@ -116,7 +116,9 @@ export default function Overview() {
     try {
       // Refresh market data before generating
       await MarketDataService.fetchAll();
-      const pairs = ['EUR/USD', 'GBP/USD', 'XAU/USD', 'USD/JPY', 'BTC/USD'];
+      const pairs = pairsList.length > 0 
+          ? pairsList.map(p => p.symbol) 
+          : ['EUR/USD', 'GBP/USD', 'USD/JPY'];
 
       // Invoke Backend Function for Real AI Analysis
       const { data: aiSignal } = await base44.functions.invoke('analyzeMarket', {
