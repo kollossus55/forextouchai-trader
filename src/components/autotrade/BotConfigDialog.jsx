@@ -137,7 +137,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
               <div className="space-y-2">
                 <Label>Active Pairs</Label>
                 <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-md max-h-40 overflow-y-auto">
-                    {availablePairs.map(pair => (
+                    {uniquePairs.map(pair => (
                         <Badge 
                             key={pair.id}
                             variant="outline"
@@ -156,7 +156,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                             {pair.symbol}
                         </Badge>
                     ))}
-                    {availablePairs.length === 0 && <span className="text-xs text-slate-500">No pairs available. Please check Pairs tab.</span>}
+                    {uniquePairs.length === 0 && <span className="text-xs text-slate-500">No pairs available. Please check Pairs tab.</span>}
                 </div>
                 <p className="text-[10px] text-slate-500">Select which currency pairs this bot should trade.</p>
               </div>
