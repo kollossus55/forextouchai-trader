@@ -237,20 +237,22 @@ input string   ApiKey = ""; // Your Bridge API Key (if auth required)
 input bool     StealthMode = false; // Hide SL/TP from broker
 
 string lastProcessedSignalId = "";
+string ServiceUrl = "";
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   ServiceUrl = AppUrl;
    // Sanitize URL
-   StringTrimRight(AppUrl);
-   StringTrimLeft(AppUrl);
+   StringTrimRight(ServiceUrl);
+   StringTrimLeft(ServiceUrl);
    // Remove trailing slash if present
-   if(StringSubstr(AppUrl, StringLen(AppUrl)-1, 1) == "/") 
-      AppUrl = StringSubstr(AppUrl, 0, StringLen(AppUrl)-1);
+   if(StringSubstr(ServiceUrl, StringLen(ServiceUrl)-1, 1) == "/") 
+      ServiceUrl = StringSubstr(ServiceUrl, 0, StringLen(ServiceUrl)-1);
 
-   Print("ForexTouchAI Bridge v1.32 Init. Target: " + AppUrl);
+   Print("ForexTouchAI Bridge v1.33 Init. Target: " + ServiceUrl);
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -429,7 +431,7 @@ void OnTick()
       char resultData[];
 
       // Send Data to Backend Function
-      string url = AppUrl + "/functions/bridge";
+      string url = ServiceUrl + "/functions/bridge";
       // Ensure Content-Type is set correctly. 
       // Removed trailing CRLF from headers just in case
       string reqHeaders = "Content-Type: application/json\\r\\nX-Connect-Token: " + ApiKey;
@@ -450,7 +452,7 @@ void OnTick()
             if(err == 4060) Print("Cause: WebRequest not allowed globally.");
             if(err == 5200 || err == 5203) Print("Cause: URL not in 'Allow WebRequest' list.");
 
-            Print("REQUIRED URL in List: " + AppUrl);
+            Print("REQUIRED URL in List: " + ServiceUrl);
             Print("ACTUAL BLOCKED URL: " + url);
             Print("-------------------------------------------");
         }
