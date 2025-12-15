@@ -243,7 +243,14 @@ string lastProcessedSignalId = "";
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("ForexTouchAI Bridge v1.30 Initialized - Full 2-Way Sync");
+   // Sanitize URL
+   StringTrimRight(AppUrl);
+   StringTrimLeft(AppUrl);
+   // Remove trailing slash if present
+   if(StringSubstr(AppUrl, StringLen(AppUrl)-1, 1) == "/") 
+      AppUrl = StringSubstr(AppUrl, 0, StringLen(AppUrl)-1);
+
+   Print("ForexTouchAI Bridge v1.32 Init. Target: " + AppUrl);
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -424,27 +431,31 @@ void OnTick()
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
       // Ensure Content-Type is set correctly. 
-      // Using X-Connect-Token instead of Authorization to avoid JWT validation errors on the backend SDK
-      string reqHeaders = "Content-Type: application/json\\r\\nX-Connect-Token: " + ApiKey + "\\r\\n";
-      
+      // Removed trailing CRLF from headers just in case
+      string reqHeaders = "Content-Type: application/json\\r\\nX-Connect-Token: " + ApiKey;
+
       // Reset output variables
       ArrayResize(resultData, 0);
       headers = "";
-      
-      // Note: We use the 7-argument overload which supports custom headers
+      ResetLastError();
+
       // WebRequest(method, url, headers, timeout, data, result, result_headers)
       int res = WebRequest("POST", url, reqHeaders, 5000, postData, resultData, headers);
 
       if(res != 200) {
-      if (res == -1) {
         int err = GetLastError();
-        Print("Sync Error -1. IMPORTANT: Go to Tools > Options > Expert Advisors.");
-        Print("1. Check 'Allow WebRequest'");
-        Print("2. Add this URL to the list: " + AppUrl);
-        Print("BLOCKED URL: " + url);
+        if (res == -1) {
+            Print("---------- SYNC ERROR -1 DETAILS ----------");
+            Print("MT4 Error Code: " + IntegerToString(err));
+            if(err == 4060) Print("Cause: WebRequest not allowed globally.");
+            if(err == 5200 || err == 5203) Print("Cause: URL not in 'Allow WebRequest' list.");
+
+            Print("REQUIRED URL in List: " + AppUrl);
+            Print("ACTUAL BLOCKED URL: " + url);
+            Print("-------------------------------------------");
         }
-      else if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS or Check App URL.");
-      else Print("Sync Post Error: " + IntegerToString(res));
+        else if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS or Check App URL.");
+        else Print("Sync Post Error: " + IntegerToString(res) + " MT4 Error: " + IntegerToString(err));
       }
 
       // --- PART 2: FETCH SIGNALS (GET) ---
