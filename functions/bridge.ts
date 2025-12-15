@@ -24,11 +24,11 @@ Deno.serve(async (req) => {
                      if (connections.length > 0) {
                          // Update the first connection found
                          await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                             balance: Number(account.balance),
-                             equity: Number(account.equity),
-                             margin: Number(account.margin),
-                             free_margin: Number(account.free_margin),
-                             margin_level: Number(account.margin_level),
+                             balance: Number(account.balance) || 0,
+                             equity: Number(account.equity) || 0,
+                             margin: Number(account.margin) || 0,
+                             free_margin: Number(account.free_margin) || 0,
+                             margin_level: Number(account.margin_level) || 0,
                              last_sync: new Date().toISOString()
                          });
                      } else {
