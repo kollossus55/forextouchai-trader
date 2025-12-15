@@ -6,9 +6,7 @@ export const MarketDataService = {
     prices: {
         'EUR/USD': 1.0850,
         'GBP/USD': 1.2650,
-        'USD/JPY': 148.50,
-        'XAU/USD': 2030.50,
-        'BTC/USD': 65000.00
+        'USD/JPY': 148.50
     },
 
     // Store raw rates for cross-calculation
