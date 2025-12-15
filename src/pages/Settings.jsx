@@ -66,29 +66,41 @@ export default function Settings() {
     fetchUser();
   }, []);
 
-  // Fetch existing connection settings
+  // Fetch existing connection settings with polling
   React.useEffect(() => {
     const fetchConnection = async () => {
       try {
         const connections = await base44.entities.BrokerConnection.list();
         if (connections && connections.length > 0) {
-          const conn = connections[0]; // Assuming single connection for now
+          const conn = connections[0];
           setConnectionId(conn.id);
-          setMt4Config({
-            platform: conn.platform || 'MT4',
-            server: conn.server_name || '',
-            login: conn.account_number || '',
-            password: conn.password || '', // In real app, don't return password
-            apiKey: conn.api_key || ''
-          });
-          setConnectionStatus(conn.connection_status);
+          // Only update form config if it's the first load to avoid overwriting user input while typing
+          if (!connectionId) {
+              setMt4Config(prev => ({
+                ...prev,
+                platform: conn.platform || 'MT4',
+                server: conn.server_name || '',
+                login: conn.account_number || '',
+                // Don't overwrite password/key if they are empty in DB but user might be typing
+              }));
+          }
+
+          // Check if connection is stale (older than 30 seconds)
+          const lastSync = new Date(conn.last_sync).getTime();
+          const now = new Date().getTime();
+          const isStale = (now - lastSync) > 30000;
+
+          setConnectionStatus(isStale ? 'DISCONNECTED' : 'CONNECTED');
         }
       } catch (e) {
         console.error("Failed to fetch connection settings", e);
       }
     };
+
     fetchConnection();
-  }, []);
+    const interval = setInterval(fetchConnection, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
+  }, [connectionId]);
 
   const handleSaveConnection = async () => {
     setErrorMessage('');
@@ -252,7 +264,8 @@ int OnInit()
    if(StringSubstr(ServiceUrl, StringLen(ServiceUrl)-1, 1) == "/") 
       ServiceUrl = StringSubstr(ServiceUrl, 0, StringLen(ServiceUrl)-1);
 
-   Print("ForexTouchAI Bridge v1.33 Init. Target: " + ServiceUrl);
+   Print("ForexTouchAI Bridge v1.34 Init. Target: " + ServiceUrl);
+   if (ServiceUrl == "") Print("CRITICAL ERROR: AppUrl is empty! Check inputs.");
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -443,6 +456,15 @@ void OnTick()
 
       // WebRequest(method, url, headers, timeout, data, result, result_headers)
       int res = WebRequest("POST", url, reqHeaders, 5000, postData, resultData, headers);
+
+      if (res == 200) {
+         // Success feedback
+         static bool firstSuccess = false;
+         if(!firstSuccess) {
+            Print("Connection ESTABLISHED! Data sent to: " + url);
+            firstSuccess = true;
+         }
+      }
 
       if(res != 200) {
         int err = GetLastError();

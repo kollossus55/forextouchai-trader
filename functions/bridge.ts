@@ -31,12 +31,24 @@ Deno.serve(async (req) => {
                              margin: Number(account.margin) || 0,
                              free_margin: Number(account.free_margin) || 0,
                              margin_level: Number(account.margin_level) || 0,
+                             connection_status: 'CONNECTED',
                              last_sync: new Date().toISOString()
                          });
                      } else {
-                         // Optional: Auto-create connection if missing? 
-                         // For now, just warn, as user should create it in Settings
-                         console.warn("No BrokerConnection found to update");
+                         // Auto-create connection if missing
+                         console.log("Creating new BrokerConnection from heartbeat");
+                         await base44.asServiceRole.entities.BrokerConnection.create({
+                             platform: 'MT4',
+                             server_name: 'Auto-Detected',
+                             account_number: 'Syncing...',
+                             connection_status: 'CONNECTED',
+                             balance: Number(account.balance) || 0,
+                             equity: Number(account.equity) || 0,
+                             margin: Number(account.margin) || 0,
+                             free_margin: Number(account.free_margin) || 0,
+                             margin_level: Number(account.margin_level) || 0,
+                             last_sync: new Date().toISOString()
+                         });
                      }
                  } catch (err) {
                      console.error("Account Update Failed:", err);
