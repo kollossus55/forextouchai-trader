@@ -234,17 +234,20 @@ export default function Settings() {
   };
 
   const handleDownloadBridge = () => {
-  const mql4Code = `//+------------------------------------------------------------------+
-//|                                          ForexTouchAI_Bridge.mq4 |
-//|                                     Copyright 2024, ForexTouchAI |
-//|                                       https://www.forextouchai.com |
-//+------------------------------------------------------------------+
-#property copyright "Copyright 2024, ForexTouchAI"
-#property link      "https://www.forextouchai.com"
-#property version   "1.30"
-#property strict
+    // Auto-detect the current app URL to prevent configuration errors
+    const appOrigin = window.location.origin;
 
-input string   AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; // Your App URL (Production)
+    const mql4Code = `//+------------------------------------------------------------------+
+      //|                                          ForexTouchAI_Bridge.mq4 |
+      //|                                     Copyright 2024, ForexTouchAI |
+      //|                                       https://www.forextouchai.com |
+      //+------------------------------------------------------------------+
+      #property copyright "Copyright 2024, ForexTouchAI"
+      #property link      "https://www.forextouchai.com"
+      #property version   "1.38"
+      #property strict
+
+      input string   AppUrl = "${appOrigin}"; // Auto-detected App URL
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
 input bool     StealthMode = false; // Hide SL/TP from broker
 
@@ -496,6 +499,7 @@ void OnTick()
             if(err == 5200 || err == 5203) Print("Cause: URL not in 'Allow WebRequest' list.");
 
             Print("REQUIRED URL in List: " + ServiceUrl);
+            Print("   (CRITICAL: Ensure NO trailing slash '/' at the end in MT4 list!)");
             Print("ACTUAL BLOCKED URL: " + url);
             Print("-------------------------------------------");
         }
@@ -844,6 +848,7 @@ void OnTick()
                   <li>Open it in MetaEditor, compile, and attach to <strong>ONLY ONE</strong> chart.</li>
                   <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors in MT4.</li>
                   <li>Check <strong>"Allow WebRequest..."</strong> and add your App URL to the list.</li>
+                  <li className="text-amber-400 font-bold">IMPORTANT: Do NOT include a trailing slash "/" at the end of the URL in MT4.</li>
                   <li><strong>Error -1</strong> means the URL is missing from the allowed list or WebRequest is disabled.</li>
                   <li><strong>Error 404/401</strong> means Backend Functions are disabled or the URL is incorrect.</li>
                 </ol>
