@@ -40,6 +40,8 @@ export default function Settings() {
     password: '',
     apiKey: ''
   });
+  
+  const [isResetting, setIsResetting] = useState(false);
 
   const [dataSources, setDataSources] = useState({
     crypto: 'coincap',
@@ -204,8 +206,23 @@ export default function Settings() {
     }
   };
 
+  const handleResetTrades = async () => {
+      if (!window.confirm("Are you sure you want to delete ALL trades? This action cannot be undone.")) return;
+
+      setIsResetting(true);
+      try {
+          await base44.functions.invoke('resetData', { target: 'trades' });
+          toast.success("All trades have been reset successfully");
+      } catch (e) {
+          console.error(e);
+          toast.error("Failed to reset trades");
+      } finally {
+          setIsResetting(false);
+      }
+  };
+
   const handleDownloadBridge = () => {
-    const mql4Code = `//+------------------------------------------------------------------+
+  const mql4Code = `//+------------------------------------------------------------------+
 //|                                          ForexTouchAI_Bridge.mq4 |
 //|                                     Copyright 2024, ForexTouchAI |
 //|                                       https://www.forextouchai.com |
@@ -713,6 +730,28 @@ void OnTick()
                   </p>
               )}
             </CardFooter>
+          </Card>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-white flex items-center gap-2">
+                        <Database className="w-5 h-5 text-rose-400" /> Data Management
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">
+                        Reset simulation data and clear history
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={handleResetTrades}
+                    disabled={isResetting}
+                    className="bg-rose-600 hover:bg-rose-700"
+                  >
+                    {isResetting ? 'Clearing...' : 'Reset All Trades'}
+                  </Button>
+              </CardHeader>
           </Card>
 
           <Card className="bg-slate-900/50 border-slate-800">
