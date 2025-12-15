@@ -19,6 +19,15 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     initialData: []
   });
 
+  const uniquePairs = React.useMemo(() => {
+    const seen = new Set();
+    return availablePairs.filter(pair => {
+      if (seen.has(pair.symbol)) return false;
+      seen.add(pair.symbol);
+      return true;
+    });
+  }, [availablePairs]);
+
   const [formData, setFormData] = React.useState({
     name: '',
     strategy_type: 'AI_PREDICTIVE',
