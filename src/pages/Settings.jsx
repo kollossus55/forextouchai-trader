@@ -423,9 +423,10 @@ void OnTick()
 
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
-      // Ensure Content-Type is set correctly
-      string reqHeaders = "Content-Type: application/json\\r\\n";
-      int res = WebRequest("POST", url, reqHeaders, 500, postData, resultData, headers);
+      // Ensure Content-Type is set correctly. 
+      // TIMEOUT INCREASED TO 5000ms (5s) to allow cold starts and DB writes
+      string reqHeaders = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
+      int res = WebRequest("POST", url, reqHeaders, 5000, postData, resultData, headers);
 
       if(res != 200) {
           if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS.");
@@ -436,7 +437,7 @@ void OnTick()
       // Re-using the same endpoint with GET for signals
       char getPost[], getResult[];
       string getHeaders;
-      int getRes = WebRequest("GET", url, cookie, NULL, 500, getPost, 0, getResult, getHeaders);
+      int getRes = WebRequest("GET", url, reqHeaders, 5000, getPost, 0, getResult, getHeaders);
 
       if (getRes == 200) {
          string json = CharArrayToString(getResult);

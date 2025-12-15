@@ -50,7 +50,8 @@ Deno.serve(async (req) => {
                         
                         const ticketNum = Number(trade.ticket);
                         // Filter by ticket to find existing record
-                        const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum });
+                        // Using filter with limit 1 for efficiency
+                        const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum }, undefined, 1);
                         
                         if (existing.length > 0) {
                             // Update existing trade
@@ -101,6 +102,7 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error("Bridge Global Error:", error);
+        // Return 500 but with JSON error to be helpful
         return Response.json({ error: error.message }, { status: 500 });
     }
 });
