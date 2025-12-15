@@ -86,6 +86,12 @@ export default function Overview() {
     initialData: []
   });
 
+  const { data: pairsList } = useQuery({
+    queryKey: ['pairs-overview'],
+    queryFn: () => base44.entities.CurrencyPair.list(),
+    initialData: []
+  });
+
   const generateSignalMutation = useMutation({
     mutationFn: (signalData) => base44.entities.Signal.create(signalData),
     onSuccess: () => {
