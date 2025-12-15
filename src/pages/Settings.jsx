@@ -458,8 +458,8 @@ void OnTick()
          }
 
       } else {
-         if (res == 404 || res == 401) Print("Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS in App Settings.");
-         else Print("Sync Error: " + IntegerToString(res));
+         if (getRes == 404 || getRes == 401) Print("Error " + IntegerToString(getRes) + ": Enable BACKEND FUNCTIONS in App Settings.");
+         else Print("Sync Error: " + IntegerToString(getRes));
       }
    }
   }
