@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock, Activity, Calendar, DollarSign, Zap } from 'lucide-react';
 
 export default function BacktestPanel({ preselectedBot }) {
   const [isRunning, setIsRunning] = useState(false);
@@ -63,11 +64,11 @@ export default function BacktestPanel({ preselectedBot }) {
               <Clock className="w-5 h-5 text-emerald-400" /> Configuration
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label>Select Bot to Backtest</Label>
+              <Label className="text-slate-200">Select Bot to Backtest</Label>
               <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-                <SelectTrigger className="bg-slate-950 border-slate-800">
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select a bot..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -77,59 +78,78 @@ export default function BacktestPanel({ preselectedBot }) {
                 </SelectContent>
               </Select>
               {selectedBotConfig && (
-                  <div className="text-xs text-slate-500 mt-1">
-                      Strategy: {selectedBotConfig.strategy_type} | Risk: {selectedBotConfig.risk_level}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                      <Badge variant="outline" className={`
+                          ${selectedBotConfig.risk_level === 'HIGH' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 
+                            selectedBotConfig.risk_level === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
+                            'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}
+                      `}>
+                          Risk: {selectedBotConfig.risk_level}
+                      </Badge>
+                      <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                          {selectedBotConfig.strategy_type.replace('_', ' ')}
+                      </Badge>
                   </div>
               )}
             </div>
-            
-            <div className="space-y-2">
-              <Label>Symbol</Label>
-              <Select defaultValue="eurusd">
-                <SelectTrigger className="bg-slate-950 border-slate-800">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedBotConfig?.pairs?.length > 0 ? (
-                      selectedBotConfig.pairs.map(pair => (
-                          <SelectItem key={pair} value={pair.toLowerCase().replace('/', '')}>{pair}</SelectItem>
-                      ))
-                  ) : (
-                      <>
-                        <SelectItem value="eurusd">EUR/USD</SelectItem>
-                        <SelectItem value="gbpusd">GBP/USD</SelectItem>
-                      </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
 
-            <div className="space-y-2">
-              <Label>Timeframe</Label>
-              <Select defaultValue="h1">
-                <SelectTrigger className="bg-slate-950 border-slate-800">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="m15">M15 (15 Minutes)</SelectItem>
-                  <SelectItem value="h1">H1 (1 Hour)</SelectItem>
-                  <SelectItem value="h4">H4 (4 Hours)</SelectItem>
-                  <SelectItem value="d1">D1 (Daily)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-slate-300">
+                      <Activity className="w-3.5 h-3.5 text-blue-400" /> Symbol
+                  </Label>
+                  <Select defaultValue="eurusd">
+                  <SelectTrigger className="bg-slate-950 border-slate-800">
+                      <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                      {selectedBotConfig?.pairs?.length > 0 ? (
+                          selectedBotConfig.pairs.map(pair => (
+                              <SelectItem key={pair} value={pair.toLowerCase().replace('/', '')}>{pair}</SelectItem>
+                          ))
+                      ) : (
+                          <>
+                          <SelectItem value="eurusd">EUR/USD</SelectItem>
+                          <SelectItem value="gbpusd">GBP/USD</SelectItem>
+                          </>
+                      )}
+                  </SelectContent>
+                  </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Period</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input type="date" className="bg-slate-950 border-slate-800 text-xs" />
-                <Input type="date" className="bg-slate-950 border-slate-800 text-xs" />
+              <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-slate-300">
+                      <Zap className="w-3.5 h-3.5 text-purple-400" /> Timeframe
+                  </Label>
+                  <Select defaultValue="h1">
+                  <SelectTrigger className="bg-slate-950 border-slate-800">
+                      <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="m15">M15 (15 Minutes)</SelectItem>
+                      <SelectItem value="h1">H1 (1 Hour)</SelectItem>
+                      <SelectItem value="h4">H4 (4 Hours)</SelectItem>
+                      <SelectItem value="d1">D1 (Daily)</SelectItem>
+                  </SelectContent>
+                  </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Initial Balance</Label>
-              <Input type="number" defaultValue="10000" className="bg-slate-950 border-slate-800" />
+              <Label className="flex items-center gap-2 text-slate-300">
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" /> Period
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="date" className="bg-slate-950 border-slate-800 text-xs text-slate-300" />
+                <Input type="date" className="bg-slate-950 border-slate-800 text-xs text-slate-300" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-slate-300">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Initial Balance
+              </Label>
+              <Input type="number" defaultValue="10000" className="bg-slate-950 border-slate-800 text-slate-200" />
             </div>
 
             <Button 
