@@ -51,9 +51,9 @@ Deno.serve(async (req) => {
                         const ticketNum = Number(trade.ticket);
                         // Filter by ticket to find existing record
                         // Using filter with limit 1 for efficiency
-                        const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum }, undefined, 1);
+                        const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum });
                         
-                        if (existing.length > 0) {
+                        if (existing && existing.length > 0) {
                             // Update existing trade
                             await base44.asServiceRole.entities.Trade.update(existing[0].id, {
                                 pnl: Number(trade.pnl),
