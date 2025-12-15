@@ -232,7 +232,7 @@ export default function Settings() {
 #property version   "1.30"
 #property strict
 
-input string   AppUrl = "https://your-app-url.base44.app"; // Your App URL
+input string   AppUrl = "${window.location.origin}"; // Your App URL
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
 input bool     StealthMode = false; // Hide SL/TP from broker
 
@@ -441,8 +441,8 @@ void OnTick()
         Print("Sync Error -1. IMPORTANT: Go to Tools > Options > Expert Advisors.");
         Print("1. Check 'Allow WebRequest'");
         Print("2. Add this URL to the list: " + AppUrl);
-        Print("Internal Error Code: " + IntegerToString(err));
-      }
+        Print("BLOCKED URL: " + url);
+        }
       else if (res == 404 || res == 401) Print("Sync Error " + IntegerToString(res) + ": Enable BACKEND FUNCTIONS or Check App URL.");
       else Print("Sync Post Error: " + IntegerToString(res));
       }
