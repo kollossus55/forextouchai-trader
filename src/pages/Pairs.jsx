@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import TickChart from '@/components/market/TickChart';
+import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Pairs() {
   const queryClient = useQueryClient();
@@ -36,7 +37,7 @@ export default function Pairs() {
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
   
-  // Real-time Simulation State
+  // Real-time State
   const [liveData, setLiveData] = useState({});
 
   const { data: pairs, isLoading } = useQuery({
@@ -45,55 +46,59 @@ export default function Pairs() {
     initialData: []
   });
 
-  // Initialize live data simulation
+  // Initialize Market Data
   useEffect(() => {
-    if (pairs.length > 0 && Object.keys(liveData).length === 0) {
-      const initialData = {};
-      pairs.forEach(pair => {
-        // Generate initial mock history
-        const history = [];
-        let price = pair.current_price;
-        for (let i = 0; i < 20; i++) {
-          price = price * (1 + (Math.random() - 0.5) * 0.001);
-          history.push({ time: i, price });
-        }
-        initialData[pair.id] = {
-          current_price: pair.current_price,
-          change_24h: pair.change_24h,
-          history
-        };
-      });
-      setLiveData(initialData);
-    }
-  }, [pairs]);
+    MarketDataService.initialize();
+  }, []);
 
-  // Simulate Ticks
+  // Sync with MarketDataService
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (pairs.length === 0) return;
+
+    const interval = setInterval(async () => {
+      // Ensure we have the latest data
+      await MarketDataService.fetchAll();
+
       setLiveData(prev => {
         const next = { ...prev };
-        Object.keys(next).forEach(id => {
-          const current = next[id];
-          const volatility = 0.0005; // 0.05% move
-          const change = (Math.random() - 0.5) * volatility;
-          const newPrice = current.current_price * (1 + change);
-          
-          // Update history
-          const newHistory = [...current.history.slice(1), { time: Date.now(), price: newPrice }];
-          
-          next[id] = {
-            ...current,
-            current_price: newPrice,
-            change_24h: current.change_24h + (change * 100), // Approximate daily change impact
-            history: newHistory
-          };
+        
+        pairs.forEach(pair => {
+            // Get real price from service (with micro-jitter for liveness)
+            const realPrice = MarketDataService.getPrice(pair.symbol);
+            
+            // If we don't have previous history for this pair, init it
+            let current = next[pair.id];
+            if (!current) {
+                const history = [];
+                // Backfill dummy history relative to current price if empty
+                for (let i = 0; i < 20; i++) {
+                   history.push({ time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002) });
+                }
+                current = {
+                    current_price: realPrice,
+                    change_24h: pair.change_24h,
+                    history
+                };
+            }
+
+            const newHistory = [...current.history.slice(1), { time: Date.now(), price: realPrice }];
+            
+            // Calculate pseudo 24h change if we wanted, or just keep DB value + drift
+            // For now, let's keep DB 24h change but update price
+            next[pair.id] = {
+                ...current,
+                current_price: realPrice,
+                change_24h: pair.change_24h, 
+                history: newHistory
+            };
         });
+
         return next;
       });
-    }, 1000); // 1 second updates
+    }, 1000); // Update UI every second
 
     return () => clearInterval(interval);
-  }, []);
+  }, [pairs]);
 
   const createTrade = useMutation({
     mutationFn: (data) => base44.entities.Trade.create(data),
