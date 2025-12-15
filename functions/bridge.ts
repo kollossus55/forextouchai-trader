@@ -63,12 +63,12 @@ Deno.serve(async (req) => {
                         } else {
                             // Create new trade
                             await base44.asServiceRole.entities.Trade.create({
-                                pair: String(trade.symbol),
-                                type: String(trade.type),
-                                lot_size: Number(trade.lots),
-                                open_price: Number(trade.open_price),
+                                pair: String(trade.symbol || "UNKNOWN"),
+                                type: String(trade.type || "BUY"),
+                                lot_size: Number(trade.lots) || 0.01,
+                                open_price: Number(trade.open_price) || 0,
                                 close_price: Number(trade.current_price || 0),
-                                pnl: Number(trade.pnl),
+                                pnl: Number(trade.pnl) || 0,
                                 ticket: ticketNum,
                                 status: 'OPEN',
                                 is_auto: Boolean(trade.magic !== 0)
