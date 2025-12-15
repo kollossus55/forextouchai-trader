@@ -234,9 +234,6 @@ export default function Settings() {
   };
 
   const handleDownloadBridge = () => {
-    // Auto-detect the current app URL to prevent configuration errors
-    const appOrigin = window.location.origin;
-
     const mql4Code = `//+------------------------------------------------------------------+
       //|                                          ForexTouchAI_Bridge.mq4 |
       //|                                     Copyright 2024, ForexTouchAI |
@@ -244,10 +241,10 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "1.38"
+      #property version   "1.0"
       #property strict
 
-      input string   AppUrl = "${appOrigin}"; // Auto-detected App URL
+      input string   AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; // Application URL
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
 input bool     StealthMode = false; // Hide SL/TP from broker
 
@@ -849,11 +846,11 @@ void OnTick()
                   <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors in MT4.</li>
                   <li>Check <strong>"Allow WebRequest..."</strong> and add your App URL to the list.</li>
                   <li className="text-amber-400 font-bold">IMPORTANT: Do NOT include a trailing slash "/" at the end of the URL in MT4.</li>
+                  <li className="text-white font-mono bg-slate-900 p-1 mt-1 block text-center select-all">https://forex-ai-trader-cc744e2a.base44.app</li>
                   <li><strong>Error -1</strong> means the URL is missing from the allowed list or WebRequest is disabled.</li>
-                  <li><strong>Error 404/401</strong> means Backend Functions are disabled or the URL is incorrect.</li>
-                </ol>
-              </div>
-              <div className="flex items-center gap-4">
+                  </ol>
+                  </div>
+                  <div className="flex items-center gap-4">
                 <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all">
                   <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
                 </Button>
