@@ -232,7 +232,7 @@ export default function Settings() {
 #property version   "1.30"
 #property strict
 
-input string   AppUrl = "${window.location.origin}"; // Your App URL
+input string   AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; // Your App URL (Production)
 input string   ApiKey = ""; // Your Bridge API Key (if auth required)
 input bool     StealthMode = false; // Hide SL/TP from broker
 
