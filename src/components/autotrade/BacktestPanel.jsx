@@ -98,7 +98,6 @@ export default function BacktestPanel({ preselectedBot }) {
                       <>
                         <SelectItem value="eurusd">EUR/USD</SelectItem>
                         <SelectItem value="gbpusd">GBP/USD</SelectItem>
-                        <SelectItem value="xauusd">XAU/USD</SelectItem>
                       </>
                   )}
                 </SelectContent>
