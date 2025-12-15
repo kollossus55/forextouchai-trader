@@ -424,8 +424,14 @@ void OnTick()
       // Send Data to Backend Function
       string url = AppUrl + "/functions/bridge";
       // Ensure Content-Type is set correctly. 
-      // TIMEOUT INCREASED TO 5000ms (5s) to allow cold starts and DB writes
       string reqHeaders = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
+      
+      // Reset output variables
+      ArrayResize(resultData, 0);
+      headers = "";
+      
+      // Note: We use the 7-argument overload which supports custom headers
+      // WebRequest(method, url, headers, timeout, data, result, result_headers)
       int res = WebRequest("POST", url, reqHeaders, 5000, postData, resultData, headers);
 
       if(res != 200) {
@@ -437,7 +443,8 @@ void OnTick()
       // Re-using the same endpoint with GET for signals
       char getPost[], getResult[];
       string getHeaders;
-      int getRes = WebRequest("GET", url, reqHeaders, 5000, getPost, 0, getResult, getHeaders);
+      // Fixed: Removed the extra '0' argument to match the 7-argument overload
+      int getRes = WebRequest("GET", url, reqHeaders, 5000, getPost, getResult, getHeaders);
 
       if (getRes == 200) {
          string json = CharArrayToString(getResult);
