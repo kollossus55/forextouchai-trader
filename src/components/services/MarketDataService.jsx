@@ -1,6 +1,5 @@
 // Utility service to fetch real market data from free public APIs
 // Supports Crypto (CoinCap) and Forex (Open Exchange Rates)
-// Designed to be extended with more providers
 
 export const MarketDataService = {
     // Cache for latest prices
@@ -10,6 +9,11 @@ export const MarketDataService = {
         'USD/JPY': 148.50,
         'XAU/USD': 2030.50,
         'BTC/USD': 65000.00
+    },
+
+    // Store raw rates for cross-calculation
+    rates: {
+        'USD': 1.0
     },
 
     lastUpdate: 0,
@@ -40,7 +44,7 @@ export const MarketDataService = {
     async fetchCrypto() {
         try {
             // CoinCap API (Free, No Key)
-            const response = await fetch('https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana,gold,silver');
+            const response = await fetch('https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana,ripple,cardano,dogecoin,polkadot,litecoin');
             const data = await response.json();
             
             if (data && data.data) {
@@ -56,22 +60,14 @@ export const MarketDataService = {
 
     async fetchForex() {
         try {
-            // Open Exchange Rates (Free tier / Public endpoint if available) or generic open API
-            // Using open.er-api.com which is free and CORS enabled
+            // Open Exchange Rates (Free tier / Public endpoint)
             const response = await fetch('https://open.er-api.com/v6/latest/USD');
             const data = await response.json();
             
             if (data && data.rates) {
-                // Invert rates because API is USD base
-                // EUR/USD = 1 / USD/EUR
-                if (data.rates.EUR) this.prices['EUR/USD'] = 1 / data.rates.EUR;
-                if (data.rates.GBP) this.prices['GBP/USD'] = 1 / data.rates.GBP;
-                if (data.rates.AUD) this.prices['AUD/USD'] = 1 / data.rates.AUD;
-                
-                // Direct pairs
-                if (data.rates.JPY) this.prices['USD/JPY'] = data.rates.JPY;
-                if (data.rates.CAD) this.prices['USD/CAD'] = data.rates.CAD;
-                if (data.rates.CHF) this.prices['USD/CHF'] = data.rates.CHF;
+                this.rates = data.rates;
+                // Ensure USD is present
+                this.rates['USD'] = 1.0;
             }
         } catch (e) {
             console.error("Forex fetch error", e);
@@ -80,14 +76,40 @@ export const MarketDataService = {
 
     // Get price with artificial micro-jitter to simulate ticks between API updates
     getPrice(pair) {
-        let price = this.prices[pair];
-        if (!price) {
-            // Fallback for unmapped pairs, generate plausible price based on cached defaults or 1.0
-            price = 1.0;
+        // 1. Check direct cache (Crypto usually)
+        if (this.prices[pair]) {
+            return this.applyJitter(this.prices[pair]);
         }
 
+        // 2. Try to calculate Forex Cross Rate
+        if (pair.includes('/') && Object.keys(this.rates).length > 1) {
+            const [base, quote] = pair.split('/');
+            
+            // Formula: Rate = Quote_Rate_vs_USD / Base_Rate_vs_USD
+            // Example: EUR/USD = USD_Rate / EUR_Rate (wait, rates are "Currency per USD")
+            // Actually API returns: EUR: 0.92 (0.92 EUR = 1 USD)
+            // So 1 EUR = 1/0.92 USD = 1.08 USD.
+            //
+            // Generic: Price(Base/Quote) = Value(Base) / Value(Quote)
+            // Value(Currency) in USD = 1 / Rate(Currency)
+            // Price(Base/Quote) = (1 / Rate(Base)) / (1 / Rate(Quote)) = Rate(Quote) / Rate(Base)
+            
+            const rateBase = this.rates[base];
+            const rateQuote = this.rates[quote];
+
+            if (rateBase && rateQuote) {
+                const price = rateQuote / rateBase;
+                this.prices[pair] = price; // Cache it
+                return this.applyJitter(price);
+            }
+        }
+
+        // 3. Fallback
+        return this.applyJitter(1.0);
+    },
+
+    applyJitter(price) {
         // Add 0.005% random jitter to simulate live ticks
-        const jitter = price * (Math.random() * 0.0001 - 0.00005);
-        return price + jitter;
+        return price * (1 + (Math.random() * 0.0001 - 0.00005));
     }
 };
