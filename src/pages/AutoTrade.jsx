@@ -228,7 +228,7 @@ export default function AutoTrade() {
                       className={`rounded-full w-10 h-10 border-2 ${
                         bot.status === 'RUNNING' 
                         ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300' 
-                        : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white'
+                        : 'border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300'
                       }`}
                       onClick={() => toggleBot.mutate(bot)}
                     >
