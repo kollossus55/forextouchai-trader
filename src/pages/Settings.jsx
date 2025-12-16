@@ -242,12 +242,13 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "2.20"
+      #property version   "2.21"
       #property strict
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
       input string ApiKey = ""; 
+      input double  FixedLotSize = 0.1;
 
       // --- GLOBALS ---
       string ServiceUrl;
@@ -396,25 +397,56 @@ export default function Settings() {
             }
             else if(status == "PENDING" && id != "" && id != lastSignalId) {
                Print(">>> NEW SIGNAL RECEIVED: ", id);
-               
+
                string pair = GetJsonValue(json, "pair");
                string type = GetJsonValue(json, "type");
-               double sl = StringToDouble(GetJsonValue(json, "stop_loss"));
-               double tp = StringToDouble(GetJsonValue(json, "take_profit"));
-               
+
+               // Get Signal Prices
+               double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
+               double sigSL = StringToDouble(GetJsonValue(json, "stop_loss"));
+               double sigTP = StringToDouble(GetJsonValue(json, "take_profit"));
+
                // Clean pair name (remove / if exists)
                StringReplace(pair, "/", "");
-               
+
                int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
-               
+               double currentPrice = MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID));
+               int digits = (int)MarketInfo(pair, MODE_DIGITS);
+
+               // Calculate Dynamic SL/TP Distances to handle Feed discrepancies
+               double slDist = 0;
+               double tpDist = 0;
+
+               if(sigEntry > 0) {
+                  if(cmd == OP_BUY) {
+                     if(sigSL > 0) slDist = sigEntry - sigSL;
+                     if(sigTP > 0) tpDist = sigTP - sigEntry;
+                  } else {
+                     if(sigSL > 0) slDist = sigSL - sigEntry;
+                     if(sigTP > 0) tpDist = sigEntry - sigTP;
+                  }
+               }
+
+               // Apply Distances to Current Price
+               double finalSL = 0;
+               double finalTP = 0;
+
+               if(slDist > 0) finalSL = (cmd==OP_BUY) ? (currentPrice - slDist) : (currentPrice + slDist);
+               if(tpDist > 0) finalTP = (cmd==OP_BUY) ? (currentPrice + tpDist) : (currentPrice - tpDist);
+
+               // Normalize
+               if(finalSL > 0) finalSL = NormalizeDouble(finalSL, digits);
+               if(finalTP > 0) finalTP = NormalizeDouble(finalTP, digits);
+
                // Execute
-               int ticket = OrderSend(pair, cmd, 0.1, MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID)), 10, sl, tp, "ForexTouchAI", 0, 0, clrGreen);
-               
+               int ticket = OrderSend(pair, cmd, FixedLotSize, currentPrice, 20, finalSL, finalTP, "ForexTouchAI", 0, 0, clrGreen);
+
                if(ticket > 0) {
                   Print("Trade Executed! Ticket: ", ticket);
                   lastSignalId = id;
                } else {
                   Print("Trade Failed. Error: ", GetLastError());
+                  Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
                }
             }
          }
