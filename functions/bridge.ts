@@ -125,9 +125,17 @@ Deno.serve(async (req) => {
         // Handle Signal Fetch (GET)
         if (req.method === 'GET') {
             try {
-                // Using filter logic instead of list might be more stable in some contexts
-                // or just retry once if it fails
-                const signals = await base44.asServiceRole.entities.Signal.list('-created_date', 1);
+                // Using filter({}) instead of list() to avoid potential Deno Deploy async context issues
+                // We'll also try-catch this specific call with a retry
+                let signals = [];
+                try {
+                    signals = await base44.asServiceRole.entities.Signal.filter({}, '-created_date', 1);
+                } catch (innerErr) {
+                    console.warn("First signal fetch attempt failed, retrying...", innerErr);
+                    // Retry once
+                    await new Promise(r => setTimeout(r, 100)); // Short pause
+                    signals = await base44.asServiceRole.entities.Signal.filter({}, '-created_date', 1);
+                }
 
                 if (signals && signals.length > 0) {
                     return Response.json(signals[0]);
