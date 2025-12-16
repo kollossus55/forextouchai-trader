@@ -112,6 +112,14 @@ export default function Overview() {
       });
 
       if (aiSignal && aiSignal.pair) {
+          // Prevent duplicates
+          const isDuplicate = signals.some(s => s.pair === aiSignal.pair && s.status === 'ANALYSIS');
+          
+          if (isDuplicate) {
+             toast.info("Analysis Updated", { description: `Latest setup for ${aiSignal.pair} is already shown.` });
+             return;
+          }
+
           generateSignalMutation.mutate({
               pair: aiSignal.pair,
               type: aiSignal.type,
@@ -309,13 +317,18 @@ export default function Overview() {
                  <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
                </div>
              ) : (
-               signals.map(signal => (
-                 <SignalCard 
-                    key={signal.id} 
-                    signal={signal} 
-                    onExecute={() => executeSignalMutation.mutate(signal)} 
-                  />
-               ))
+               // Deduplicate signals by pair for display
+               signals
+                 .filter((signal, index, self) => 
+                    index === self.findIndex((t) => t.pair === signal.pair)
+                 )
+                 .map(signal => (
+                   <SignalCard 
+                      key={signal.id} 
+                      signal={signal} 
+                      onExecute={() => executeSignalMutation.mutate(signal)} 
+                    />
+                 ))
              )}
           </div>
         </CardContent>
