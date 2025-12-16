@@ -79,6 +79,32 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     }
   }, [initialData, open]);
 
+  const [isOptimizing, setIsOptimizing] = React.useState(false);
+
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    try {
+        const { data } = await base44.functions.invoke('optimizeStrategy', {
+            strategyType: formData.strategy_type,
+            currentParams: formData,
+            // In a real app, we might pass specific historical data here
+        });
+
+        if (data && data.suggested_params) {
+            setFormData(prev => ({
+                ...prev,
+                ...data.suggested_params
+            }));
+            // Show toast or alert with reasoning
+            // alert(`Optimization applied: ${data.suggested_params.reasoning}`); 
+        }
+    } catch (e) {
+        console.error("Optimization failed", e);
+    } finally {
+        setIsOptimizing(false);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
@@ -105,6 +131,19 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
             {/* General Tab */}
             <TabsContent value="general" className="space-y-4 mt-4 bg-slate-900/50 p-4 rounded-lg border border-slate-800/50">
+               <div className="flex justify-end mb-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleOptimize}
+                    disabled={isOptimizing}
+                    className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                  >
+                    {isOptimizing ? <Zap className="w-3 h-3 mr-2 animate-spin" /> : <Zap className="w-3 h-3 mr-2" />}
+                    {isOptimizing ? 'AI Optimizing...' : 'AI Auto-Optimize'}
+                  </Button>
+               </div>
               <div className="space-y-2">
                 <Label>Bot Name</Label>
                 <Input 

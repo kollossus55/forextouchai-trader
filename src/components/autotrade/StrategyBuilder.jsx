@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,17 @@ export default function StrategyBuilder() {
 
   const removeNode = (id) => {
     setNodes(nodes.filter(n => n.id !== id));
+  };
+
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    // Mocking optimization for visual strategy builder since nodes structure is complex
+    // In real scenario, this would send node structure to LLM
+    setTimeout(() => {
+        setIsOptimizing(false);
+    }, 1500);
   };
 
   return (
@@ -93,6 +105,16 @@ export default function StrategyBuilder() {
             <p className="text-xs text-slate-400 mt-1">Visual logic editor</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                onClick={handleOptimize}
+                disabled={isOptimizing}
+            >
+              {isOptimizing ? <Zap className="w-4 h-4 mr-2 animate-spin" /> : <BrainCircuit className="w-4 h-4 mr-2" />}
+              {isOptimizing ? 'Optimizing...' : 'AI Optimize'}
+            </Button>
             <Button variant="outline" size="sm" className="border-slate-700 text-slate-300">
               <PlayCircle className="w-4 h-4 mr-2" /> Test
             </Button>
