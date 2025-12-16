@@ -119,9 +119,11 @@ export default function Overview() {
     try {
       // Refresh market data before generating
       await MarketDataService.fetchAll();
-      const pairs = pairsList.length > 0 
-          ? pairsList.map(p => p.symbol) 
-          : ['EUR/USD', 'GBP/USD', 'USD/JPY'];
+      
+      const MAJOR_PAIRS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'GBP/JPY', 'EUR/JPY', 'XAU/USD', 'BTC/USD', 'ETH/USD'];
+      const userPairs = pairsList.map(p => p.symbol);
+      // Combine user pairs with major pairs for a broader scan
+      const pairs = Array.from(new Set([...userPairs, ...MAJOR_PAIRS]));
 
       // Prepare active indicators list
       const activeIndicators = Object.entries(scanSettings.indicators)
