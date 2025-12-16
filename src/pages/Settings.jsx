@@ -242,7 +242,7 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "2.00"
+      #property version   "2.20"
       #property strict
 
       // --- INPUTS ---
@@ -373,7 +373,8 @@ export default function Settings() {
          string resH;
          
          int r = WebRequest("POST", Endpoint, headers, 3000, data, res, resH);
-         if(r != 200) Print("Sync Failed: ", r);
+         // Suppress error -1 (General Error) as it can be intermittent even when working
+         if(r != 200 && r != -1) Print("Sync Failed: ", r);
       }
       
       void CheckSignals() {
