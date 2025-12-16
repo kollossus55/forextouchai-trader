@@ -51,7 +51,7 @@ export default function Pairs() {
     MarketDataService.initialize();
   }, []);
 
-  // Sync with MarketDataService
+  // Sync with MarketDataService & Simulate AI
   useEffect(() => {
     if (pairs.length === 0) return;
 
@@ -63,39 +63,56 @@ export default function Pairs() {
         const next = { ...prev };
         
         pairs.forEach(pair => {
-            // Get real price from service (with micro-jitter for liveness)
+            // Get real price from service
             const realPrice = MarketDataService.getPrice(pair.symbol);
             
-            // If we don't have previous history for this pair, init it
+            // Init or Get Current State
             let current = next[pair.id];
             if (!current) {
                 const history = [];
-                // Backfill dummy history relative to current price if empty
+                // Backfill dummy history
                 for (let i = 0; i < 20; i++) {
                    history.push({ time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002) });
                 }
                 current = {
                     current_price: realPrice,
                     change_24h: pair.change_24h,
-                    history
+                    history,
+                    ai_confidence: pair.ai_confidence || Math.floor(Math.random() * 40) + 30,
+                    ai_signal: pair.ai_signal || 'NEUTRAL'
                 };
             }
 
+            // Update Price History
             const newHistory = [...current.history.slice(1), { time: Date.now(), price: realPrice }];
             
-            // Calculate pseudo 24h change if we wanted, or just keep DB value + drift
-            // For now, let's keep DB 24h change but update price
+            // Simulate AI Updates (Random Walk)
+            let { ai_confidence, ai_signal } = current;
+            if (Math.random() > 0.8) { // 20% chance to update AI per tick
+                const change = Math.floor(Math.random() * 6) - 3; // -3 to +3
+                ai_confidence = Math.min(98, Math.max(15, ai_confidence + change));
+                
+                // Update Signal based on new confidence
+                if (ai_confidence >= 80) {
+                    if (ai_signal === 'NEUTRAL') ai_signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
+                } else if (ai_confidence < 50) {
+                    ai_signal = 'NEUTRAL';
+                }
+            }
+
             next[pair.id] = {
                 ...current,
                 current_price: realPrice,
                 change_24h: pair.change_24h, 
-                history: newHistory
+                history: newHistory,
+                ai_confidence,
+                ai_signal
             };
         });
 
         return next;
       });
-    }, 1000); // Update UI every second
+    }, 1000); 
 
     return () => clearInterval(interval);
   }, [pairs]);
@@ -146,24 +163,30 @@ export default function Pairs() {
     return majors.includes(pair.symbol) ? 'MAJOR' : 'MINOR';
   };
 
-  const filteredPairs = pairs.filter(pair => 
+  // Merge Live Data with Static Data
+  const mergedPairs = pairs.map(pair => {
+      const live = liveData[pair.id];
+      return {
+          ...pair,
+          ...live, // Overrides static ai_confidence/signal/price with live values
+          current_price: live?.current_price || pair.current_price,
+          history: live?.history || []
+      };
+  });
+
+  const filteredPairs = mergedPairs.filter(pair => 
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
-  const maxConfidence = Math.max(...pairs.map(p => p.ai_confidence || 0));
+  const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
 
   const PairCard = ({ pair }) => {
-    const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 0;
-    // Use simulated live data if available, else fallback to static
-    const live = liveData[pair.id] || { 
-      current_price: pair.current_price, 
-      change_24h: pair.change_24h,
-      history: []
-    };
-
+    // pair now includes live data (merged)
+    const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 70;
+    
     return (
       <Card className={`bg-slate-900/50 backdrop-blur-sm transition-all group overflow-hidden ${
           isTopPick 
@@ -204,15 +227,12 @@ export default function Pairs() {
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-xl font-bold tracking-tight font-mono transition-colors duration-300 ${
-                live.current_price > pair.current_price ? 'text-emerald-400' : 
-                live.current_price < pair.current_price ? 'text-rose-400' : 'text-white'
-              }`}>
-                {live.current_price.toFixed(5)}
+              <p className="text-xl font-bold tracking-tight font-mono transition-colors duration-300 text-white">
+                {pair.current_price.toFixed(5)}
               </p>
-              <div className={`flex items-center justify-end text-xs font-medium ${live.change_24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {live.change_24h >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {live.change_24h > 0 ? '+' : ''}{live.change_24h.toFixed(2)}%
+              <div className={`flex items-center justify-end text-xs font-medium ${pair.change_24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {pair.change_24h >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                {pair.change_24h > 0 ? '+' : ''}{pair.change_24h.toFixed(2)}%
               </div>
             </div>
           </div>
@@ -220,8 +240,8 @@ export default function Pairs() {
           {/* Tick Chart */}
           <div className="mb-4">
              <TickChart 
-                data={live.history} 
-                color={live.change_24h >= 0 ? '#10b981' : '#f43f5e'} 
+                data={pair.history} 
+                color={pair.change_24h >= 0 ? '#10b981' : '#f43f5e'} 
              />
           </div>
 
