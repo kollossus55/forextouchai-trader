@@ -242,13 +242,13 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "2.21"
+      #property version   "2.22"
       #property strict
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
       input string ApiKey = ""; 
-      input double  FixedLotSize = 0.1;
+      input double  FixedLotSize = 0.01;
 
       // --- GLOBALS ---
       string ServiceUrl;
@@ -441,6 +441,7 @@ export default function Settings() {
 
                // Use signal lot size if provided, otherwise default to FixedLotSize
                double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
+               Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
 
                // Execute
                int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, finalSL, finalTP, "ForexTouchAI", 0, 0, clrGreen);
@@ -450,7 +451,7 @@ export default function Settings() {
                   lastSignalId = id;
                } else {
                   Print("Trade Failed. Error: ", GetLastError());
-                  Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
+                  Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP, " Lot=", finalLot);
                }
             }
          }
