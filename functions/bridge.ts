@@ -123,23 +123,31 @@ Deno.serve(async (req) => {
         }
 
         // Handle Signal Fetch (GET)
-        try {
-            // Explicitly handle GET requests
-            const signals = await base44.asServiceRole.entities.Signal.list('-created_date', 1);
-            if (signals && signals.length > 0) {
-                return Response.json(signals[0]);
+        if (req.method === 'GET') {
+            try {
+                // Using filter logic instead of list might be more stable in some contexts
+                // or just retry once if it fails
+                const signals = await base44.asServiceRole.entities.Signal.list('-created_date', 1);
+
+                if (signals && signals.length > 0) {
+                    return Response.json(signals[0]);
+                }
+                return Response.json({ status: "NO_SIGNAL", id: "" });
+            } catch (err) {
+                console.error("Signal Fetch Error:", err);
+
+                // Fallback: try to return a clean error without crashing
+                // The 'expectedAsyncWrap' is a low-level runtime error, sometimes retrying helps
+                // or simply ensuring we return a valid JSON response so the EA doesn't hang.
+                return Response.json({ 
+                    status: "ERROR", 
+                    error: "Signal fetch failed: " + (err.message || "Unknown Error"),
+                    details: "Backend connection is alive, but database access failed."
+                }, { status: 200 });
             }
-            return Response.json({ status: "NO_SIGNAL", id: "" });
-        } catch (err) {
-             console.error("Signal Fetch Error:", err);
-             // Return 200 with error details to allow connection test to pass
-             // The EA checks for status 200 to confirm connectivity
-             return Response.json({ 
-                 status: "ERROR", 
-                 error: "Signal fetch failed: " + err.message,
-                 details: "Backend connection is alive, but database access failed."
-             }, { status: 200 });
         }
+
+        return Response.json({ error: "Method not allowed" }, { status: 405 });
 
     } catch (error) {
         console.error("Bridge Global Error:", error);
