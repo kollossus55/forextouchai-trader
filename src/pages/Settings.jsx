@@ -405,6 +405,7 @@ export default function Settings() {
                double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
                double sigSL = StringToDouble(GetJsonValue(json, "stop_loss"));
                double sigTP = StringToDouble(GetJsonValue(json, "take_profit"));
+               double sigLot = StringToDouble(GetJsonValue(json, "lot_size"));
 
                // Clean pair name (remove / if exists)
                StringReplace(pair, "/", "");
@@ -438,8 +439,11 @@ export default function Settings() {
                if(finalSL > 0) finalSL = NormalizeDouble(finalSL, digits);
                if(finalTP > 0) finalTP = NormalizeDouble(finalTP, digits);
 
+               // Use signal lot size if provided, otherwise default to FixedLotSize
+               double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
+
                // Execute
-               int ticket = OrderSend(pair, cmd, FixedLotSize, currentPrice, 20, finalSL, finalTP, "ForexTouchAI", 0, 0, clrGreen);
+               int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, finalSL, finalTP, "ForexTouchAI", 0, 0, clrGreen);
 
                if(ticket > 0) {
                   Print("Trade Executed! Ticket: ", ticket);

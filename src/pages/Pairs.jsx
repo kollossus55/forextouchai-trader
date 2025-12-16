@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 import { 
   Search, 
   TrendingUp, 
@@ -117,13 +118,14 @@ export default function Pairs() {
     return () => clearInterval(interval);
   }, [pairs]);
 
-  const createTrade = useMutation({
-    mutationFn: (data) => base44.entities.Trade.create(data),
+  const sendSignal = useMutation({
+    mutationFn: (data) => base44.entities.Signal.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['trades-home']);
+      toast.success("Order Sent to Bridge", { description: "Waiting for MT4 execution..." });
       setTradeModalOpen(false);
-      // Simulate "Order Sent" feedback
-      // This helps user understand the order is processed by the system
+    },
+    onError: (err) => {
+      toast.error("Failed to send order", { description: err.message });
     }
   });
 
@@ -139,22 +141,18 @@ export default function Pairs() {
     // Use the simulated live price for execution accuracy
     const executionPrice = liveData[selectedPair.id]?.current_price || selectedPair.current_price;
 
-    createTrade.mutate({
+    sendSignal.mutate({
       pair: selectedPair.symbol,
       type: tradeType,
+      entry_price: executionPrice,
       lot_size: parseFloat(volume),
-      open_price: executionPrice,
-      close_price: 0,
-      pnl: 0,
-      status: 'OPEN',
-      is_auto: false
+      stop_loss: 0, // 0 implies no SL for market order (or handled by EA default)
+      take_profit: 0,
+      confidence: 100,
+      strategy: 'MANUAL_EXECUTION',
+      status: 'PENDING', // Bridge picks up PENDING signals
+      result_pnl: 0
     });
-    
-    // Simulate API delay for "sending" to broker
-    // In a real app, this would wait for the Bridge to confirm execution
-    setTimeout(() => {
-        queryClient.invalidateQueries(['trades-home']);
-    }, 500);
   };
 
   const getCategory = (pair) => {
