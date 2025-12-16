@@ -48,9 +48,11 @@ Deno.serve(async (req) => {
         }
 
         Rules:
-        1. Stop Loss and Take Profit must be realistic (approx 1:2 or 1:3 risk/reward).
-        2. EXPLICITLY reference the requested indicators (${activeIndicators}) in your analysis if applicable.
-        3. Only return the JSON object.
+        1. Stop Loss must be at least 30 PIPS away from entry price to avoid broker spread errors.
+        2. Take Profit must be at least 40 PIPS away.
+        3. EXPLICITLY reference the requested indicators (${activeIndicators}) in your analysis.
+        4. Do NOT use tight scalping stops. Use swing trading levels.
+        5. Only return the JSON object.
         `;
 
         const completion = await openai.chat.completions.create({
@@ -62,7 +64,36 @@ Deno.serve(async (req) => {
             response_format: { type: "json_object" }
         });
 
-        const signal = JSON.parse(completion.choices[0].message.content);
+        let signal = JSON.parse(completion.choices[0].message.content);
+
+        // Sanity Check & Normalization
+        if (signal.pair && signal.entry_price) {
+            const isJpy = signal.pair.includes('JPY');
+            const pip = isJpy ? 0.01 : 0.0001;
+            const minDist = 30 * pip; // Enforce 30 pips minimum
+
+            if (signal.type === 'BUY') {
+                if (signal.stop_loss >= signal.entry_price - minDist) {
+                    signal.stop_loss = signal.entry_price - minDist;
+                }
+                if (signal.take_profit <= signal.entry_price + minDist) {
+                    signal.take_profit = signal.entry_price + (minDist * 2);
+                }
+            } else if (signal.type === 'SELL') {
+                if (signal.stop_loss <= signal.entry_price + minDist) {
+                    signal.stop_loss = signal.entry_price + minDist;
+                }
+                if (signal.take_profit >= signal.entry_price - minDist) {
+                    signal.take_profit = signal.entry_price - (minDist * 2);
+                }
+            }
+
+            // Rounding to standard forex precision
+            const digits = isJpy ? 3 : 5; 
+            signal.entry_price = Number(signal.entry_price.toFixed(digits));
+            signal.stop_loss = Number(signal.stop_loss.toFixed(digits));
+            signal.take_profit = Number(signal.take_profit.toFixed(digits));
+        }
 
         return Response.json(signal);
 
