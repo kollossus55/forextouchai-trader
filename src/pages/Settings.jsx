@@ -307,6 +307,7 @@ export default function Settings() {
          
          int err = GetLastError();
          Print("CONNECTION FAILED! HTTP Code: ", res, " | MT4 Error: ", err);
+         if(ArraySize(result) > 0) Print("Server Response: " + CharArrayToString(result));
          
          if(err == 5203 || err == 5200 || err == 4060) {
             Print(">>> CRITICAL SETUP ERROR <<<");
@@ -388,7 +389,12 @@ export default function Settings() {
             string id = GetJsonValue(json, "id");
             string status = GetJsonValue(json, "status");
             
-            if(status == "PENDING" && id != "" && id != lastSignalId) {
+            if(status == "ERROR") {
+                // Backend is reachable but reported an error (e.g. database down)
+                // We print it once per unique error to avoid spam, or just log it.
+                Print("Backend Reported Error: " + GetJsonValue(json, "error"));
+            }
+            else if(status == "PENDING" && id != "" && id != lastSignalId) {
                Print(">>> NEW SIGNAL RECEIVED: ", id);
                
                string pair = GetJsonValue(json, "pair");
