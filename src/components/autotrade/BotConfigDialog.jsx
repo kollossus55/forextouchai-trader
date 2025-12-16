@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
+import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Shield, BarChart, Settings, Zap } from 'lucide-react';
@@ -248,30 +249,36 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                           <div className="space-y-4 pt-2 animate-in fade-in">
                               <div className="flex justify-between">
                                   <Label>Stop Loss (Pips)</Label>
-                                  <span className="text-xs text-slate-400">{formData.stop_loss_pips} pips</span>
+                                  <span className="text-xs text-rose-400">{formData.stop_loss_pips} pips</span>
                               </div>
-                              <Slider 
+                              <ColoredSlider 
                                   value={[formData.stop_loss_pips]} 
                                   min={5} 
                                   max={200} 
                                   step={5}
                                   onValueChange={([v]) => setFormData({...formData, stop_loss_pips: v})}
                                   className="py-1"
+                                  rangeClassName="bg-rose-500"
+                                  thumbClassName="border-rose-500"
+                                  trackClassName="bg-rose-500/20"
                               />
                           </div>
 
                           <div className="space-y-4">
                               <div className="flex justify-between">
                                   <Label>Take Profit (Pips)</Label>
-                                  <span className="text-xs text-slate-400">{formData.take_profit_pips} pips</span>
+                                  <span className="text-xs text-emerald-400">{formData.take_profit_pips} pips</span>
                               </div>
-                              <Slider 
+                              <ColoredSlider 
                                   value={[formData.take_profit_pips]} 
                                   min={5} 
                                   max={500} 
                                   step={5}
                                   onValueChange={([v]) => setFormData({...formData, take_profit_pips: v})}
                                   className="py-1"
+                                  rangeClassName="bg-emerald-500"
+                                  thumbClassName="border-emerald-500"
+                                  trackClassName="bg-emerald-500/20"
                               />
                           </div>
                         </>
