@@ -103,7 +103,10 @@ export default function Overview() {
   });
 
   const executeSignalMutation = useMutation({
-    mutationFn: (signal) => base44.entities.Signal.update(signal.id, { status: 'PENDING' }),
+    mutationFn: (signal) => base44.entities.Signal.update(signal.id, { 
+        status: 'PENDING',
+        lot_size: signal.lot_size || 0.01 
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries(['ai-signals']);
       toast.success("Trade Sent to MT4");
@@ -163,6 +166,7 @@ export default function Overview() {
               stop_loss: Number(aiSignal.stop_loss),
               take_profit: Number(aiSignal.take_profit),
               confidence: Number(aiSignal.confidence),
+              lot_size: 0.01,
               strategy: aiSignal.strategy, // AI generated strategy name
               status: 'ANALYSIS',
               result_pnl: 0

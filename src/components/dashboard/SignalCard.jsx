@@ -4,10 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowUpRight, ArrowDownRight, Target, Shield, Play, CheckCircle2, Clock } from 'lucide-react';
 
+import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+
 export default function SignalCard({ signal, onExecute }) {
   const isBuy = signal.type === 'BUY';
   const isPending = signal.status === 'PENDING';
   const isActive = signal.status === 'ACTIVE';
+  const [lotSize, setLotSize] = useState(signal.lot_size || 0.01);
   
   return (
     <Card className="bg-slate-900/40 border-slate-800 hover:border-slate-700 transition-all group">
@@ -61,12 +65,24 @@ export default function SignalCard({ signal, onExecute }) {
         </div>
 
         {signal.status === 'ANALYSIS' ? (
-            <Button 
-              className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => onExecute && onExecute(signal)}
-            >
-              <Play className="w-3 h-3 mr-2" /> Execute on MT4
-            </Button>
+            <div className="flex gap-2">
+                <div className="w-20">
+                    <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={lotSize} 
+                        onChange={(e) => setLotSize(e.target.value)}
+                        className="h-8 text-xs bg-slate-950 border-slate-800"
+                        placeholder="Lot"
+                    />
+                </div>
+                <Button 
+                  className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize) })}
+                >
+                  <Play className="w-3 h-3 mr-2" /> Execute
+                </Button>
+            </div>
         ) : (
             <Button 
               variant="secondary" 

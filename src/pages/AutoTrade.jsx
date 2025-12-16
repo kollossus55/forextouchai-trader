@@ -94,6 +94,7 @@ export default function AutoTrade() {
                         entry_price: parseFloat(realPrice.toFixed(5)),
                         stop_loss: parseFloat(sl.toFixed(5)),
                         take_profit: parseFloat(tp.toFixed(5)),
+                        lot_size: bot.lot_size || 0.01,
                         confidence: confidence,
                         strategy: bot.strategy_type,
                         status: 'PENDING',
