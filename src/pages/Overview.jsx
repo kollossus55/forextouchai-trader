@@ -14,12 +14,17 @@ import {
   BarChart3,
   BrainCircuit,
   Zap,
-  ExternalLink
+  ExternalLink,
+  SlidersHorizontal
   } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -29,6 +34,19 @@ export default function Overview() {
   const queryClient = useQueryClient();
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Scan Settings State
+  const [scanSettings, setScanSettings] = useState({
+    minConfidence: 80,
+    indicators: {
+        rsi: true,
+        macd: true,
+        bollinger: false,
+        ema: true,
+        stochastic: false
+    }
+  });
+
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
@@ -105,10 +123,26 @@ export default function Overview() {
           ? pairsList.map(p => p.symbol) 
           : ['EUR/USD', 'GBP/USD', 'USD/JPY'];
 
+      // Prepare active indicators list
+      const activeIndicators = Object.entries(scanSettings.indicators)
+          .filter(([_, active]) => active)
+          .map(([key]) => {
+              const names = {
+                  rsi: "RSI (14)",
+                  macd: "MACD (12,26,9)",
+                  bollinger: "Bollinger Bands",
+                  ema: "200 EMA",
+                  stochastic: "Stochastic Oscillator"
+              };
+              return names[key];
+          });
+
       // Invoke Backend Function for Real AI Analysis
       const { data: aiSignal } = await base44.functions.invoke('analyzeMarket', {
           pairs,
-          marketData: MarketDataService.prices
+          marketData: MarketDataService.prices,
+          minConfidence: scanSettings.minConfidence,
+          indicators: activeIndicators
       });
 
       if (aiSignal && aiSignal.pair) {
@@ -276,17 +310,97 @@ export default function Overview() {
               Real-time market analysis and setup detection
             </CardDescription>
           </div>
-          <Button 
-            onClick={handleGenerateSignals} 
-            disabled={isGenerating}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
-          >
-            {isGenerating ? (
-               <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
-            ) : (
-               <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" className="bg-emerald-900/20 border-emerald-500/20 text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200">
+                        <SlidersHorizontal className="w-4 h-4 mr-2" />
+                        Filters
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 bg-slate-900 border-slate-800 text-slate-200 p-4">
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <h4 className="font-medium text-white flex justify-between">
+                                Min Confidence
+                                <span className="text-emerald-400">{scanSettings.minConfidence}%</span>
+                            </h4>
+                            <ColoredSlider 
+                                value={[scanSettings.minConfidence]} 
+                                min={50} 
+                                max={99} 
+                                step={1}
+                                onValueChange={([v]) => setScanSettings(s => ({...s, minConfidence: v}))}
+                                className="py-2"
+                                rangeClassName="bg-emerald-500"
+                                thumbClassName="border-emerald-500"
+                            />
+                        </div>
+                        <div className="space-y-3 pt-2 border-t border-slate-800">
+                            <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Active Indicators</h4>
+                            
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="rsi" className="text-sm">RSI (14)</Label>
+                                <Switch 
+                                    id="rsi" 
+                                    checked={scanSettings.indicators.rsi}
+                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, rsi: c}}))}
+                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="macd" className="text-sm">MACD</Label>
+                                <Switch 
+                                    id="macd" 
+                                    checked={scanSettings.indicators.macd}
+                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, macd: c}}))}
+                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="bb" className="text-sm">Bollinger Bands</Label>
+                                <Switch 
+                                    id="bb" 
+                                    checked={scanSettings.indicators.bollinger}
+                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, bollinger: c}}))}
+                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="ema" className="text-sm">200 EMA</Label>
+                                <Switch 
+                                    id="ema" 
+                                    checked={scanSettings.indicators.ema}
+                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, ema: c}}))}
+                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="stoch" className="text-sm">Stochastic</Label>
+                                <Switch 
+                                    id="stoch" 
+                                    checked={scanSettings.indicators.stochastic}
+                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, stochastic: c}}))}
+                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </PopoverContent>
+            </Popover>
+
+            <Button 
+                onClick={handleGenerateSignals} 
+                disabled={isGenerating}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
+            >
+                {isGenerating ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+                ) : (
+                <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
+                )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
