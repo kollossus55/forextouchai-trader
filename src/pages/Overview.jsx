@@ -29,37 +29,22 @@ export default function Overview() {
   const queryClient = useQueryClient();
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
-  const [simulatedEquity, setSimulatedEquity] = useState(0);
-
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
+    refetchInterval: 3000, // Poll every 3 seconds for updates
     initialData: []
   });
 
   const activeConnection = connections?.[0] || null;
   const isConnected = activeConnection?.connection_status === 'CONNECTED';
 
-  // Simulate Live Data Feed from Bridge
+  // Update last updated timestamp when connection data changes
   useEffect(() => {
-    if (!isConnected) return;
-    
-    // Default base balance if 0 (simulating initial sync)
-    const baseBalance = (activeConnection?.balance && activeConnection.balance > 0) ? activeConnection.balance : 10000;
-    
-    setSimulatedEquity(baseBalance);
-
-    const interval = setInterval(() => {
-        // Simulate minor market fluctuations on equity
-        setSimulatedEquity(prev => {
-            const volatility = (Math.random() - 0.5) * 15; // Random fluctuation
-            return prev + volatility;
-        });
-        setLastUpdated(new Date());
-    }, 2000);
-    
-    return () => clearInterval(interval);
-  }, [isConnected, activeConnection?.balance]);
+    if (activeConnection) {
+        setLastUpdated(new Date(activeConnection.updated_date || new Date()));
+    }
+  }, [activeConnection]);
 
   const { data: trades } = useQuery({
     queryKey: ['trades-home'],
@@ -148,10 +133,15 @@ export default function Overview() {
     }
   };
 
-  // MT4 Account Data (with simulation fallback)
+  // MT4 Account Data
   const baseBalance = (activeConnection?.balance && activeConnection.balance > 0) ? activeConnection.balance : 10000;
-  const currentEquity = simulatedEquity || baseBalance;
-  const currentMargin = activeConnection?.margin || 145.20; // Simulated used margin
+  // Use real equity from broker connection, falling back to balance if not available
+  const currentEquity = (activeConnection?.equity && activeConnection.equity > 0) ? activeConnection.equity : baseBalance;
+  const currentMargin = activeConnection?.margin || 0;
+  
+  // Calculate derived values if not provided by broker
+  const freeMargin = activeConnection?.free_margin || (currentEquity - currentMargin);
+  const marginLevel = activeConnection?.margin_level || (currentMargin > 0 ? (currentEquity / currentMargin) * 100 : 0);
   
   const mt4Account = {
     broker: activeConnection ? activeConnection.server_name.split('-')[0] : "Demo Broker",
@@ -163,8 +153,8 @@ export default function Overview() {
     balance: baseBalance,
     equity: currentEquity,
     margin: currentMargin,
-    freeMargin: currentEquity - currentMargin,
-    marginLevel: currentMargin > 0 ? (currentEquity / currentMargin) * 100 : 0,
+    freeMargin: freeMargin,
+    marginLevel: marginLevel,
     profit: currentEquity - baseBalance
   };
 
