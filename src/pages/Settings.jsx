@@ -383,9 +383,61 @@ export default function Settings() {
          int res = WebRequest("GET", Endpoint, headers, 3000, post, result, resHeaders);
          
          if(res == 200) {
-            // Signal logic would go here
-            // Kept simple for connection testing focus
+            string json = CharArrayToString(result);
+            string id = GetJsonValue(json, "id");
+            string status = GetJsonValue(json, "status");
+            
+            if(status == "PENDING" && id != "" && id != lastSignalId) {
+               Print(">>> NEW SIGNAL RECEIVED: ", id);
+               
+               string pair = GetJsonValue(json, "pair");
+               string type = GetJsonValue(json, "type");
+               double sl = StringToDouble(GetJsonValue(json, "stop_loss"));
+               double tp = StringToDouble(GetJsonValue(json, "take_profit"));
+               
+               // Clean pair name (remove / if exists)
+               StringReplace(pair, "/", "");
+               
+               int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
+               
+               // Execute
+               int ticket = OrderSend(pair, cmd, 0.1, MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID)), 10, sl, tp, "ForexTouchAI", 0, 0, clrGreen);
+               
+               if(ticket > 0) {
+                  Print("Trade Executed! Ticket: ", ticket);
+                  lastSignalId = id;
+               } else {
+                  Print("Trade Failed. Error: ", GetLastError());
+               }
+            }
          }
+      }
+
+      //+------------------------------------------------------------------+
+      //| JSON Parsing Helper                                              |
+      //+------------------------------------------------------------------+
+      string GetJsonValue(string json, string key) {
+         int keyPos = StringFind(json, "\\"" + key + "\\"");
+         if(keyPos < 0) return "";
+
+         int valStart = StringFind(json, ":", keyPos) + 1;
+         int valEnd = StringFind(json, ",", valStart);
+         int braceEnd = StringFind(json, "}", valStart);
+         
+         // Find nearest delimiter
+         if(valEnd < 0) valEnd = braceEnd;
+         if(braceEnd > 0 && braceEnd < valEnd) valEnd = braceEnd;
+         if(valEnd < 0) return "";
+
+         string val = StringSubstr(json, valStart, valEnd - valStart);
+
+         // Clean cleanup
+         StringReplace(val, "\\"", "");
+         StringReplace(val, " ", "");
+         StringReplace(val, "\\n", "");
+         StringReplace(val, "\\r", "");
+         
+         return val;
       }
       //+------------------------------------------------------------------+`;
 
