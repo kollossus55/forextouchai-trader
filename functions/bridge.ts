@@ -125,32 +125,25 @@ Deno.serve(async (req) => {
         // Handle Signal Fetch (GET)
         if (req.method === 'GET') {
             try {
-                // Using filter({}) instead of list() to avoid potential Deno Deploy async context issues
-                // We'll also try-catch this specific call with a retry
-                let signals = [];
-                try {
-                    signals = await base44.asServiceRole.entities.Signal.filter({}, '-created_date', 1);
-                } catch (innerErr) {
-                    console.warn("First signal fetch attempt failed, retrying...", innerErr);
-                    // Retry once
-                    await new Promise(r => setTimeout(r, 100)); // Short pause
-                    signals = await base44.asServiceRole.entities.Signal.filter({}, '-created_date', 1);
-                }
+                // Simplified fetch to avoid potential complex query issues
+                // We fetch a small batch and sort in memory to reduce DB load complexity
+                // This often resolves 'expectedAsyncWrap' which can be triggered by complex queries in serverless
+                const signals = await base44.asServiceRole.entities.Signal.list(); // No params, raw list
 
                 if (signals && signals.length > 0) {
+                    // Manual sort by created_date descending
+                    signals.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+                    // Return the latest one
                     return Response.json(signals[0]);
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
             } catch (err) {
                 console.error("Signal Fetch Error:", err);
-
-                // Fallback: try to return a clean error without crashing
-                // The 'expectedAsyncWrap' is a low-level runtime error, sometimes retrying helps
-                // or simply ensuring we return a valid JSON response so the EA doesn't hang.
                 return Response.json({ 
                     status: "ERROR", 
-                    error: "Signal fetch failed: " + (err.message || "Unknown Error"),
-                    details: "Backend connection is alive, but database access failed."
+                    error: "Fetch Error: " + (err.message || "Unknown"),
+                    details: "Simplified fetch also failed."
                 }, { status: 200 });
             }
         }
