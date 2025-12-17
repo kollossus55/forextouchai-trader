@@ -146,8 +146,8 @@ Deno.serve(async (req) => {
         if (req.method === 'GET') {
             try {
                 // Optimized: Fetch only the latest 1 signal sorted by created_date descending
-                // This is much more efficient than fetching all and sorting in memory
-                const signals = await base44.asServiceRole.entities.Signal.list('-created_date', 1);
+                // using retry logic to handle transient "expectedAsyncWrap" fetch errors
+                const signals = await withRetry(() => base44.asServiceRole.entities.Signal.list('-created_date', 1));
 
                 if (signals && signals.length > 0) {
                     return Response.json(signals[0]);
