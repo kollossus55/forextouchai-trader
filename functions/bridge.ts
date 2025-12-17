@@ -97,14 +97,14 @@ Deno.serve(async (req) => {
                         
                         if (existing && existing.length > 0) {
                             // Update existing trade
-                            await base44.asServiceRole.entities.Trade.update(existing[0].id, {
+                            await withRetry(() => base44.asServiceRole.entities.Trade.update(existing[0].id, {
                                 pnl: Number(trade.pnl),
                                 close_price: Number(trade.current_price || 0),
                                 updated_date: new Date().toISOString()
-                            });
+                            }));
                         } else {
                             // Create new trade
-                            await base44.asServiceRole.entities.Trade.create({
+                            await withRetry(() => base44.asServiceRole.entities.Trade.create({
                                 pair: String(trade.symbol || "UNKNOWN"),
                                 type: String(trade.type || "BUY"),
                                 lot_size: Number(trade.lots) || 0.01,
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
                                 ticket: ticketNum,
                                 status: 'OPEN',
                                 is_auto: Boolean(trade.magic !== 0)
-                            });
+                            }));
                         }
                     } catch (err) {
                         console.error(`Trade Sync Failed (Ticket: ${trade.ticket}):`, err);
