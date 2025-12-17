@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
                      } else {
                          // Auto-create connection if missing
                          console.log("Creating new BrokerConnection from heartbeat");
-                         await base44.asServiceRole.entities.BrokerConnection.create({
+                         await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                              platform: 'MT4',
                              server_name: 'Auto-Detected',
                              account_number: 'Syncing...',
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
                              free_margin: Number(account.free_margin) || 0,
                              margin_level: Number(account.margin_level) || 0,
                              last_sync: new Date().toISOString()
-                         });
+                         }));
                      }
                  } catch (err) {
                      console.error("Account Update Failed:", err);
