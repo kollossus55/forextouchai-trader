@@ -1,5 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+// Helper for robust DB calls with exponential backoff
+const withRetry = async (fn, retries = 3, delay = 200) => {
+    let lastError;
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            // Only retry on fetch/network errors
+            if (error.message && (error.message.includes('Fetch') || error.message.includes('network'))) {
+                 console.warn(`Attempt ${i + 1} failed: ${error.message}. Retrying...`);
+                 await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+            } else {
+                throw error; // Don't retry logic errors
+            }
+        }
+    }
+    throw lastError;
+};
+
 Deno.serve(async (req) => {
     try {
         // Initialize client - if Authorization header is garbage/custom, it might throw, 
