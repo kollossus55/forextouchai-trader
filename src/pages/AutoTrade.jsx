@@ -54,6 +54,19 @@ export default function AutoTrade() {
         await MarketDataService.fetchAll();
 
         runningBots.forEach(bot => {
+            // Check Schedule
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const [startH, startM] = (bot.trading_start_time || "00:00").split(':').map(Number);
+            const [endH, endM] = (bot.trading_end_time || "23:59").split(':').map(Number);
+            const startTime = startH * 60 + startM;
+            const endTime = endH * 60 + endM;
+
+            if (currentTime < startTime || currentTime > endTime) {
+                 if (Math.random() > 0.98) addLog(bot.name, `Sleeping (Outside Schedule: ${bot.trading_start_time}-${bot.trading_end_time})`, 'default');
+                 return;
+            }
+
             // Simulate AI Signal Generation (5% chance per tick)
             if (Math.random() > 0.95) {
                 const pairs = bot.pairs && bot.pairs.length > 0 ? bot.pairs : ['EUR/USD'];
