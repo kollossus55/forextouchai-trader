@@ -9,9 +9,12 @@ const withRetry = async (fn, retries = 3, delay = 200) => {
         } catch (error) {
             lastError = error;
             // Only retry on fetch/network errors
-            if (error.message && (error.message.includes('Fetch') || error.message.includes('network'))) {
-                 console.warn(`Attempt ${i + 1} failed: ${error.message}. Retrying...`);
-                 await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+            // Retry on network errors or Rate Limits
+            if (error.message && (error.message.includes('Fetch') || error.message.includes('network') || error.message.includes('Limit') || error.message.includes('limit'))) {
+                 const isRateLimit = error.message.toLowerCase().includes('limit');
+                 const waitTime = isRateLimit ? (delay * 2) * Math.pow(2, i) : delay * Math.pow(2, i); // Double wait for limits
+                 console.warn(`Attempt ${i + 1} failed: ${error.message}. Retrying in ${waitTime}ms...`);
+                 await new Promise(r => setTimeout(r, waitTime));
             } else {
                 throw error; // Don't retry logic errors
             }
@@ -86,26 +89,36 @@ Deno.serve(async (req) => {
 
             // 2. Sync Trades
             if (trades && Array.isArray(trades)) {
-                // Process trades sequentially to prevent connection pool exhaustion and "expectedAsyncWrap" errors
-                // Parallel processing (Promise.all) causes too many concurrent DB connections for the EA bridge.
-                for (const trade of trades) {
-                    try {
-                        if (!trade.ticket) continue;
-                        
-                        const ticketNum = Number(trade.ticket);
-                        // Filter by ticket to find existing record
-                        const existing = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum }));
+                try {
+                    // Optimization: Fetch all OPEN trades ONCE to prevent N+1 queries and Rate Limit errors
+                    const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
+                    const dbTradesMap = new Map(openDbTrades.map(t => [t.ticket, t]));
+                    
+                    const newTrades = [];
+                    const incomingTickets = new Set();
 
-                        if (existing && existing.length > 0) {
+                    // Process incoming trades
+                    for (const trade of trades) {
+                        if (!trade.ticket) continue;
+                        const ticketNum = Number(trade.ticket);
+                        incomingTickets.add(ticketNum);
+                        
+                        const existing = dbTradesMap.get(ticketNum);
+
+                        if (existing) {
                             // Update existing trade
-                            await withRetry(() => base44.asServiceRole.entities.Trade.update(existing[0].id, {
-                                pnl: Number(trade.pnl),
-                                close_price: Number(trade.current_price || 0),
-                                updated_date: new Date().toISOString()
-                            }));
+                            try {
+                                await withRetry(() => base44.asServiceRole.entities.Trade.update(existing.id, {
+                                    pnl: Number(trade.pnl),
+                                    close_price: Number(trade.current_price || 0),
+                                    updated_date: new Date().toISOString()
+                                }));
+                            } catch (err) {
+                                console.error(`Update Failed (Ticket: ${ticketNum}):`, err.message);
+                            }
                         } else {
-                            // Create new trade
-                            await withRetry(() => base44.asServiceRole.entities.Trade.create({
+                            // Collect for bulk creation
+                            newTrades.push({
                                 pair: String(trade.symbol || "UNKNOWN"),
                                 type: String(trade.type || "BUY"),
                                 lot_size: Number(trade.lots) || 0.01,
@@ -115,32 +128,39 @@ Deno.serve(async (req) => {
                                 ticket: ticketNum,
                                 status: 'OPEN',
                                 is_auto: Boolean(trade.magic !== 0)
-                            }));
+                            });
                         }
-                    } catch (err) {
-                        console.error(`Trade Sync Failed (Ticket: ${trade.ticket}):`, err);
-                        errors.push({ ticket: trade.ticket, error: err.message });
                     }
-                }
 
-                // 3. Handle Closed Trades (Trades in DB but missing from payload)
-                try {
-                     // Get all currently OPEN trades from DB
-                     const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
-                     const incomingTickets = trades.map(t => Number(t.ticket));
+                    // Bulk Create New Trades (1 Call instead of N calls)
+                    if (newTrades.length > 0) {
+                        try {
+                            await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(newTrades));
+                            console.log(`Bulk created ${newTrades.length} new trades`);
+                        } catch (err) {
+                            console.error("Bulk Create Failed:", err.message);
+                            errors.push({ error: "Bulk Create Failed" });
+                        }
+                    }
 
-                     // Find trades to close (in DB but not in MT4 payload)
-                     const tradesToClose = openDbTrades.filter(dbTrade => !incomingTickets.includes(dbTrade.ticket));
+                    // 3. Handle Closed Trades (Trades in DB but not in payload)
+                    const tradesToClose = openDbTrades.filter(dbTrade => !incomingTickets.has(dbTrade.ticket));
 
-                     for (const trade of tradesToClose) {
-                         await withRetry(() => base44.asServiceRole.entities.Trade.update(trade.id, {
-                             status: 'CLOSED',
-                             updated_date: new Date().toISOString()
-                         }));
-                         console.log(`Marked trade ${trade.ticket} as CLOSED`);
-                     }
+                    for (const trade of tradesToClose) {
+                        try {
+                            await withRetry(() => base44.asServiceRole.entities.Trade.update(trade.id, {
+                                status: 'CLOSED',
+                                updated_date: new Date().toISOString()
+                            }));
+                            console.log(`Marked trade ${trade.ticket} as CLOSED`);
+                        } catch (err) {
+                            console.error(`Close Failed (Ticket: ${trade.ticket}):`, err.message);
+                        }
+                    }
+
                 } catch (err) {
-                    console.error("Closed Trade Sync Failed:", err);
+                    console.error("Critical Sync Error:", err);
+                    errors.push({ error: "Sync Logic Failed: " + err.message });
                 }
             }
 
