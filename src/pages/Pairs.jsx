@@ -57,17 +57,59 @@ export default function Pairs() {
   useEffect(() => {
     if (pairs.length === 0) return;
 
+    const getTimeframeSignal = (pair, tf) => {
+        // Deterministic signal generation based on Timeframe + Time Bucket + Pair
+        const tfDurations = { 
+            'M1': 60000, 
+            'M5': 300000, 
+            'M15': 900000, 
+            'H1': 3600000, 
+            'H4': 14400000, 
+            'D1': 86400000 
+        };
+        const duration = tfDurations[tf] || 3600000;
+        const bucket = Math.floor(Date.now() / duration);
+
+        // Simple hash function
+        const seed = pair.symbol + tf + bucket;
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+        }
+        const rand = Math.abs(hash);
+
+        // Calculate Confidence (Base + Volatility Noise)
+        const baseConfidence = 60 + (rand % 35); // 60-95%
+
+        // Determine Direction
+        // Strong bias towards 24h trend if confidence is high
+        const trend = pair.change_24h > 0 ? 'BUY' : 'SELL';
+        const counterTrend = pair.change_24h > 0 ? 'SELL' : 'BUY';
+
+        // 70% chance to follow trend, 30% chance for counter-trend/correction
+        const direction = (rand % 100) < 70 ? trend : counterTrend;
+
+        // Only signal if confidence > 75
+        let signal = 'NEUTRAL';
+        if (baseConfidence > 75) {
+            signal = direction;
+        }
+
+        return { signal, confidence: baseConfidence };
+    };
+
     const interval = setInterval(async () => {
       // Ensure we have the latest data
       await MarketDataService.fetchAll();
 
       setLiveData(prev => {
         const next = { ...prev };
-        
+
         pairs.forEach(pair => {
             // Get real price from service
             const realPrice = MarketDataService.getPrice(pair.symbol);
-            
+
             // Init or Get Current State
             let current = next[pair.id];
             if (!current) {
@@ -80,35 +122,24 @@ export default function Pairs() {
                     current_price: realPrice,
                     change_24h: pair.change_24h,
                     history,
-                    ai_confidence: pair.ai_confidence || Math.floor(Math.random() * 40) + 30,
-                    ai_signal: pair.ai_signal || 'NEUTRAL'
+                    ai_confidence: 0,
+                    ai_signal: 'NEUTRAL'
                 };
             }
 
             // Update Price History
             const newHistory = [...current.history.slice(1), { time: Date.now(), price: realPrice }];
-            
-            // Simulate AI Updates (Random Walk)
-            let { ai_confidence, ai_signal } = current;
-            if (Math.random() > 0.8) { // 20% chance to update AI per tick
-                const change = Math.floor(Math.random() * 6) - 3; // -3 to +3
-                ai_confidence = Math.min(98, Math.max(15, ai_confidence + change));
-                
-                // Update Signal based on new confidence
-                if (ai_confidence >= 80) {
-                    if (ai_signal === 'NEUTRAL') ai_signal = Math.random() > 0.5 ? 'BUY' : 'SELL';
-                } else if (ai_confidence < 50) {
-                    ai_signal = 'NEUTRAL';
-                }
-            }
+
+            // Get Stable Signal for current timeframe
+            const { signal, confidence } = getTimeframeSignal(pair, timeframe);
 
             next[pair.id] = {
                 ...current,
                 current_price: realPrice,
                 change_24h: pair.change_24h, 
                 history: newHistory,
-                ai_confidence,
-                ai_signal
+                ai_confidence: confidence,
+                ai_signal: signal
             };
         });
 
@@ -117,7 +148,7 @@ export default function Pairs() {
     }, 1000); 
 
     return () => clearInterval(interval);
-  }, [pairs]);
+  }, [pairs, timeframe]);
 
   const sendSignal = useMutation({
     mutationFn: (data) => base44.entities.Signal.create(data),
