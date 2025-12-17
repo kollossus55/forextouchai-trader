@@ -86,10 +86,11 @@ Deno.serve(async (req) => {
 
             // 2. Sync Trades
             if (trades && Array.isArray(trades)) {
-                // Process trades in parallel batches to avoid timeouts/async issues
-                await Promise.all(trades.map(async (trade) => {
+                // Process trades sequentially to prevent connection pool exhaustion and "expectedAsyncWrap" errors
+                // Parallel processing (Promise.all) causes too many concurrent DB connections for the EA bridge.
+                for (const trade of trades) {
                     try {
-                        if (!trade.ticket) return;
+                        if (!trade.ticket) continue;
                         
                         const ticketNum = Number(trade.ticket);
                         // Filter by ticket to find existing record
@@ -120,7 +121,7 @@ Deno.serve(async (req) => {
                         console.error(`Trade Sync Failed (Ticket: ${trade.ticket}):`, err);
                         errors.push({ ticket: trade.ticket, error: err.message });
                     }
-                }));
+                }
 
                 // 3. Handle Closed Trades (Trades in DB but missing from payload)
                 try {
