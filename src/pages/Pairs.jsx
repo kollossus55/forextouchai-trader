@@ -346,9 +346,21 @@ export default function Pairs() {
             className="pl-9 bg-slate-900 border-slate-800 text-slate-200"
           />
         </div>
-        <Button variant="outline" size="icon" className="border-slate-800 text-slate-400 hover:text-emerald-400 bg-slate-900">
-           <BarChart2 className="w-4 h-4" />
-        </Button>
+        <div className="w-[100px]">
+            <Select value={timeframe} onValueChange={setTimeframe}>
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-slate-200 h-10">
+                    <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                    <SelectItem value="M1">M1</SelectItem>
+                    <SelectItem value="M5">M5</SelectItem>
+                    <SelectItem value="M15">M15</SelectItem>
+                    <SelectItem value="H1">H1</SelectItem>
+                    <SelectItem value="H4">H4</SelectItem>
+                    <SelectItem value="D1">D1</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
       </div>
       </div>
 
