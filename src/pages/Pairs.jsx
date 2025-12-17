@@ -346,9 +346,9 @@ export default function Pairs() {
             className="pl-9 bg-slate-900 border-slate-800 text-slate-200"
           />
         </div>
-        <div className="w-[100px]">
+        <div className="w-[110px]">
             <Select value={timeframe} onValueChange={setTimeframe}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-slate-200 h-10">
+                <SelectTrigger className="bg-emerald-950/30 border-emerald-500/50 text-emerald-400 font-bold h-10 hover:bg-emerald-500/10 hover:border-emerald-400 transition-all shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]">
                     <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
