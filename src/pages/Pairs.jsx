@@ -37,6 +37,7 @@ export default function Pairs() {
   const [selectedPair, setSelectedPair] = useState(null);
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
+  const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   
   // Real-time State
   const [liveData, setLiveData] = useState({});
