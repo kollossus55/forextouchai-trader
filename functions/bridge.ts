@@ -125,16 +125,11 @@ Deno.serve(async (req) => {
         // Handle Signal Fetch (GET)
         if (req.method === 'GET') {
             try {
-                // Simplified fetch to avoid potential complex query issues
-                // We fetch a small batch and sort in memory to reduce DB load complexity
-                // This often resolves 'expectedAsyncWrap' which can be triggered by complex queries in serverless
-                const signals = await base44.asServiceRole.entities.Signal.list(); // No params, raw list
+                // Optimized: Fetch only the latest 1 signal sorted by created_date descending
+                // This is much more efficient than fetching all and sorting in memory
+                const signals = await base44.asServiceRole.entities.Signal.list('-created_date', 1);
 
                 if (signals && signals.length > 0) {
-                    // Manual sort by created_date descending
-                    signals.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-
-                    // Return the latest one
                     return Response.json(signals[0]);
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
@@ -142,8 +137,7 @@ Deno.serve(async (req) => {
                 console.error("Signal Fetch Error:", err);
                 return Response.json({ 
                     status: "ERROR", 
-                    error: "Fetch Error: " + (err.message || "Unknown"),
-                    details: "Simplified fetch also failed."
+                    error: "Fetch Error: " + (err.message || "Unknown")
                 }, { status: 200 });
             }
         }
