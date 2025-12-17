@@ -125,17 +125,17 @@ Deno.serve(async (req) => {
                 // 3. Handle Closed Trades (Trades in DB but missing from payload)
                 try {
                      // Get all currently OPEN trades from DB
-                     const openDbTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+                     const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
                      const incomingTickets = trades.map(t => Number(t.ticket));
-                     
+
                      // Find trades to close (in DB but not in MT4 payload)
                      const tradesToClose = openDbTrades.filter(dbTrade => !incomingTickets.includes(dbTrade.ticket));
-                     
+
                      for (const trade of tradesToClose) {
-                         await base44.asServiceRole.entities.Trade.update(trade.id, {
+                         await withRetry(() => base44.asServiceRole.entities.Trade.update(trade.id, {
                              status: 'CLOSED',
                              updated_date: new Date().toISOString()
-                         });
+                         }));
                          console.log(`Marked trade ${trade.ticket} as CLOSED`);
                      }
                 } catch (err) {
