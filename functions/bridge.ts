@@ -42,10 +42,18 @@ Deno.serve(async (req) => {
             // 1. Update Account Info if provided
             if (account) {
                  try {
-                     const connections = await base44.asServiceRole.entities.BrokerConnection.list();
+                     const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list());
                      if (connections.length > 0) {
                          // Update the first connection found
-                         await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                         await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                             balance: Number(account.balance) || 0,
+                             equity: Number(account.equity) || 0,
+                             margin: Number(account.margin) || 0,
+                             free_margin: Number(account.free_margin) || 0,
+                             margin_level: Number(account.margin_level) || 0,
+                             connection_status: 'CONNECTED',
+                             last_sync: new Date().toISOString()
+                         }));
                              balance: Number(account.balance) || 0,
                              equity: Number(account.equity) || 0,
                              margin: Number(account.margin) || 0,
