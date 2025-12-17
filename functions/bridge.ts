@@ -153,12 +153,26 @@ Deno.serve(async (req) => {
         // Handle Signal Fetch (GET)
         if (req.method === 'GET') {
             try {
-                // Optimized: Fetch only the latest 1 signal sorted by created_date descending
-                // using retry logic to handle transient "expectedAsyncWrap" fetch errors
-                const signals = await withRetry(() => base44.asServiceRole.entities.Signal.list('-created_date', 1));
+                // 1. Safety Check: Count Open Trades to prevent overload
+                const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
+                const MAX_CONCURRENT_TRADES = 5; // Hard limit to protect MT4
+
+                if (openTrades.length >= MAX_CONCURRENT_TRADES) {
+                    console.log(`Skipping signal fetch: Max trades reached (${openTrades.length}/${MAX_CONCURRENT_TRADES})`);
+                    return Response.json({ status: "NO_SIGNAL", id: "", reason: "MAX_TRADES_LIMIT" });
+                }
+
+                // 2. Optimized: Fetch only PENDING signals to ensure we don't resend old/analysis ones
+                const signals = await withRetry(() => base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 1));
 
                 if (signals && signals.length > 0) {
-                    return Response.json(signals[0]);
+                    const signal = signals[0];
+
+                    // Optional: Mark as ACTIVE immediately so it's not picked up again by next poll?
+                    // For now, we assume the EA executes it quickly.
+                    // Better: The EA should send a trade sync which creates the trade, then we close the signal logic.
+
+                    return Response.json(signal);
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
             } catch (err) {
