@@ -58,20 +58,20 @@ Deno.serve(async (req) => {
 
             // 2. Sync Trades
             if (trades && Array.isArray(trades)) {
-                for (const trade of trades) {
+                // Process trades in parallel batches to avoid timeouts/async issues
+                await Promise.all(trades.map(async (trade) => {
                     try {
-                        if (!trade.ticket) continue;
+                        if (!trade.ticket) return;
                         
                         const ticketNum = Number(trade.ticket);
                         // Filter by ticket to find existing record
-                        // Using filter with limit 1 for efficiency
                         const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: ticketNum });
                         
                         if (existing && existing.length > 0) {
                             // Update existing trade
                             await base44.asServiceRole.entities.Trade.update(existing[0].id, {
                                 pnl: Number(trade.pnl),
-                                close_price: Number(trade.current_price || 0), // Use current price as close price for open trades
+                                close_price: Number(trade.current_price || 0),
                                 updated_date: new Date().toISOString()
                             });
                         } else {
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
                         console.error(`Trade Sync Failed (Ticket: ${trade.ticket}):`, err);
                         errors.push({ ticket: trade.ticket, error: err.message });
                     }
-                }
+                }));
 
                 // 3. Handle Closed Trades (Trades in DB but missing from payload)
                 try {
