@@ -58,12 +58,14 @@ export default function Analytics() {
   const { data: bots } = useQuery({
     queryKey: ['bots'],
     queryFn: () => base44.entities.BotConfig.list(),
+    refetchInterval: 5000,
     initialData: []
   });
 
   const { data: trades } = useQuery({
     queryKey: ['trades-analytics'],
-    queryFn: () => base44.entities.Trade.list({ limit: 1000 }), // Fetch more trades for analytics
+    queryFn: () => base44.entities.Trade.list(),
+    refetchInterval: 3000,
     initialData: []
   });
 
