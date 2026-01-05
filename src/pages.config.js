@@ -1,29 +1,29 @@
-import Pairs from './pages/Pairs';
-import Portfolio from './pages/Portfolio';
-import Analytics from './pages/Analytics';
-import Social from './pages/Social';
-import Alerts from './pages/Alerts';
-import Settings from './pages/Settings';
-import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import Alerts from './pages/Alerts';
+import Analytics from './pages/Analytics';
+import AutoTrade from './pages/AutoTrade';
 import Home from './pages/Home';
 import Overview from './pages/Overview';
-import AutoTrade from './pages/AutoTrade';
+import Pairs from './pages/Pairs';
+import Portfolio from './pages/Portfolio';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import Social from './pages/Social';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Pairs": Pairs,
-    "Portfolio": Portfolio,
-    "Analytics": Analytics,
-    "Social": Social,
-    "Alerts": Alerts,
-    "Settings": Settings,
-    "Profile": Profile,
     "Admin": Admin,
+    "Alerts": Alerts,
+    "Analytics": Analytics,
+    "AutoTrade": AutoTrade,
     "Home": Home,
     "Overview": Overview,
-    "AutoTrade": AutoTrade,
+    "Pairs": Pairs,
+    "Portfolio": Portfolio,
+    "Profile": Profile,
+    "Settings": Settings,
+    "Social": Social,
 }
 
 export const pagesConfig = {

@@ -90,7 +90,30 @@ export default function Settings() {
           const now = new Date().getTime();
           const isStale = (now - lastSync) > 30000;
 
-          setConnectionStatus(isStale ? 'DISCONNECTED' : 'CONNECTED');
+          const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
+          setConnectionStatus(newStatus);
+
+          // Alert if disconnected for more than 2 minutes
+          if (newStatus === 'DISCONNECTED') {
+            const minutesDisconnected = Math.floor((now - lastSync) / 60000);
+            if (minutesDisconnected >= 2 && minutesDisconnected % 5 === 0) { // Alert every 5 minutes
+              toast.error("MT4/MT5 Disconnected", {
+                description: `Platform has been offline for ${minutesDisconnected} minutes`,
+                duration: 10000
+              });
+
+              // Send email notification
+              try {
+                await base44.integrations.Core.SendEmail({
+                  to: user?.email || 'trader@example.com',
+                  subject: 'MT4/MT5 Platform Disconnected',
+                  body: `Your trading platform has been disconnected for ${minutesDisconnected} minutes. Last sync: ${new Date(lastSync).toLocaleString()}`
+                });
+              } catch (e) {
+                console.error("Failed to send email alert:", e);
+              }
+            }
+          }
         }
       } catch (e) {
         console.error("Failed to fetch connection settings", e);
@@ -100,7 +123,7 @@ export default function Settings() {
     fetchConnection();
     const interval = setInterval(fetchConnection, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
-  }, [connectionId]);
+  }, [connectionId, user]);
 
   const handleSaveConnection = async () => {
     setErrorMessage('');
@@ -619,11 +642,16 @@ export default function Settings() {
                       </CardTitle>
                       <CardDescription className="text-slate-400">Connect your broker account securely</CardDescription>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
                       connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                      connectionStatus === 'DISCONNECTED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
                       connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
                       'bg-slate-800 text-slate-400 border-slate-700'
                   }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        connectionStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 
+                        connectionStatus === 'DISCONNECTED' ? 'bg-rose-500' : 'bg-slate-600'
+                      }`}></div>
                       {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
                   </div>
               </div>
