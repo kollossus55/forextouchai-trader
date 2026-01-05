@@ -21,19 +21,40 @@ Deno.serve(async (req) => {
         });
 
         const activeIndicators = indicators.length > 0 ? indicators.join(', ') : 'Price Action, Trend Analysis';
+        
+        // Timeframe-specific guidance for technical analysis
+        const timeframeGuide = {
+            'M1': 'Focus on 1-minute scalping patterns, use tight ranges, very short-term momentum',
+            'M5': 'Analyze 5-minute momentum shifts, micro trend reversals, quick scalps',
+            'M15': '15-minute swing patterns, intraday support/resistance levels',
+            'H1': 'Hourly timeframe analysis, medium-term trends, key hourly pivots',
+            'H4': '4-hour swing trading setups, daily range analysis, major support/resistance',
+            'D1': 'Daily chart analysis, weekly trends, major market structure shifts'
+        };
 
         const prompt = `
-        You are an expert Forex and Crypto trading analyst.
-        Analyze the following market prices and generate ONE high-probability trade signal.
+        You are an expert Forex and Crypto trading analyst specializing in multi-timeframe technical analysis.
+        
+        CRITICAL: Perform technical analysis specifically for the ${timeframe} timeframe.
+        ${timeframeGuide[timeframe] || 'Standard technical analysis'}
         
         Configuration:
+        - Timeframe: ${timeframe} (MUST analyze based on this timeframe's characteristics)
         - Minimum Confidence: ${minConfidence}%
         - Active Indicators to use: ${activeIndicators}
 
-        Current Market Data:
+        Current Market Data (Real-time Prices):
         ${JSON.stringify(marketData, null, 2)}
         
         Pairs to consider: ${pairs.join(', ')}
+
+        TIMEFRAME-SPECIFIC REQUIREMENTS:
+        - For M1/M5: Look for ultra-short-term momentum, scalping opportunities
+        - For M15/H1: Identify intraday swing patterns and hourly trend shifts
+        - For H4/D1: Focus on daily/weekly trends, major support/resistance zones
+        
+        Analyze the selected indicators (${activeIndicators}) in the context of ${timeframe} timeframe.
+        Consider how RSI, MACD, EMAs, Bollinger Bands behave differently on each timeframe.
 
         You must output valid JSON matching this schema:
         {
@@ -43,16 +64,17 @@ Deno.serve(async (req) => {
             "stop_loss": number,
             "take_profit": number,
             "confidence": number (${minConfidence}-99),
-            "strategy": "String description (e.g. 'RSI Divergence', 'MACD Crossover')",
-            "analysis_summary": "Short explanation referencing the active indicators"
+            "strategy": "String (e.g. 'H1 MACD Bullish Crossover + 200 EMA Support')",
+            "analysis_summary": "Timeframe-specific analysis using ${activeIndicators} on ${timeframe}"
         }
 
         Rules:
         1. Stop Loss must be at least 30 PIPS away from entry price to avoid broker spread errors.
         2. Take Profit must be at least 40 PIPS away.
-        3. EXPLICITLY reference the requested indicators (${activeIndicators}) in your analysis.
-        4. Do NOT use tight scalping stops. Use swing trading levels.
-        5. Only return the JSON object.
+        3. EXPLICITLY reference the ${timeframe} timeframe and the requested indicators (${activeIndicators}).
+        4. Adjust TP/SL ranges based on timeframe (shorter for M1/M5, wider for H4/D1).
+        5. Strategy name MUST include timeframe prefix (e.g., "H1 RSI Oversold Bounce").
+        6. Only return the JSON object.
         `;
 
         const completion = await openai.chat.completions.create({
