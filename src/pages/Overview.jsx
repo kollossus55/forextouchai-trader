@@ -38,6 +38,7 @@ export default function Overview() {
   // Scan Settings State
   const [scanSettings, setScanSettings] = useState({
     minConfidence: 80,
+    lotSize: 0.01,
     indicators: {
         rsi: true,
         macd: true,
@@ -166,7 +167,7 @@ export default function Overview() {
               stop_loss: Number(aiSignal.stop_loss),
               take_profit: Number(aiSignal.take_profit),
               confidence: Number(aiSignal.confidence),
-              lot_size: 0.01,
+              lot_size: scanSettings.lotSize,
               strategy: aiSignal.strategy, // AI generated strategy name
               status: 'ANALYSIS',
               result_pnl: 0
@@ -341,6 +342,23 @@ export default function Overview() {
                                 rangeClassName="bg-emerald-500"
                                 thumbClassName="border-emerald-500"
                             />
+                        </div>
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                            <h4 className="font-medium text-white flex justify-between">
+                                Lot Size
+                                <span className="text-emerald-400">{scanSettings.lotSize}</span>
+                            </h4>
+                            <ColoredSlider 
+                                value={[scanSettings.lotSize * 100]} 
+                                min={1} 
+                                max={100} 
+                                step={1}
+                                onValueChange={([v]) => setScanSettings(s => ({...s, lotSize: v / 100}))}
+                                className="py-2"
+                                rangeClassName="bg-blue-500"
+                                thumbClassName="border-blue-500"
+                            />
+                            <p className="text-xs text-slate-500">Adjust trade volume (0.01 - 1.00 lots)</p>
                         </div>
                         <div className="space-y-3 pt-2 border-t border-slate-800">
                             <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Active Indicators</h4>
