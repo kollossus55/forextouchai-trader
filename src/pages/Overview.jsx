@@ -320,13 +320,23 @@ export default function Overview() {
           <div className="flex gap-2">
             <Popover>
                 <PopoverTrigger asChild>
-                    <Button variant="outline" className="bg-emerald-900/20 border-emerald-500/20 text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200">
+                    <Button variant="outline" className="bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-emerald-500/30 transition-all">
                         <SlidersHorizontal className="w-4 h-4 mr-2" />
-                        Filters
+                        <span className="hidden sm:inline">Settings</span>
+                        <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            {scanSettings.lotSize} lots
+                        </span>
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80 bg-slate-900 border-slate-800 text-slate-200 p-4">
                     <div className="space-y-4">
+                        <div className="pb-2 mb-2 border-b border-slate-800">
+                            <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+                                <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+                                AI Scan Configuration
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">Adjust lot size, confidence threshold, and technical indicators</p>
+                        </div>
                         <div className="space-y-2">
                             <h4 className="font-medium text-white flex justify-between">
                                 Min Confidence
