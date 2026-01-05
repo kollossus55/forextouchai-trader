@@ -160,30 +160,31 @@ Deno.serve(async (req) => {
                 if (signals && signals.length > 0) {
                     const signal = signals[0];
                     
-                    // SAFE LIMIT CHECK: Only runs when a signal is actually pending to minimize DB load
+                    // PER-BOT LIMIT CHECK: Match signal's strategy to bot config
                     try {
-                        const configs = await withRetry(() => base44.asServiceRole.entities.BotConfig.list(1));
-                        const maxTrades = configs.length > 0 ? (configs[0].max_open_trades || 5) : 5;
+                        // Find the bot that generated this signal by matching strategy
+                        const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list());
+                        const matchingBot = allBots.find(b => b.strategy_type === signal.strategy);
                         
-                        // We fetch all open trades to count them. 
-                        // Note: If you have 1000+ open trades, this might need pagination, but for <50 it's fine.
-                        const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
-                        
-                        if (openTrades.length >= maxTrades) {
-                            console.warn(`Trade Limit Reached (${openTrades.length}/${maxTrades}). Skipping signal ${signal.id}.`);
+                        if (matchingBot && matchingBot.max_open_trades) {
+                            // Count ONLY trades from this specific bot/strategy
+                            const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
+                            const botTrades = openTrades.filter(t => t.bot_id === String(matchingBot.id) || !t.bot_id);
                             
-                            // CRITICAL: Mark as SKIPPED to stop the EA from pulling this same signal forever in a loop
-                            await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
-                                status: 'SKIPPED',
-                                result_pnl: 0 
-                            }));
-                            
-                            return Response.json({ status: "NO_SIGNAL", reason: "LIMIT_REACHED" });
+                            if (botTrades.length >= matchingBot.max_open_trades) {
+                                console.warn(`Bot "${matchingBot.name}" limit reached (${botTrades.length}/${matchingBot.max_open_trades}). Skipping signal ${signal.id}.`);
+                                
+                                await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                                    status: 'SKIPPED',
+                                    result_pnl: 0 
+                                }));
+                                
+                                return Response.json({ status: "NO_SIGNAL", reason: "BOT_LIMIT_REACHED" });
+                            }
                         }
                     } catch (checkErr) {
                         console.error("Limit Check Failed:", checkErr);
-                        // If check fails, we default to ALLOWING the trade to avoid blocking critical signals, 
-                        // or REJECTING if safety is priority. Here we allow, but log error.
+                        // If limit check fails, allow the signal to proceed
                     }
 
                     return Response.json(signal);
