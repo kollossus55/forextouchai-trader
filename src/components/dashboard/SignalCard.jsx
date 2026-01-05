@@ -2,10 +2,11 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, ArrowDownRight, Target, Shield, Play, CheckCircle2, Clock } from 'lucide-react';
-
+import { ArrowUpRight, ArrowDownRight, Target, Shield, Play, CheckCircle2, Clock, BarChart2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
+import IndicatorPanel from '@/components/market/IndicatorPanel';
 
 export default function SignalCard({ signal, onExecute }) {
   const isBuy = signal.type === 'BUY';
@@ -88,12 +89,36 @@ export default function SignalCard({ signal, onExecute }) {
                         </div>
                     </div>
                 </div>
-                <Button 
-                  className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20"
-                  onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize) })}
-                >
-                  <Play className="w-4 h-4 mr-2" /> Execute Trade
-                </Button>
+                <div className="flex gap-2">
+                  {signal.calculated_indicators && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline"
+                          className="flex-1 h-9 text-xs bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                        >
+                          <BarChart2 className="w-3.5 h-3.5 mr-1" /> Indicators
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-96 bg-slate-900 border-slate-800 text-slate-200 p-4 max-h-[80vh] overflow-y-auto">
+                        <div className="space-y-2 mb-3">
+                          <h4 className="font-semibold text-white">Calculated Indicators</h4>
+                          <p className="text-xs text-slate-400">Technical values used for this signal</p>
+                        </div>
+                        <IndicatorPanel 
+                          indicators={signal.calculated_indicators} 
+                          currentPrice={signal.entry_price}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                  <Button 
+                    className={`${signal.calculated_indicators ? 'flex-1' : 'w-full'} h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20`}
+                    onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize) })}
+                  >
+                    <Play className="w-4 h-4 mr-2" /> Execute
+                  </Button>
+                </div>
             </div>
         ) : (
             <Button 
