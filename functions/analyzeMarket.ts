@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { pairs, marketData, minConfidence = 80, indicators = [] } = await req.json();
+        const { pairs, marketData, minConfidence = 80, indicators = [], timeframe = 'H1' } = await req.json();
 
         if (!Deno.env.get("OPENAI_API_KEY")) {
             return Response.json({ error: "OpenAI API Key not set" }, { status: 500 });
