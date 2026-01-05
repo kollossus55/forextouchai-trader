@@ -143,12 +143,13 @@ export default function Overview() {
               return names[key];
           });
 
-      // Invoke Backend Function for Real AI Analysis
+      // Invoke Backend Function for Real AI Analysis with Timeframe
       const { data: aiSignal } = await base44.functions.invoke('analyzeMarket', {
           pairs,
           marketData: MarketDataService.prices,
           minConfidence: scanSettings.minConfidence,
-          indicators: activeIndicators
+          indicators: activeIndicators,
+          timeframe: 'H1' // Default to H1 for Overview page signals
       });
 
       if (aiSignal && aiSignal.pair) {
