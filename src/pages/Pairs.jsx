@@ -30,6 +30,7 @@ import {
 import { Label } from '@/components/ui/label';
 import TickChart from '@/components/market/TickChart';
 import IndicatorPanel from '@/components/market/IndicatorPanel';
+import IndicatorCharts from '@/components/market/IndicatorCharts';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Pairs() {
@@ -46,6 +47,7 @@ export default function Pairs() {
   // Real-time State
   const [liveData, setLiveData] = useState({});
   const [pairIndicators, setPairIndicators] = useState({});
+  const [pairChartData, setPairChartData] = useState({});
 
   const { data: pairs, isLoading } = useQuery({
     queryKey: ['pairs'],
@@ -192,6 +194,13 @@ export default function Pairs() {
             setPairIndicators(prev => ({
               ...prev,
               [pair.id]: data.calculated_indicators
+            }));
+          }
+          
+          if (data?.chartData) {
+            setPairChartData(prev => ({
+              ...prev,
+              [pair.id]: data.chartData
             }));
           }
         } catch (e) {
@@ -498,22 +507,37 @@ export default function Pairs() {
 
       {/* Indicator Details Modal */}
       <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart2 className="w-5 h-5 text-purple-400" />
-              Technical Indicators - {selectedPairDetails?.symbol}
+              Technical Analysis - {selectedPairDetails?.symbol}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Real-time calculated values for {timeframe} timeframe
+              Real-time indicators and charts for {timeframe} timeframe
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-6">
             {selectedPairDetails && pairIndicators[selectedPairDetails.id] ? (
-              <IndicatorPanel 
-                indicators={pairIndicators[selectedPairDetails.id]} 
-                currentPrice={selectedPairDetails.current_price}
-              />
+              <>
+                {/* Charts Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 mb-3">Indicator Charts</h3>
+                  <IndicatorCharts 
+                    priceData={pairChartData[selectedPairDetails.id] || []}
+                    indicators={pairIndicators[selectedPairDetails.id]}
+                  />
+                </div>
+                
+                {/* Values Panel */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 mb-3">Current Values</h3>
+                  <IndicatorPanel 
+                    indicators={pairIndicators[selectedPairDetails.id]} 
+                    currentPrice={selectedPairDetails.current_price}
+                  />
+                </div>
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500 mb-4"></div>

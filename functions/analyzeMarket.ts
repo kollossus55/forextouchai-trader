@@ -3,7 +3,7 @@ import OpenAI from 'npm:openai';
 import { RSI, MACD, BollingerBands, EMA, Stochastic } from 'npm:technicalindicators';
 
 // Helper to generate synthetic historical price data
-const generateHistoricalData = (currentPrice, periods = 50) => {
+const generateHistoricalData = (currentPrice, periods = 100) => {
     const data = [];
     let price = currentPrice;
     
@@ -30,7 +30,7 @@ const generateHistoricalData = (currentPrice, periods = 50) => {
     return data;
 };
 
-// Calculate all technical indicators
+// Calculate all technical indicators with historical data
 const calculateIndicators = (priceData) => {
     const closes = priceData.map(d => d.close);
     const highs = priceData.map(d => d.high);
@@ -42,8 +42,10 @@ const calculateIndicators = (priceData) => {
     try {
         const rsiValues = RSI.calculate({ values: closes, period: 14 });
         indicators.rsi = rsiValues[rsiValues.length - 1] || 50;
+        indicators.rsiHistory = rsiValues;
     } catch (e) {
         indicators.rsi = 50;
+        indicators.rsiHistory = [];
     }
     
     // MACD (12, 26, 9)
@@ -62,8 +64,10 @@ const calculateIndicators = (priceData) => {
             signal: latest?.signal || 0,
             histogram: latest?.histogram || 0
         };
+        indicators.macdHistory = macdValues;
     } catch (e) {
         indicators.macd = { value: 0, signal: 0, histogram: 0 };
+        indicators.macdHistory = [];
     }
     
     // Bollinger Bands (20, 2)
@@ -81,6 +85,7 @@ const calculateIndicators = (priceData) => {
             lower: latest?.lower || currentPrice * 0.98,
             percentB: latest ? ((currentPrice - latest.lower) / (latest.upper - latest.lower)) * 100 : 50
         };
+        indicators.bbHistory = bbValues;
     } catch (e) {
         const currentPrice = closes[closes.length - 1];
         indicators.bollingerBands = {
@@ -89,14 +94,17 @@ const calculateIndicators = (priceData) => {
             lower: currentPrice * 0.98,
             percentB: 50
         };
+        indicators.bbHistory = [];
     }
     
     // EMA (200)
     try {
         const emaValues = EMA.calculate({ values: closes, period: 50 }); // Use 50 for demo
         indicators.ema200 = emaValues[emaValues.length - 1] || closes[closes.length - 1];
+        indicators.emaHistory = emaValues;
     } catch (e) {
         indicators.ema200 = closes[closes.length - 1];
+        indicators.emaHistory = [];
     }
     
     // Stochastic Oscillator (14, 3, 3)
@@ -113,8 +121,10 @@ const calculateIndicators = (priceData) => {
             k: latest?.k || 50,
             d: latest?.d || 50
         };
+        indicators.stochHistory = stochValues;
     } catch (e) {
         indicators.stochastic = { k: 50, d: 50 };
+        indicators.stochHistory = [];
     }
     
     return indicators;
@@ -147,10 +157,42 @@ Deno.serve(async (req) => {
             const historicalData = generateHistoricalData(price);
             const calculatedIndicators = calculateIndicators(historicalData);
             
+            // Prepare chart-ready data
+            const chartData = historicalData.map((candle, idx) => {
+                const candleIndicators = {};
+                
+                if (calculatedIndicators.rsiHistory && calculatedIndicators.rsiHistory[idx]) {
+                    candleIndicators.rsi = calculatedIndicators.rsiHistory[idx];
+                }
+                if (calculatedIndicators.macdHistory && calculatedIndicators.macdHistory[idx]) {
+                    candleIndicators.macdValue = calculatedIndicators.macdHistory[idx].MACD;
+                    candleIndicators.macdSignal = calculatedIndicators.macdHistory[idx].signal;
+                    candleIndicators.macdHistogram = calculatedIndicators.macdHistory[idx].histogram;
+                }
+                if (calculatedIndicators.bbHistory && calculatedIndicators.bbHistory[idx]) {
+                    candleIndicators.bbUpper = calculatedIndicators.bbHistory[idx].upper;
+                    candleIndicators.bbMiddle = calculatedIndicators.bbHistory[idx].middle;
+                    candleIndicators.bbLower = calculatedIndicators.bbHistory[idx].lower;
+                }
+                if (calculatedIndicators.emaHistory && calculatedIndicators.emaHistory[idx]) {
+                    candleIndicators.ema200 = calculatedIndicators.emaHistory[idx];
+                }
+                if (calculatedIndicators.stochHistory && calculatedIndicators.stochHistory[idx]) {
+                    candleIndicators.stochK = calculatedIndicators.stochHistory[idx].k;
+                    candleIndicators.stochD = calculatedIndicators.stochHistory[idx].d;
+                }
+                
+                return {
+                    ...candle,
+                    indicators: candleIndicators
+                };
+            });
+            
             return {
                 symbol: pairSymbol,
                 price,
-                indicators: calculatedIndicators
+                indicators: calculatedIndicators,
+                chartData
             };
         });
         
@@ -232,10 +274,11 @@ Deno.serve(async (req) => {
 
         let signal = JSON.parse(completion.choices[0].message.content);
         
-        // Attach full indicator data for the selected pair
+        // Attach full indicator data and chart data for the selected pair
         const selectedPairData = pairAnalysis.find(p => p.symbol === signal.pair);
         if (selectedPairData) {
             signal.calculated_indicators = selectedPairData.indicators;
+            signal.chartData = selectedPairData.chartData;
         }
 
         // Sanity Check & Normalization
