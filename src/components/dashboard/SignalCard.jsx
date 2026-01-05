@@ -65,22 +65,34 @@ export default function SignalCard({ signal, onExecute }) {
         </div>
 
         {signal.status === 'ANALYSIS' ? (
-            <div className="flex gap-2">
-                <div className="w-20">
-                    <Input 
-                        type="number" 
-                        step="0.01" 
-                        value={lotSize} 
-                        onChange={(e) => setLotSize(e.target.value)}
-                        className="h-8 text-xs bg-slate-950 border-slate-800"
-                        placeholder="Lot"
-                    />
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                        <label className="text-[10px] text-slate-400 mb-1 block">Lot Size</label>
+                        <Input 
+                            type="number" 
+                            step="0.01" 
+                            min="0.01"
+                            max="10"
+                            value={lotSize} 
+                            onChange={(e) => setLotSize(e.target.value)}
+                            className="h-9 text-sm bg-slate-950 border-slate-700 text-white font-mono focus:border-emerald-500"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-[10px] text-slate-400 mb-1 block">Potential P&L</label>
+                        <div className="h-9 px-3 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                            <span className="text-sm font-bold text-emerald-400">
+                                ${((signal.take_profit - signal.entry_price) * lotSize * 100000).toFixed(2)}
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 <Button 
-                  className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20"
                   onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize) })}
                 >
-                  <Play className="w-3 h-3 mr-2" /> Execute
+                  <Play className="w-4 h-4 mr-2" /> Execute Trade
                 </Button>
             </div>
         ) : (
