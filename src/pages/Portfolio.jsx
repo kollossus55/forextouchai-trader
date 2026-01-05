@@ -17,12 +17,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export default function Portfolio() {
   const { data: trades } = useQuery({
     queryKey: ['trades-all'],
-    queryFn: () => base44.entities.Trade.list({ sort: { created_date: -1 }, limit: 50 }),
+    queryFn: () => base44.entities.Trade.list('-created_date', 100),
+    refetchInterval: 3000,
     initialData: []
   });
 
   const openTrades = trades.filter(t => t.status === 'OPEN');
   const closedTrades = trades.filter(t => t.status === 'CLOSED');
+  
+  const totalPnL = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const openPnL = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -42,11 +46,13 @@ export default function Portfolio() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Total Profit</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400">Closed P&L</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">+$2,450.50</div>
-            <p className="text-xs text-slate-500 mt-1">All time P&L</p>
+            <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Realized profit</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
@@ -54,7 +60,9 @@ export default function Portfolio() {
             <CardTitle className="text-sm font-medium text-slate-400">Open P&L</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400">+$124.00</div>
+            <div className={`text-2xl font-bold ${openPnL >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>
+              {openPnL >= 0 ? '+' : ''}${openPnL.toFixed(2)}
+            </div>
             <p className="text-xs text-slate-500 mt-1">Unrealized profit</p>
           </CardContent>
         </Card>
@@ -64,15 +72,23 @@ export default function Portfolio() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">{trades.length}</div>
-            <p className="text-xs text-slate-500 mt-1">{openTrades.length} currently open</p>
+            <p className="text-xs text-slate-500 mt-1">
+              <span className="text-emerald-400">{openTrades.length}</span> open • <span className="text-slate-400">{closedTrades.length}</span> closed
+            </p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="open" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="open" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Open Positions</TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Trade History</TabsTrigger>
+          <TabsTrigger value="open" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+            Open Positions
+            <Badge variant="secondary" className="ml-2 bg-slate-950 text-slate-400 text-[10px] h-4">{openTrades.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+            Trade History
+            <Badge variant="secondary" className="ml-2 bg-slate-950 text-slate-400 text-[10px] h-4">{closedTrades.length}</Badge>
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="open" className="mt-4">
@@ -106,13 +122,12 @@ export default function Portfolio() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-slate-300">{trade.lot_size}</TableCell>
-                        <TableCell className="text-slate-300">{trade.open_price}</TableCell>
-                        <TableCell className="text-slate-300">
-                           {/* Mock current price for open trades slightly diff from open */}
-                           {(trade.open_price * (trade.type === 'BUY' ? 1.002 : 0.998)).toFixed(5)}
+                        <TableCell className="text-slate-300 font-mono text-sm">{trade.open_price.toFixed(5)}</TableCell>
+                        <TableCell className="text-slate-300 font-mono text-sm">
+                           {trade.close_price ? trade.close_price.toFixed(5) : (trade.open_price * (trade.type === 'BUY' ? 1.001 : 0.999)).toFixed(5)}
                         </TableCell>
                         <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl}
+                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -158,10 +173,10 @@ export default function Portfolio() {
                           </span>
                         </TableCell>
                         <TableCell className="text-slate-300">{trade.lot_size}</TableCell>
-                        <TableCell className="text-slate-300">{trade.open_price}</TableCell>
-                        <TableCell className="text-slate-300">{trade.close_price}</TableCell>
+                        <TableCell className="text-slate-300 font-mono text-sm">{trade.open_price.toFixed(5)}</TableCell>
+                        <TableCell className="text-slate-300 font-mono text-sm">{trade.close_price ? trade.close_price.toFixed(5) : 'N/A'}</TableCell>
                         <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl}
+                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
