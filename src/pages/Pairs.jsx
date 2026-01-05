@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import TickChart from '@/components/market/TickChart';
+import IndicatorPanel from '@/components/market/IndicatorPanel';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Pairs() {
@@ -36,12 +37,15 @@ export default function Pairs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState(null);
+  const [selectedPairDetails, setSelectedPairDetails] = useState(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   
   // Real-time State
   const [liveData, setLiveData] = useState({});
+  const [pairIndicators, setPairIndicators] = useState({});
 
   const { data: pairs, isLoading } = useQuery({
     queryKey: ['pairs'],
@@ -166,6 +170,37 @@ export default function Pairs() {
     setSelectedPair(pair);
     setTradeType(type);
     setTradeModalOpen(true);
+  };
+
+  const handleViewDetails = (pair) => {
+    setSelectedPairDetails(pair);
+    setDetailsModalOpen(true);
+    
+    // Calculate indicators for this pair if not already cached
+    if (!pairIndicators[pair.id]) {
+      const calculatePairIndicators = async () => {
+        try {
+          const { data } = await base44.functions.invoke('analyzeMarket', {
+            pairs: [pair.symbol],
+            marketData: { [pair.symbol]: pair.current_price },
+            minConfidence: 50,
+            indicators: ['RSI', 'MACD', 'Bollinger Bands', 'EMA', 'Stochastic'],
+            timeframe
+          });
+          
+          if (data?.calculated_indicators) {
+            setPairIndicators(prev => ({
+              ...prev,
+              [pair.id]: data.calculated_indicators
+            }));
+          }
+        } catch (e) {
+          console.error('Failed to calculate indicators:', e);
+        }
+      };
+      
+      calculatePairIndicators();
+    }
   };
 
   const executeTrade = () => {
@@ -320,7 +355,14 @@ export default function Pairs() {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <Button 
+              variant="outline"
+              className="bg-slate-800/30 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700 transition-all text-xs"
+              onClick={() => handleViewDetails(pair)}
+            >
+              <BarChart2 className="w-3.5 h-3.5 mr-1" /> Indicators
+            </Button>
             <Button 
               className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-600/20 transition-all"
               onClick={() => handleTradeClick(pair, 'BUY')}
@@ -410,6 +452,7 @@ export default function Pairs() {
       </Tabs>
       )}
 
+      {/* Trade Modal */}
       <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
         <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[425px]">
           <DialogHeader>
@@ -448,6 +491,39 @@ export default function Pairs() {
               className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}
             >
               {tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Indicator Details Modal */}
+      <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-purple-400" />
+              Technical Indicators - {selectedPairDetails?.symbol}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Real-time calculated values for {timeframe} timeframe
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedPairDetails && pairIndicators[selectedPairDetails.id] ? (
+              <IndicatorPanel 
+                indicators={pairIndicators[selectedPairDetails.id]} 
+                currentPrice={selectedPairDetails.current_price}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500 mb-4"></div>
+                <p className="text-slate-400 text-sm">Calculating technical indicators...</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsModalOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
