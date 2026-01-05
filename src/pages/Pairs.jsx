@@ -205,7 +205,20 @@ export default function Pairs() {
       };
   });
 
-  const filteredPairs = mergedPairs.filter(pair => 
+  // Deduplicate pairs by symbol (keep the most recent one)
+  const uniquePairs = mergedPairs.reduce((acc, pair) => {
+    const existing = acc.find(p => p.symbol === pair.symbol);
+    if (!existing) {
+      acc.push(pair);
+    } else if (new Date(pair.created_date) > new Date(existing.created_date)) {
+      // Replace with newer record if duplicate found
+      const index = acc.indexOf(existing);
+      acc[index] = pair;
+    }
+    return acc;
+  }, []);
+
+  const filteredPairs = uniquePairs.filter(pair => 
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
