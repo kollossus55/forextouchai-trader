@@ -159,33 +159,50 @@ Deno.serve(async (req) => {
 
                 if (signals && signals.length > 0) {
                     const signal = signals[0];
-                    
-                    // PER-BOT LIMIT CHECK: Match signal's strategy to bot config
+
+                    // AUTO-TRADING CHECK: Verify bot is running and auto-trading enabled
                     try {
-                        // Find the bot that generated this signal by matching strategy
                         const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list());
                         const matchingBot = allBots.find(b => b.strategy_type === signal.strategy);
-                        
-                        if (matchingBot && matchingBot.max_open_trades) {
-                            // Count ONLY trades from this specific bot/strategy
-                            const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
-                            const botTrades = openTrades.filter(t => t.bot_id === String(matchingBot.id) || !t.bot_id);
-                            
-                            if (botTrades.length >= matchingBot.max_open_trades) {
-                                console.warn(`Bot "${matchingBot.name}" limit reached (${botTrades.length}/${matchingBot.max_open_trades}). Skipping signal ${signal.id}.`);
-                                
+
+                        if (matchingBot) {
+                            // Check if bot is stopped or paused
+                            if (matchingBot.status !== 'RUNNING') {
+                                console.warn(`Bot "${matchingBot.name}" is ${matchingBot.status}. Skipping signal ${signal.id}.`);
+
                                 await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
                                     status: 'SKIPPED',
                                     result_pnl: 0 
                                 }));
-                                
-                                return Response.json({ status: "NO_SIGNAL", reason: "BOT_LIMIT_REACHED" });
+
+                                return Response.json({ status: "NO_SIGNAL", reason: "BOT_NOT_RUNNING" });
+                            }
+
+                            // PER-BOT LIMIT CHECK
+                            if (matchingBot.max_open_trades) {
+                                const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }));
+                                const botTrades = openTrades.filter(t => t.bot_id === String(matchingBot.id) || !t.bot_id);
+
+                                if (botTrades.length >= matchingBot.max_open_trades) {
+                                    console.warn(`Bot "${matchingBot.name}" limit reached (${botTrades.length}/${matchingBot.max_open_trades}). Skipping signal ${signal.id}.`);
+
+                                    await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                                        status: 'SKIPPED',
+                                        result_pnl: 0 
+                                    }));
+
+                                    return Response.json({ status: "NO_SIGNAL", reason: "BOT_LIMIT_REACHED" });
+                                }
                             }
                         }
                     } catch (checkErr) {
-                        console.error("Limit Check Failed:", checkErr);
-                        // If limit check fails, allow the signal to proceed
+                        console.error("Auto-trading check failed:", checkErr);
                     }
+
+                    // Mark signal as ACTIVE to prevent re-execution
+                    await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                        status: 'ACTIVE' 
+                    }));
 
                     return Response.json(signal);
                 }
