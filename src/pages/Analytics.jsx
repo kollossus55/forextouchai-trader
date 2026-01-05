@@ -82,7 +82,19 @@ export default function Analytics() {
       profitFactor: 0,
       maxDrawdown: 0,
       avgTrade: 0,
-      totalVolume: 0
+      totalVolume: 0,
+      grossProfit: 0,
+      grossLoss: 0,
+      winningTrades: 0,
+      losingTrades: 0,
+      avgWin: 0,
+      avgLoss: 0,
+      bestTrade: 0,
+      worstTrade: 0,
+      maxConsecutiveWins: 0,
+      maxConsecutiveLosses: 0,
+      peak: 0,
+      currentEquity: 0
     };
 
     const closedTrades = filteredTrades.filter(t => t.status === 'CLOSED' || t.pnl !== undefined);
@@ -94,18 +106,37 @@ export default function Analytics() {
     const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
     
     const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0;
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0; // Cap at 100 if no loss
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
     const avgTrade = closedTrades.length > 0 ? totalPnL / closedTrades.length : 0;
     const totalVolume = filteredTrades.reduce((sum, t) => sum + (t.lot_size || 0), 0);
 
-    // Simulated Max Drawdown (simplified calculation based on cumulative PnL series)
+    const avgWin = winningTrades.length > 0 ? grossProfit / winningTrades.length : 0;
+    const avgLoss = losingTrades.length > 0 ? grossLoss / losingTrades.length : 0;
+    const bestTrade = closedTrades.length > 0 ? Math.max(...closedTrades.map(t => t.pnl || 0)) : 0;
+    const worstTrade = closedTrades.length > 0 ? Math.min(...closedTrades.map(t => t.pnl || 0)) : 0;
+
+    // Calculate consecutive wins/losses
+    let maxConsecutiveWins = 0;
+    let maxConsecutiveLosses = 0;
+    let currentWinStreak = 0;
+    let currentLossStreak = 0;
+    closedTrades.forEach(trade => {
+      if (trade.pnl > 0) {
+        currentWinStreak++;
+        currentLossStreak = 0;
+        if (currentWinStreak > maxConsecutiveWins) maxConsecutiveWins = currentWinStreak;
+      } else if (trade.pnl < 0) {
+        currentLossStreak++;
+        currentWinStreak = 0;
+        if (currentLossStreak > maxConsecutiveLosses) maxConsecutiveLosses = currentLossStreak;
+      }
+    });
+
+    // Max Drawdown calculation
     let peak = 0;
     let maxDD = 0;
     let currentPnL = 0;
     
-    // Sort by something if we had dates, assuming list order for now or just mock it slightly
-    // If we assume the list is somewhat ordered or we just take the set
-    // For a real calculation we need time series. Let's do a simple calculation assuming trade order.
     closedTrades.forEach(t => {
       currentPnL += t.pnl;
       if (currentPnL > peak) peak = currentPnL;
@@ -120,7 +151,19 @@ export default function Analytics() {
       maxDrawdown: maxDD,
       avgTrade,
       totalVolume,
-      tradesCount: totalTrades
+      tradesCount: totalTrades,
+      grossProfit,
+      grossLoss,
+      winningTrades: winningTrades.length,
+      losingTrades: losingTrades.length,
+      avgWin,
+      avgLoss,
+      bestTrade,
+      worstTrade,
+      maxConsecutiveWins,
+      maxConsecutiveLosses,
+      peak,
+      currentEquity: currentPnL
     };
   }, [filteredTrades]);
 
@@ -160,9 +203,24 @@ export default function Analytics() {
              <div className={`text-2xl font-bold ${metrics.totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                ${metrics.totalPnL.toFixed(2)}
              </div>
-             <p className="text-xs text-slate-500 mt-1">
-               avg. ${metrics.avgTrade.toFixed(2)} / trade
-             </p>
+             <div className="mt-3 space-y-1.5 text-xs">
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Gross Profit</span>
+                 <span className="text-emerald-400 font-medium">+${metrics.grossProfit.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Gross Loss</span>
+                 <span className="text-rose-400 font-medium">-${metrics.grossLoss.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                 <span className="text-slate-500">Best Trade</span>
+                 <span className="text-emerald-400 font-medium">+${metrics.bestTrade.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Worst Trade</span>
+                 <span className="text-rose-400 font-medium">${metrics.worstTrade.toFixed(2)}</span>
+               </div>
+             </div>
            </CardContent>
         </Card>
 
@@ -175,9 +233,24 @@ export default function Analytics() {
              <div className="text-2xl font-bold text-blue-400">
                {metrics.winRate.toFixed(1)}%
              </div>
-             <p className="text-xs text-slate-500 mt-1">
-               {metrics.tradesCount} total trades
-             </p>
+             <div className="mt-3 space-y-1.5 text-xs">
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Winning Trades</span>
+                 <span className="text-emerald-400 font-medium">{metrics.winningTrades}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Losing Trades</span>
+                 <span className="text-rose-400 font-medium">{metrics.losingTrades}</span>
+               </div>
+               <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                 <span className="text-slate-500">Max Win Streak</span>
+                 <span className="text-emerald-400 font-medium">{metrics.maxConsecutiveWins}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Max Loss Streak</span>
+                 <span className="text-rose-400 font-medium">{metrics.maxConsecutiveLosses}</span>
+               </div>
+             </div>
            </CardContent>
         </Card>
 
@@ -190,9 +263,26 @@ export default function Analytics() {
              <div className="text-2xl font-bold text-amber-400">
                {metrics.profitFactor.toFixed(2)}
              </div>
-             <p className="text-xs text-slate-500 mt-1">
-               Risk / Reward Ratio
-             </p>
+             <div className="mt-3 space-y-1.5 text-xs">
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Avg Win</span>
+                 <span className="text-emerald-400 font-medium">+${metrics.avgWin.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Avg Loss</span>
+                 <span className="text-rose-400 font-medium">-${metrics.avgLoss.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                 <span className="text-slate-500">Risk/Reward</span>
+                 <span className="text-white font-medium">{metrics.avgLoss > 0 ? (metrics.avgWin / metrics.avgLoss).toFixed(2) : '0.00'}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Rating</span>
+                 <span className={metrics.profitFactor >= 1.5 ? 'text-emerald-400' : metrics.profitFactor >= 1 ? 'text-amber-400' : 'text-rose-400'}>
+                   {metrics.profitFactor >= 1.5 ? 'Excellent' : metrics.profitFactor >= 1 ? 'Good' : 'Poor'}
+                 </span>
+               </div>
+             </div>
            </CardContent>
         </Card>
 
@@ -205,9 +295,26 @@ export default function Analytics() {
              <div className="text-2xl font-bold text-rose-400">
                -${metrics.maxDrawdown.toFixed(2)}
              </div>
-             <p className="text-xs text-slate-500 mt-1">
-               Peak to valley decline
-             </p>
+             <div className="mt-3 space-y-1.5 text-xs">
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Peak Equity</span>
+                 <span className="text-white font-medium">${metrics.peak.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Current Equity</span>
+                 <span className="text-white font-medium">${metrics.currentEquity.toFixed(2)}</span>
+               </div>
+               <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                 <span className="text-slate-500">Drawdown %</span>
+                 <span className="text-rose-400 font-medium">
+                   {metrics.peak > 0 ? ((metrics.maxDrawdown / metrics.peak) * 100).toFixed(1) : '0.0'}%
+                 </span>
+               </div>
+               <div className="flex justify-between items-center">
+                 <span className="text-slate-500">Total Trades</span>
+                 <span className="text-white font-medium">{metrics.tradesCount}</span>
+               </div>
+             </div>
            </CardContent>
         </Card>
       </div>
