@@ -289,6 +289,16 @@ export default function Settings() {
       string Endpoint;
       datetime LastSync = 0;
       string lastSignalId = "";
+      int TradesToday = 0;
+      datetime LastResetDate = 0;
+      struct TradeInfo {
+          int ticket;
+          double openPrice;
+          double hiddenSL;
+          double hiddenTP;
+      };
+      TradeInfo managedTrades[];
+      int managedCount = 0;
 
       //+------------------------------------------------------------------+
       //| Initialization                                                   |
