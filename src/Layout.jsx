@@ -45,7 +45,7 @@ export default function Layout({ children }) {
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 3000,
+    refetchInterval: 5000,
     initialData: []
   });
 
