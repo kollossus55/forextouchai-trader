@@ -370,6 +370,24 @@ export default function Settings() {
       //| Main Loop                                                        |
       //+------------------------------------------------------------------+
       void OnTick() {
+         // Reset daily trade counter
+         if(TimeDayOfYear(TimeCurrent()) != TimeDayOfYear(LastResetDate)) {
+            TradesToday = 0;
+            LastResetDate = TimeCurrent();
+         }
+         
+         // Check time filter
+         if(!IsWithinTradingHours()) return;
+         
+         // Apply trailing stops
+         if(EnableTrailingStop) ManageTrailingStops();
+         
+         // Check hidden SL/TP
+         if(HideSLTP) ManageHiddenLevels();
+         
+         // Check close all conditions
+         CheckCloseAllConditions();
+         
          if(TimeCurrent() - LastSync < 10) return; // 10s Interval
          LastSync = TimeCurrent();
 
@@ -377,11 +395,147 @@ export default function Settings() {
          string json = BuildJson();
          SendPost(json);
          
-         // --- GET SIGNALS (GET) is handled by the response of POST usually, 
-         // but we can do a separate GET if needed. 
-         // For v2 simplicity, let's keep it robust: POST first.
-         
          CheckSignals();
+      }
+      
+      //+------------------------------------------------------------------+
+      //| Trading Time Filter                                              |
+      //+------------------------------------------------------------------+
+      bool IsWithinTradingHours() {
+         if(TradingStartTime == "" || TradingEndTime == "") return true;
+         
+         int currentHour = TimeHour(TimeCurrent());
+         int currentMin = TimeMinute(TimeCurrent());
+         int currentTime = currentHour * 100 + currentMin;
+         
+         int startHour = StringToInteger(StringSubstr(TradingStartTime, 0, 2));
+         int startMin = StringToInteger(StringSubstr(TradingStartTime, 3, 2));
+         int startTime = startHour * 100 + startMin;
+         
+         int endHour = StringToInteger(StringSubstr(TradingEndTime, 0, 2));
+         int endMin = StringToInteger(StringSubstr(TradingEndTime, 3, 2));
+         int endTime = endHour * 100 + endMin;
+         
+         return (currentTime >= startTime && currentTime <= endTime);
+      }
+      
+      //+------------------------------------------------------------------+
+      //| Trailing Stop Management                                         |
+      //+------------------------------------------------------------------+
+      void ManageTrailingStops() {
+         for(int i = OrdersTotal() - 1; i >= 0; i--) {
+            if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+            if(OrderMagicNumber() != 0) continue; // Only manage our trades
+            
+            double point = MarketInfo(OrderSymbol(), MODE_POINT);
+            int digits = (int)MarketInfo(OrderSymbol(), MODE_DIGITS);
+            double trailDist = TrailingStopPips * point * 10;
+            double activationDist = TrailingStartPips * point * 10;
+            
+            if(OrderType() == OP_BUY) {
+               double currentPrice = MarketInfo(OrderSymbol(), MODE_BID);
+               double profit = currentPrice - OrderOpenPrice();
+               
+               if(profit >= activationDist) {
+                  double newSL = currentPrice - trailDist;
+                  if(newSL > OrderStopLoss() && newSL < currentPrice) {
+                     OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE);
+                  }
+               }
+            }
+            else if(OrderType() == OP_SELL) {
+               double currentPrice = MarketInfo(OrderSymbol(), MODE_ASK);
+               double profit = OrderOpenPrice() - currentPrice;
+               
+               if(profit >= activationDist) {
+                  double newSL = currentPrice + trailDist;
+                  if((OrderStopLoss() == 0 || newSL < OrderStopLoss()) && newSL > currentPrice) {
+                     OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE);
+                  }
+               }
+            }
+         }
+      }
+      
+      //+------------------------------------------------------------------+
+      //| Hidden SL/TP Management                                          |
+      //+------------------------------------------------------------------+
+      void ManageHiddenLevels() {
+         for(int i = managedCount - 1; i >= 0; i--) {
+            if(!OrderSelect(managedTrades[i].ticket, SELECT_BY_TICKET)) {
+               // Trade closed, remove from array
+               ArrayRemove(managedTrades, i, 1);
+               managedCount--;
+               continue;
+            }
+            
+            double currentPrice = (OrderType() == OP_BUY) ? 
+               MarketInfo(OrderSymbol(), MODE_BID) : 
+               MarketInfo(OrderSymbol(), MODE_ASK);
+            
+            // Check hidden SL
+            if(managedTrades[i].hiddenSL > 0) {
+               if((OrderType() == OP_BUY && currentPrice <= managedTrades[i].hiddenSL) ||
+                  (OrderType() == OP_SELL && currentPrice >= managedTrades[i].hiddenSL)) {
+                  OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrRed);
+                  Print("Hidden SL Hit: Ticket ", OrderTicket());
+                  continue;
+               }
+            }
+            
+            // Check hidden TP
+            if(managedTrades[i].hiddenTP > 0) {
+               if((OrderType() == OP_BUY && currentPrice >= managedTrades[i].hiddenTP) ||
+                  (OrderType() == OP_SELL && currentPrice <= managedTrades[i].hiddenTP)) {
+                  OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrGreen);
+                  Print("Hidden TP Hit: Ticket ", OrderTicket());
+                  continue;
+               }
+            }
+         }
+      }
+      
+      //+------------------------------------------------------------------+
+      //| Close All at Profit/Loss Percent                                 |
+      //+------------------------------------------------------------------+
+      void CheckCloseAllConditions() {
+         if(CloseAllAtProfitPercent == 0 && CloseAllAtLossPercent == 0) return;
+         
+         double totalProfit = 0;
+         int openCount = 0;
+         
+         for(int i = 0; i < OrdersTotal(); i++) {
+            if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+               totalProfit += OrderProfit();
+               openCount++;
+            }
+         }
+         
+         if(openCount == 0) return;
+         
+         double balance = AccountBalance();
+         double profitPercent = (totalProfit / balance) * 100;
+         
+         bool shouldClose = false;
+         if(CloseAllAtProfitPercent > 0 && profitPercent >= CloseAllAtProfitPercent) {
+            Print("Closing all trades - Profit target reached: ", profitPercent, "%");
+            shouldClose = true;
+         }
+         if(CloseAllAtLossPercent > 0 && profitPercent <= -CloseAllAtLossPercent) {
+            Print("Closing all trades - Loss limit reached: ", profitPercent, "%");
+            shouldClose = true;
+         }
+         
+         if(shouldClose) {
+            for(int i = OrdersTotal() - 1; i >= 0; i--) {
+               if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
+                  double closePrice = (OrderType() == OP_BUY) ? 
+                     MarketInfo(OrderSymbol(), MODE_BID) : 
+                     MarketInfo(OrderSymbol(), MODE_ASK);
+                  OrderClose(OrderTicket(), OrderLots(), closePrice, 20, clrYellow);
+               }
+            }
+         }
       }
       
       //+------------------------------------------------------------------+
