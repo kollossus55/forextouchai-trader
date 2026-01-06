@@ -515,7 +515,7 @@ export default function Overview() {
                   <TableRow className="border-slate-800 hover:bg-slate-900/50">
                     <TableHead className="text-slate-400 h-10">Symbol</TableHead>
                     <TableHead className="text-slate-400 h-10">Type</TableHead>
-                    <TableHead className="text-slate-400 h-10">Vol</TableHead>
+                    <TableHead className="text-slate-400 h-10">Lots</TableHead>
                     <TableHead className="text-slate-400 h-10">Price</TableHead>
                     <TableHead className="text-slate-400 h-10 text-right">Profit</TableHead>
                   </TableRow>
