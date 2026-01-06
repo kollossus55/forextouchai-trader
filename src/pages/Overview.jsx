@@ -515,7 +515,6 @@ export default function Overview() {
                   <TableRow className="border-slate-800 hover:bg-slate-900/50">
                     <TableHead className="text-slate-400 h-10">Symbol</TableHead>
                     <TableHead className="text-slate-400 h-10">Type</TableHead>
-                    <TableHead className="text-slate-400 h-10">Lots</TableHead>
                     <TableHead className="text-slate-400 h-10">Price</TableHead>
                     <TableHead className="text-slate-400 h-10 text-right">Profit</TableHead>
                   </TableRow>
@@ -523,7 +522,7 @@ export default function Overview() {
                 <TableBody>
                   {trades.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                      <TableCell colSpan={4} className="text-center py-8 text-slate-500">
                         No active trades running
                       </TableCell>
                     </TableRow>
@@ -536,7 +535,6 @@ export default function Overview() {
                             {trade.type}
                           </span>
                         </TableCell>
-                        <TableCell className="text-slate-300 text-sm">{trade.lot_size}</TableCell>
                         <TableCell className="text-slate-300 text-sm">{trade.open_price}</TableCell>
                         <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}

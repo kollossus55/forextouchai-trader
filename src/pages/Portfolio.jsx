@@ -99,7 +99,6 @@ export default function Portfolio() {
                   <TableRow className="border-slate-800 hover:bg-slate-900/50">
                     <TableHead className="text-slate-400">Pair</TableHead>
                     <TableHead className="text-slate-400">Type</TableHead>
-                    <TableHead className="text-slate-400">Lots</TableHead>
                     <TableHead className="text-slate-400">Open Price</TableHead>
                     <TableHead className="text-slate-400">Current Price</TableHead>
                     <TableHead className="text-slate-400 text-right">P&L</TableHead>
@@ -147,7 +146,6 @@ export default function Portfolio() {
                     <TableHead className="text-slate-400">Date</TableHead>
                     <TableHead className="text-slate-400">Pair</TableHead>
                     <TableHead className="text-slate-400">Type</TableHead>
-                    <TableHead className="text-slate-400">Lots</TableHead>
                     <TableHead className="text-slate-400">Open</TableHead>
                     <TableHead className="text-slate-400">Close</TableHead>
                     <TableHead className="text-slate-400 text-right">Profit</TableHead>
