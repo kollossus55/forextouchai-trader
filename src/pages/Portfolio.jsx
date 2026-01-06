@@ -105,32 +105,31 @@ export default function Portfolio() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {openTrades.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                        No open positions
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    openTrades.map((trade) => (
-                      <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/30">
-                        <TableCell className="font-medium text-slate-200">{trade.pair}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={`${trade.type === 'BUY' ? 'text-emerald-400 border-emerald-500/30' : 'text-rose-400 border-rose-500/30'}`}>
-                            {trade.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-slate-300">{trade.lot_size}</TableCell>
-                        <TableCell className="text-slate-300 font-mono text-sm">{trade.open_price.toFixed(5)}</TableCell>
-                        <TableCell className="text-slate-300 font-mono text-sm">
-                           {trade.close_price ? trade.close_price.toFixed(5) : (trade.open_price * (trade.type === 'BUY' ? 1.001 : 0.999)).toFixed(5)}
-                        </TableCell>
-                        <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                 {openTrades.length === 0 ? (
+                   <TableRow>
+                     <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                       No open positions
+                     </TableCell>
+                   </TableRow>
+                 ) : (
+                   openTrades.map((trade) => (
+                     <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/30">
+                       <TableCell className="font-medium text-slate-200">{trade.pair}</TableCell>
+                       <TableCell>
+                         <Badge variant="outline" className={`${trade.type === 'BUY' ? 'text-emerald-400 border-emerald-500/30' : 'text-rose-400 border-rose-500/30'}`}>
+                           {trade.type}
+                         </Badge>
+                       </TableCell>
+                       <TableCell className="text-slate-300 font-mono text-sm">{trade.open_price.toFixed(5)}</TableCell>
+                       <TableCell className="text-slate-300 font-mono text-sm">
+                          {trade.close_price ? trade.close_price.toFixed(5) : (trade.open_price * (trade.type === 'BUY' ? 1.001 : 0.999)).toFixed(5)}
+                       </TableCell>
+                       <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                         {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                       </TableCell>
+                     </TableRow>
+                   ))
+                 )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -154,7 +153,7 @@ export default function Portfolio() {
                 <TableBody>
                   {closedTrades.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
                         No trade history
                       </TableCell>
                     </TableRow>
@@ -170,7 +169,6 @@ export default function Portfolio() {
                             {trade.type}
                           </span>
                         </TableCell>
-                        <TableCell className="text-slate-300">{trade.lot_size}</TableCell>
                         <TableCell className="text-slate-300 font-mono text-sm">{trade.open_price.toFixed(5)}</TableCell>
                         <TableCell className="text-slate-300 font-mono text-sm">{trade.close_price ? trade.close_price.toFixed(5) : 'N/A'}</TableCell>
                         <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
