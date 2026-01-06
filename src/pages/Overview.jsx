@@ -505,9 +505,24 @@ export default function Overview() {
                 </CardTitle>
                 <CardDescription className="text-slate-400">Active market positions</CardDescription>
               </div>
-              <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/10">
-                {trades.length} Open
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    queryClient.invalidateQueries(['trades-home']);
+                    queryClient.invalidateQueries(['broker-connections']);
+                    toast.success('Syncing with MT4...');
+                  }}
+                  className="text-slate-300 border-slate-700 hover:bg-slate-800"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Sync Now
+                </Button>
+                <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/10">
+                  {trades.length} Open
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
