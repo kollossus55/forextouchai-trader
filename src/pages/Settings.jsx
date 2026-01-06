@@ -464,8 +464,7 @@ export default function Settings() {
          for(int i = managedCount - 1; i >= 0; i--) {
             if(!OrderSelect(managedTrades[i].ticket, SELECT_BY_TICKET)) {
                // Trade closed, remove from array
-               ArrayRemove(managedTrades, i, 1);
-               managedCount--;
+               RemoveTradeFromArray(i);
                continue;
             }
             
@@ -477,8 +476,9 @@ export default function Settings() {
             if(managedTrades[i].hiddenSL > 0) {
                if((OrderType() == OP_BUY && currentPrice <= managedTrades[i].hiddenSL) ||
                   (OrderType() == OP_SELL && currentPrice >= managedTrades[i].hiddenSL)) {
-                  OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrRed);
-                  Print("Hidden SL Hit: Ticket ", OrderTicket());
+                  if(OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrRed)) {
+                     Print("Hidden SL Hit: Ticket ", OrderTicket());
+                  }
                   continue;
                }
             }
@@ -487,12 +487,24 @@ export default function Settings() {
             if(managedTrades[i].hiddenTP > 0) {
                if((OrderType() == OP_BUY && currentPrice >= managedTrades[i].hiddenTP) ||
                   (OrderType() == OP_SELL && currentPrice <= managedTrades[i].hiddenTP)) {
-                  OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrGreen);
-                  Print("Hidden TP Hit: Ticket ", OrderTicket());
+                  if(OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrGreen)) {
+                     Print("Hidden TP Hit: Ticket ", OrderTicket());
+                  }
                   continue;
                }
             }
          }
+      }
+      
+      //+------------------------------------------------------------------+
+      //| Remove Trade from Managed Array                                  |
+      //+------------------------------------------------------------------+
+      void RemoveTradeFromArray(int index) {
+         for(int i = index; i < managedCount - 1; i++) {
+            managedTrades[i] = managedTrades[i + 1];
+         }
+         managedCount--;
+         ArrayResize(managedTrades, managedCount);
       }
       
       //+------------------------------------------------------------------+
