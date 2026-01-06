@@ -29,7 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import SignalCard from '@/components/dashboard/SignalCard';
 import AITradeManagerCard from '@/components/dashboard/AITradeManagerCard';
 import BotPerformanceCard from '@/components/dashboard/BotPerformanceCard';
-import { useMutation, useQueryClient } from '@tantml:react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Overview() {
