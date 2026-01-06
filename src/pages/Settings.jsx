@@ -321,7 +321,9 @@ export default function Settings() {
          // 3. Construct Endpoint
          Endpoint = ServiceUrl + "/functions/bridge";
 
-         Print("=== FOREX TOUCH AI BRIDGE v2.0 ===");
+         Print("===================================");
+         Print("ForexTouchAI Bridge EA v", EA_VERSION);
+         Print("===================================");
          Print("Target URL: ", ServiceUrl);
          Print("Endpoint: ", Endpoint);
          
