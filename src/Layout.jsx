@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { createPageUrl } from '@/utils';
 import { Toaster } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Layout({ children }) {
   const location = useLocation();
@@ -40,6 +41,15 @@ export default function Layout({ children }) {
     };
     fetchUser();
   }, []);
+
+  const { data: connections } = useQuery({
+    queryKey: ['broker-connections'],
+    queryFn: () => base44.entities.BrokerConnection.list(),
+    refetchInterval: 3000,
+    initialData: []
+  });
+
+  const isConnected = connections?.[0]?.connection_status === 'CONNECTED';
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
@@ -130,8 +140,8 @@ export default function Layout({ children }) {
 
           <div className="hidden md:flex items-center space-x-6 text-sm text-slate-400">
             <div className="flex items-center">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2"></div>
-              <span>MT4 Status: <span className="text-emerald-400 font-medium">Connected</span></span>
+              <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+              <span>MT4 Status: <span className={`font-medium ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>{isConnected ? 'Connected' : 'Disconnected'}</span></span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2"></div>
