@@ -514,7 +514,7 @@ export default function Overview() {
                     queryClient.invalidateQueries(['broker-connections']);
                     toast.success('Syncing with MT4...');
                   }}
-                  className="text-slate-300 border-slate-700 hover:bg-slate-800"
+                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Sync Now
