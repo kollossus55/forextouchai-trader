@@ -257,21 +257,32 @@ export default function Settings() {
   };
 
   const handleDownloadBridge = () => {
-    // Rebuilt clean version 2.0
+    // Enhanced version 3.0 with advanced features
     const mql4Code = `//+------------------------------------------------------------------+
-      //|                                      ForexTouchAI_Bridge_v2.mq4 |
+      //|                                      ForexTouchAI_Bridge_v3.mq4 |
       //|                                     Copyright 2024, ForexTouchAI |
       //|                                       https://www.forextouchai.com |
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "2.22"
+      #property version   "3.00"
       #property strict
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
       input string ApiKey = ""; 
       input double  FixedLotSize = 0.01;
+      input int MaxOpenTrades = 5;
+      input int MaxDailyTrades = 0; // 0 = unlimited
+      input double MaxSpreadPips = 3.0;
+      input bool EnableTrailingStop = false;
+      input double TrailingStopPips = 20;
+      input double TrailingStartPips = 30;
+      input bool HideSLTP = false;
+      input double CloseAllAtProfitPercent = 0; // 0 = disabled
+      input double CloseAllAtLossPercent = 0; // 0 = disabled
+      input string TradingStartTime = "00:00"; // HH:MM format
+      input string TradingEndTime = "23:59"; // HH:MM format
 
       // --- GLOBALS ---
       string ServiceUrl;
