@@ -594,63 +594,102 @@ export default function Settings() {
                 Print("Backend Reported Error: " + GetJsonValue(json, "error"));
             }
             else if(status == "PENDING" && id != "" && id != lastSignalId) {
-               Print(">>> NEW SIGNAL RECEIVED: ", id);
+              Print(">>> NEW SIGNAL RECEIVED: ", id);
 
-               string pair = GetJsonValue(json, "pair");
-               string type = GetJsonValue(json, "type");
+              string pair = GetJsonValue(json, "pair");
+              string type = GetJsonValue(json, "type");
 
-               // Get Signal Prices
-               double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
-               double sigSL = StringToDouble(GetJsonValue(json, "stop_loss"));
-               double sigTP = StringToDouble(GetJsonValue(json, "take_profit"));
-               double sigLot = StringToDouble(GetJsonValue(json, "lot_size"));
+              // Get Signal Prices
+              double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
+              double sigSL = StringToDouble(GetJsonValue(json, "stop_loss"));
+              double sigTP = StringToDouble(GetJsonValue(json, "take_profit"));
+              double sigLot = StringToDouble(GetJsonValue(json, "lot_size"));
 
-               // Clean pair name (remove / if exists)
-               StringReplace(pair, "/", "");
+              // Clean pair name (remove / if exists)
+              StringReplace(pair, "/", "");
 
-               int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
-               double currentPrice = MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID));
-               int digits = (int)MarketInfo(pair, MODE_DIGITS);
+              // === RISK CHECKS ===
 
-               // Calculate Dynamic SL/TP Distances to handle Feed discrepancies
-               double slDist = 0;
-               double tpDist = 0;
+              // Check max open trades
+              if(MaxOpenTrades > 0 && OrdersTotal() >= MaxOpenTrades) {
+                 Print("Signal rejected: Max open trades limit (", MaxOpenTrades, ")");
+                 return;
+              }
 
-               if(sigEntry > 0) {
-                  if(cmd == OP_BUY) {
-                     if(sigSL > 0) slDist = sigEntry - sigSL;
-                     if(sigTP > 0) tpDist = sigTP - sigEntry;
-                  } else {
-                     if(sigSL > 0) slDist = sigSL - sigEntry;
-                     if(sigTP > 0) tpDist = sigEntry - sigTP;
-                  }
-               }
+              // Check daily trade limit
+              if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
+                 Print("Signal rejected: Daily trade limit reached (", MaxDailyTrades, ")");
+                 return;
+              }
 
-               // Apply Distances to Current Price
-               double finalSL = 0;
-               double finalTP = 0;
+              // Check spread
+              double spread = MarketInfo(pair, MODE_SPREAD);
+              double point = MarketInfo(pair, MODE_POINT);
+              double spreadPips = spread * point * 10;
+              if(MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
+                 Print("Signal rejected: Spread too high (", spreadPips, " pips > ", MaxSpreadPips, " pips)");
+                 return;
+              }
 
-               if(slDist > 0) finalSL = (cmd==OP_BUY) ? (currentPrice - slDist) : (currentPrice + slDist);
-               if(tpDist > 0) finalTP = (cmd==OP_BUY) ? (currentPrice + tpDist) : (currentPrice - tpDist);
+              int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
+              double currentPrice = MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID));
+              int digits = (int)MarketInfo(pair, MODE_DIGITS);
 
-               // Normalize
-               if(finalSL > 0) finalSL = NormalizeDouble(finalSL, digits);
-               if(finalTP > 0) finalTP = NormalizeDouble(finalTP, digits);
+              // Calculate Dynamic SL/TP Distances to handle Feed discrepancies
+              double slDist = 0;
+              double tpDist = 0;
 
-               // Use signal lot size if provided, otherwise default to FixedLotSize
-               double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
-               Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
+              if(sigEntry > 0) {
+                 if(cmd == OP_BUY) {
+                    if(sigSL > 0) slDist = sigEntry - sigSL;
+                    if(sigTP > 0) tpDist = sigTP - sigEntry;
+                 } else {
+                    if(sigSL > 0) slDist = sigSL - sigEntry;
+                    if(sigTP > 0) tpDist = sigEntry - sigTP;
+                 }
+              }
 
-               // Execute
-               int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, finalSL, finalTP, "ForexTouchAI", 0, 0, clrGreen);
+              // Apply Distances to Current Price
+              double finalSL = 0;
+              double finalTP = 0;
 
-               if(ticket > 0) {
-                  Print("Trade Executed! Ticket: ", ticket);
-                  lastSignalId = id;
-               } else {
-                  Print("Trade Failed. Error: ", GetLastError());
-                  Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP, " Lot=", finalLot);
-               }
+              if(slDist > 0) finalSL = (cmd==OP_BUY) ? (currentPrice - slDist) : (currentPrice + slDist);
+              if(tpDist > 0) finalTP = (cmd==OP_BUY) ? (currentPrice + tpDist) : (currentPrice - tpDist);
+
+              // Normalize
+              if(finalSL > 0) finalSL = NormalizeDouble(finalSL, digits);
+              if(finalTP > 0) finalTP = NormalizeDouble(finalTP, digits);
+
+              // Hidden SL/TP Mode
+              double displaySL = HideSLTP ? 0 : finalSL;
+              double displayTP = HideSLTP ? 0 : finalTP;
+
+              // Use signal lot size if provided, otherwise default to FixedLotSize
+              double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
+              Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
+
+              // Execute
+              int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, "ForexTouchAI", 0, 0, clrGreen);
+
+              if(ticket > 0) {
+                 Print("Trade Executed! Ticket: ", ticket);
+                 lastSignalId = id;
+                 TradesToday++;
+
+                 // Store for hidden SL/TP management
+                 if(HideSLTP && (finalSL > 0 || finalTP > 0)) {
+                    ArrayResize(managedTrades, managedCount + 1);
+                    managedTrades[managedCount].ticket = ticket;
+                    managedTrades[managedCount].openPrice = currentPrice;
+                    managedTrades[managedCount].hiddenSL = finalSL;
+                    managedTrades[managedCount].hiddenTP = finalTP;
+                    managedCount++;
+                    Print("Hidden levels stored: SL=", finalSL, " TP=", finalTP);
+                 }
+              } else {
+                 Print("Trade Failed. Error: ", GetLastError());
+                 Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP, " Lot=", finalLot);
+              }
             }
          }
       }
