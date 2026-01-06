@@ -28,7 +28,8 @@ import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
 import AITradeManagerCard from '@/components/dashboard/AITradeManagerCard';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import BotPerformanceCard from '@/components/dashboard/BotPerformanceCard';
+import { useMutation, useQueryClient } from '@tantml:react-query';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Overview() {
@@ -488,6 +489,9 @@ export default function Overview() {
       <div className="grid grid-cols-1 gap-6">
         <AITradeManagerCard />
       </div>
+
+      {/* Bot Performance Metrics */}
+      <BotPerformanceCard />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
