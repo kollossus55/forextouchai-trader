@@ -468,8 +468,9 @@ export default function Overview() {
                  <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
                </div>
              ) : (
-               // Deduplicate signals by pair for display
+               // Show all ANALYSIS signals with Execute button
                signals
+                 .filter(signal => signal.status === 'ANALYSIS')
                  .filter((signal, index, self) => 
                     index === self.findIndex((t) => t.pair === signal.pair)
                  )
@@ -477,7 +478,7 @@ export default function Overview() {
                    <SignalCard 
                       key={signal.id} 
                       signal={signal} 
-                      onExecute={() => executeSignalMutation.mutate(signal)} 
+                      onExecute={(updatedSignal) => executeSignalMutation.mutate(updatedSignal)} 
                     />
                  ))
              )}
