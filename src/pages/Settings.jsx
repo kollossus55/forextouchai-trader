@@ -548,7 +548,9 @@ export default function Settings() {
                   double closePrice = (OrderType() == OP_BUY) ? 
                      MarketInfo(OrderSymbol(), MODE_BID) : 
                      MarketInfo(OrderSymbol(), MODE_ASK);
-                  OrderClose(OrderTicket(), OrderLots(), closePrice, 20, clrYellow);
+                  if(!OrderClose(OrderTicket(), OrderLots(), closePrice, 20, clrYellow)) {
+                     Print("Close all failed for ticket ", OrderTicket(), ": ", GetLastError());
+                  }
                }
             }
          }
