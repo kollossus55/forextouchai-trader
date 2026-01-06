@@ -439,7 +439,9 @@ export default function Settings() {
                if(profit >= activationDist) {
                   double newSL = currentPrice - trailDist;
                   if(newSL > OrderStopLoss() && newSL < currentPrice) {
-                     OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE);
+                     if(!OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE)) {
+                        Print("Trailing stop modify failed: ", GetLastError());
+                     }
                   }
                }
             }
@@ -450,7 +452,9 @@ export default function Settings() {
                if(profit >= activationDist) {
                   double newSL = currentPrice + trailDist;
                   if((OrderStopLoss() == 0 || newSL < OrderStopLoss()) && newSL > currentPrice) {
-                     OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE);
+                     if(!OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(newSL, digits), OrderTakeProfit(), 0, clrNONE)) {
+                        Print("Trailing stop modify failed: ", GetLastError());
+                     }
                   }
                }
             }
