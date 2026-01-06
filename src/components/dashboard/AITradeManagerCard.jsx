@@ -204,11 +204,12 @@ export default function AITradeManagerCard() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-slate-300">Enable AI Trade Manager</Label>
+            <div className="flex items-center justify-between p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+              <Label className="text-white font-semibold">Enable AI Trade Manager</Label>
               <Switch
                 checked={localSettings.enableAI}
                 onCheckedChange={(val) => setLocalSettings({...localSettings, enableAI: val})}
+                className="data-[state=checked]:bg-purple-600"
               />
             </div>
 
@@ -220,12 +221,12 @@ export default function AITradeManagerCard() {
                     value={localSettings.mode}
                     onValueChange={(val) => setLocalSettings({...localSettings, mode: val})}
                   >
-                    <SelectTrigger className="bg-slate-950 border-slate-700">
-                      <SelectValue />
+                    <SelectTrigger className="bg-slate-950 border-slate-700 text-white">
+                      <SelectValue placeholder="Select mode" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800">
-                      <SelectItem value="SUGGESTIONS">Suggestions Only</SelectItem>
-                      <SelectItem value="AUTO_EXECUTE">Auto Execute</SelectItem>
+                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                      <SelectItem value="SUGGESTIONS" className="cursor-pointer">Suggestions Only</SelectItem>
+                      <SelectItem value="AUTO_EXECUTE" className="cursor-pointer">Auto Execute</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-500">
