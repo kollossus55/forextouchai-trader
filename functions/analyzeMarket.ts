@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
         - Active Indicators: ${activeIndicators}
 
         CALCULATED TECHNICAL INDICATORS (Real Values):
-        ${JSON.stringify(pairAnalysis, null, 2)}
+        ${JSON.stringify(pairSummary, null, 2)}
         
         INTERPRETATION GUIDE:
         - RSI: <30 (Oversold), 30-70 (Neutral), >70 (Overbought)
