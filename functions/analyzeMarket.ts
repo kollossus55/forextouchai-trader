@@ -157,44 +157,23 @@ Deno.serve(async (req) => {
             const historicalData = generateHistoricalData(price);
             const calculatedIndicators = calculateIndicators(historicalData);
             
-            // Prepare chart-ready data
-            const chartData = historicalData.map((candle, idx) => {
-                const candleIndicators = {};
-                
-                if (calculatedIndicators.rsiHistory && calculatedIndicators.rsiHistory[idx]) {
-                    candleIndicators.rsi = calculatedIndicators.rsiHistory[idx];
-                }
-                if (calculatedIndicators.macdHistory && calculatedIndicators.macdHistory[idx]) {
-                    candleIndicators.macdValue = calculatedIndicators.macdHistory[idx].MACD;
-                    candleIndicators.macdSignal = calculatedIndicators.macdHistory[idx].signal;
-                    candleIndicators.macdHistogram = calculatedIndicators.macdHistory[idx].histogram;
-                }
-                if (calculatedIndicators.bbHistory && calculatedIndicators.bbHistory[idx]) {
-                    candleIndicators.bbUpper = calculatedIndicators.bbHistory[idx].upper;
-                    candleIndicators.bbMiddle = calculatedIndicators.bbHistory[idx].middle;
-                    candleIndicators.bbLower = calculatedIndicators.bbHistory[idx].lower;
-                }
-                if (calculatedIndicators.emaHistory && calculatedIndicators.emaHistory[idx]) {
-                    candleIndicators.ema200 = calculatedIndicators.emaHistory[idx];
-                }
-                if (calculatedIndicators.stochHistory && calculatedIndicators.stochHistory[idx]) {
-                    candleIndicators.stochK = calculatedIndicators.stochHistory[idx].k;
-                    candleIndicators.stochD = calculatedIndicators.stochHistory[idx].d;
-                }
-                
-                return {
-                    ...candle,
-                    indicators: candleIndicators
-                };
-            });
-            
             return {
                 symbol: pairSymbol,
                 price,
-                indicators: calculatedIndicators,
-                chartData
+                indicators: calculatedIndicators
             };
         });
+        
+        // Prepare lightweight data for AI prompt (only latest values)
+        const pairSummary = pairAnalysis.map(p => ({
+            symbol: p.symbol,
+            price: p.price,
+            rsi: p.indicators.rsi,
+            macd: p.indicators.macd,
+            bollingerBands: p.indicators.bollingerBands,
+            ema200: p.indicators.ema200,
+            stochastic: p.indicators.stochastic
+        }));
         
         // Timeframe-specific guidance for technical analysis
         const timeframeGuide = {
