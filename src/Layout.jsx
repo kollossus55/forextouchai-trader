@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { createPageUrl } from '@/utils';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
 export default function Layout({ children }) {
