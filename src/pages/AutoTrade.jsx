@@ -110,6 +110,7 @@ export default function AutoTrade() {
                         lot_size: bot.lot_size || 0.01,
                         confidence: confidence,
                         strategy: bot.strategy_type,
+                        bot_id: bot.id,
                         status: 'PENDING',
                         result_pnl: 0
                     }).then(() => {
