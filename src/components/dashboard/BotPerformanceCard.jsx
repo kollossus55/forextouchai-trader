@@ -21,30 +21,28 @@ export default function BotPerformanceCard() {
   });
 
   const calculateBotMetrics = (botId) => {
-    const botTrades = allTrades.filter(t => t.bot_id === botId);
+    const botTrades = allTrades.filter(t => t.bot_id === botId && t.is_auto === true);
     const closedTrades = botTrades.filter(t => t.status === 'CLOSED');
+    const openTrades = botTrades.filter(t => t.status === 'OPEN');
     
-    if (closedTrades.length === 0) {
-      return {
-        totalPnL: 0,
-        winRate: 0,
-        avgPnL: 0,
-        totalTrades: 0,
-        openTrades: botTrades.filter(t => t.status === 'OPEN').length
-      };
-    }
-
-    const totalPnL = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    // Calculate P/L including open trades
+    const closedPnL = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const openPnL = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const totalPnL = closedPnL + openPnL;
+    
+    // Win rate based on closed trades only
     const wins = closedTrades.filter(t => (t.pnl || 0) > 0).length;
-    const winRate = (wins / closedTrades.length) * 100;
-    const avgPnL = totalPnL / closedTrades.length;
+    const winRate = closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : 0;
+    
+    // Average P/L for closed trades
+    const avgPnL = closedTrades.length > 0 ? closedPnL / closedTrades.length : 0;
 
     return {
       totalPnL,
       winRate,
       avgPnL,
       totalTrades: closedTrades.length,
-      openTrades: botTrades.filter(t => t.status === 'OPEN').length
+      openTrades: openTrades.length
     };
   };
 
