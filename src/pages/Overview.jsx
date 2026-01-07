@@ -125,7 +125,7 @@ export default function Overview() {
     try {
       // Refresh market data before generating
       await MarketDataService.fetchAll();
-      
+
       const MAJOR_PAIRS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'GBP/JPY', 'EUR/JPY', 'XAU/USD', 'BTC/USD', 'ETH/USD'];
       const userPairs = pairsList.map(p => p.symbol);
       // Combine user pairs with major pairs for a broader scan
@@ -146,7 +146,7 @@ export default function Overview() {
           });
 
       // Invoke Backend Function for Real AI Analysis with Timeframe
-      const { data: aiSignal } = await base44.functions.invoke('analyzeMarket', {
+      const response = await base44.functions.invoke('analyzeMarket', {
           pairs,
           marketData: MarketDataService.prices,
           minConfidence: scanSettings.minConfidence,
@@ -154,10 +154,13 @@ export default function Overview() {
           timeframe: 'H1' // Default to H1 for Overview page signals
       });
 
-      if (aiSignal && aiSignal.pair) {
+      console.log("AI Analysis Response:", response);
+      const aiSignal = response.data;
+
+      if (aiSignal && aiSignal.pair && !aiSignal.error) {
           // Prevent duplicates
           const isDuplicate = signals.some(s => s.pair === aiSignal.pair && s.status === 'ANALYSIS');
-          
+
           if (isDuplicate) {
              toast.info("Analysis Updated", { description: `Latest setup for ${aiSignal.pair} is already shown.` });
              return;
@@ -172,14 +175,20 @@ export default function Overview() {
               confidence: Number(aiSignal.confidence),
               lot_size: scanSettings.lotSize,
               strategy: aiSignal.strategy, // AI generated strategy name
+              calculated_indicators: aiSignal.calculated_indicators,
               status: 'ANALYSIS',
               result_pnl: 0
           });
           toast.success("AI Analysis Complete", { description: `Found setup for ${aiSignal.pair}` });
+      } else if (aiSignal && aiSignal.error) {
+          toast.error("AI Analysis Failed", { description: aiSignal.error });
+      } else {
+          toast.warning("No Signals Found", { description: "No high-confidence setups detected" });
       }
     } catch (error) {
         console.error("AI Generation Failed:", error);
-        toast.error("Failed to generate signal", { description: "Please check OpenAI API Key" });
+        const errorMsg = error.response?.data?.error || error.message || "Unknown error";
+        toast.error("Failed to generate signal", { description: errorMsg });
     } finally {
         setIsGenerating(false);
     }
