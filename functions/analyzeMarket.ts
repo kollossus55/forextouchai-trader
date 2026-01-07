@@ -253,11 +253,16 @@ Deno.serve(async (req) => {
 
         let signal = JSON.parse(completion.choices[0].message.content);
         
-        // Attach full indicator data and chart data for the selected pair
+        // Attach full indicator data for the selected pair (without heavy chart history)
         const selectedPairData = pairAnalysis.find(p => p.symbol === signal.pair);
         if (selectedPairData) {
-            signal.calculated_indicators = selectedPairData.indicators;
-            signal.chartData = selectedPairData.chartData;
+            signal.calculated_indicators = {
+                rsi: selectedPairData.indicators.rsi,
+                macd: selectedPairData.indicators.macd,
+                bollingerBands: selectedPairData.indicators.bollingerBands,
+                ema200: selectedPairData.indicators.ema200,
+                stochastic: selectedPairData.indicators.stochastic
+            };
         }
 
         // Sanity Check & Normalization
