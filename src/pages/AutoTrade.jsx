@@ -304,9 +304,9 @@ export default function AutoTrade() {
                   {/* Live Terminal Output */}
                   <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-y-auto relative border border-slate-800 flex flex-col-reverse">
                     <div className="absolute top-2 right-2 flex gap-1.5 z-10">
-                      <div className="w-2 h-2 rounded-full bg-red-500/20"></div>
-                      <div className="w-2 h-2 rounded-full bg-yellow-500/20"></div>
-                      <div className="w-2 h-2 rounded-full bg-green-500/20"></div>
+                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]' : 'bg-red-500/20'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-yellow-500 shadow-[0_0_4px_rgba(234,179,8,0.6)]' : 'bg-yellow-500/20'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-green-500 animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.8)]' : 'bg-green-500/20'}`}></div>
                     </div>
                     <div className="space-y-1">
                       {terminalLogs.filter(log => log.botName === bot.name).length > 0 ? (
