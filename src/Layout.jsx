@@ -49,7 +49,34 @@ export default function Layout({ children }) {
     initialData: []
   });
 
-  const isConnected = connections?.[0]?.connection_status === 'CONNECTED';
+  const activeConnection = connections?.[0];
+  const isConnected = activeConnection?.connection_status === 'CONNECTED';
+  
+  // Monitor connection status globally
+  const [lastConnectionState, setLastConnectionState] = React.useState(isConnected);
+  
+  React.useEffect(() => {
+    if (activeConnection) {
+      const lastSync = new Date(activeConnection.last_sync).getTime();
+      const now = new Date().getTime();
+      const isStale = (now - lastSync) > 30000;
+      const currentlyConnected = !isStale && activeConnection.connection_status === 'CONNECTED';
+      
+      // Alert on disconnection
+      if (lastConnectionState && !currentlyConnected) {
+        toast.error("MT4/MT5 Connection Lost", {
+          description: "Trading platform disconnected. Check your EA.",
+          duration: 10000,
+          action: {
+            label: "Settings",
+            onClick: () => window.location.href = createPageUrl('Settings')
+          }
+        });
+      }
+      
+      setLastConnectionState(currentlyConnected);
+    }
+  }, [activeConnection, lastConnectionState]);
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },

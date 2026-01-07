@@ -90,29 +90,53 @@ export default function Settings() {
           const now = new Date().getTime();
           const isStale = (now - lastSync) > 30000;
 
+          const wasConnected = connectionStatus === 'CONNECTED';
           const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
           setConnectionStatus(newStatus);
 
-          // Alert if disconnected for more than 2 minutes
+          // IMMEDIATE alert on disconnection
+          if (newStatus === 'DISCONNECTED' && wasConnected) {
+            toast.error("MT4/MT5 Connection Lost", {
+              description: "Platform has disconnected. Check your EA and internet connection.",
+              duration: 10000
+            });
+
+            // Send immediate email alert
+            try {
+              await base44.integrations.Core.SendEmail({
+                to: user?.email || 'trader@example.com',
+                subject: 'ALERT: MT4/MT5 Platform Disconnected',
+                body: `Your trading platform has lost connection. Last sync: ${new Date(lastSync).toLocaleString()}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
+              });
+              
+              // Create in-app alert
+              await base44.entities.Alert.create({
+                title: "MT4/MT5 Disconnected",
+                message: "Your trading platform connection has been lost. Check EA and internet connection.",
+                type: "ERROR",
+                is_read: false
+              });
+            } catch (e) {
+              console.error("Failed to send alert:", e);
+            }
+          }
+
+          // Continue alerting every 5 minutes while disconnected
           if (newStatus === 'DISCONNECTED') {
             const minutesDisconnected = Math.floor((now - lastSync) / 60000);
-            if (minutesDisconnected >= 2 && minutesDisconnected % 5 === 0) { // Alert every 5 minutes
-              toast.error("MT4/MT5 Disconnected", {
-                description: `Platform has been offline for ${minutesDisconnected} minutes`,
-                duration: 10000
-              });
-
-              // Send email notification
-              try {
-                await base44.integrations.Core.SendEmail({
-                  to: user?.email || 'trader@example.com',
-                  subject: 'MT4/MT5 Platform Disconnected',
-                  body: `Your trading platform has been disconnected for ${minutesDisconnected} minutes. Last sync: ${new Date(lastSync).toLocaleString()}`
+            if (minutesDisconnected > 0 && minutesDisconnected % 5 === 0) {
+              const lastAlertKey = `alert_${minutesDisconnected}`;
+              if (!sessionStorage.getItem(lastAlertKey)) {
+                sessionStorage.setItem(lastAlertKey, 'true');
+                toast.error("Still Disconnected", {
+                  description: `Platform offline for ${minutesDisconnected} minutes`,
+                  duration: 8000
                 });
-              } catch (e) {
-                console.error("Failed to send email alert:", e);
               }
             }
+          } else {
+            // Clear alert flags when reconnected
+            sessionStorage.clear();
           }
         }
       } catch (e) {
