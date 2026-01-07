@@ -204,7 +204,11 @@ Deno.serve(async (req) => {
                         status: 'ACTIVE' 
                     }));
 
-                    return Response.json(signal);
+                    // Return signal with bot_id for MT4 to use as magic number
+                    return Response.json({
+                        ...signal,
+                        magic: signal.bot_id || 0
+                    });
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
 

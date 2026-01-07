@@ -114,7 +114,7 @@ export default function SignalCard({ signal, onExecute }) {
                   )}
                   <Button 
                     className={`${signal.calculated_indicators ? 'flex-1' : 'w-full'} h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20`}
-                    onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize) })}
+                    onClick={() => onExecute && onExecute({ ...signal, lot_size: parseFloat(lotSize), bot_id: signal.bot_id })}
                   >
                     <Play className="w-4 h-4 mr-2" /> Execute
                   </Button>
