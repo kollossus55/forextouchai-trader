@@ -59,7 +59,7 @@ export default function Layout({ children }) {
     if (activeConnection) {
       const lastSync = new Date(activeConnection.last_sync).getTime();
       const now = new Date().getTime();
-      const isStale = (now - lastSync) > 30000;
+      const isStale = (now - lastSync) > 60000;
       const currentlyConnected = !isStale && activeConnection.connection_status === 'CONNECTED';
       
       // Alert on disconnection
