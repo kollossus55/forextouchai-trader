@@ -267,12 +267,14 @@ Deno.serve(async (req) => {
         }
 
         Rules:
-        1. Stop Loss must be at least 30 PIPS away from entry price.
-        2. Take Profit must be at least 40 PIPS away.
-        3. REFERENCE actual indicator values in your strategy name (e.g., "RSI(28.5)").
-        4. Confidence should be higher when multiple indicators align.
-        5. Include the calculated indicator values in the response.
-        6. Only return the JSON object.
+        1. Stop Loss must be at least ${riskConfig.minPips} PIPS away from entry price (Risk Level: ${riskLevel}).
+        2. Take Profit should target ${riskConfig.targetMultiplier}x the risk (e.g., if SL is 30 pips, TP should be ${Math.round(30 * riskConfig.targetMultiplier)} pips).
+        3. INCORPORATE news sentiment: If market sentiment is ${overallSentiment}, give slight preference to ${overallSentiment === 'POSITIVE' ? 'BUY' : overallSentiment === 'NEGATIVE' ? 'SELL' : 'both'} setups.
+        4. REFERENCE actual indicator values in your strategy name (e.g., "RSI(28.5)").
+        5. Confidence should be higher when multiple indicators align AND news sentiment supports the direction.
+        6. Apply ${signalSensitivity} signal sensitivity: ${sensitivityGuide}
+        7. Include the calculated indicator values in the response.
+        8. Only return the JSON object.
         `;
 
         const completion = await openai.chat.completions.create({
