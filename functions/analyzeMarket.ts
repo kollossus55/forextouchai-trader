@@ -150,7 +150,17 @@ Deno.serve(async (req) => {
         });
 
         const activeIndicators = indicators.length > 0 ? indicators.join(', ') : 'Price Action, Trend Analysis';
-        
+
+        // Fetch recent market news sentiment
+        const newsItems = await withRetry(() => base44.asServiceRole.entities.NewsItem.list('-created_date', 5));
+        const newsSentiment = newsItems.reduce((acc, item) => {
+            acc[item.sentiment] = (acc[item.sentiment] || 0) + 1;
+            return acc;
+        }, {});
+        const overallSentiment = Object.keys(newsSentiment).reduce((a, b) => 
+            newsSentiment[a] > newsSentiment[b] ? a : b, 'NEUTRAL'
+        );
+
         // Calculate indicators for top candidate pairs
         const pairAnalysis = pairs.slice(0, 10).map(pairSymbol => {
             const price = marketData[pairSymbol] || 1.0;
