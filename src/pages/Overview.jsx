@@ -538,10 +538,13 @@ export default function Overview() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    queryClient.invalidateQueries(['trades-home']);
-                    queryClient.invalidateQueries(['broker-connections']);
-                    toast.success('Syncing with MT4...');
+                  onClick={async () => {
+                    toast.loading('Syncing with MT4...', { id: 'sync-trades' });
+                    await queryClient.invalidateQueries(['trades-home']);
+                    await queryClient.invalidateQueries(['broker-connections']);
+                    setTimeout(() => {
+                      toast.success('Sync complete', { id: 'sync-trades' });
+                    }, 500);
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
                 >
