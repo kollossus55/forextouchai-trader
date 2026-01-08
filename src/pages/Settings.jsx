@@ -416,13 +416,15 @@ export default function Settings() {
          // Check close all conditions
          CheckCloseAllConditions();
          
-         if(TimeCurrent() - LastSync < 10) return; // 10s Interval
+         // CRITICAL: Sync every 5 seconds to maintain connection
+         if(TimeCurrent() - LastSync < 5) return; // 5s Interval (faster heartbeat)
          LastSync = TimeCurrent();
 
-         // --- SEND DATA (POST) ---
+         // --- SEND DATA (POST) - Maintains Connection ---
          string json = BuildJson();
          SendPost(json);
          
+         // --- CHECK SIGNALS (GET) - Also updates heartbeat ---
          CheckSignals();
       }
       
