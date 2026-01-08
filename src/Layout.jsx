@@ -169,6 +169,16 @@ export default function Layout({ children }) {
               </Link>
             );
           })}
+
+          <div className="mt-auto pt-4 border-t border-slate-800">
+            <button
+              onClick={handleLogout}
+              className="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group w-full text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 hover:border hover:border-rose-500/20"
+            >
+              <LogOut className="w-5 h-5 mr-3 transition-colors text-slate-500 group-hover:text-rose-400" />
+              <span className="font-medium">Logout</span>
+            </button>
+          </div>
         </nav>
       </aside>
 
