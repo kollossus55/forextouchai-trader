@@ -61,7 +61,8 @@ export default function BotPerformanceCard() {
   const overallMetrics = calculateBotMetrics(null);
   const hasAnyTrades = overallMetrics.totalTrades > 0 || overallMetrics.openTrades > 0;
 
-  if (activeBots.length === 0) {
+  // Show performance even if no active bots, as long as there are trades
+  if (activeBots.length === 0 && !hasAnyTrades) {
     return (
       <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
         <CardHeader>
