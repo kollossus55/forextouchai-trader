@@ -176,6 +176,19 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'GET') {
             try {
+                // Update connection heartbeat on EVERY GET request
+                try {
+                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
+                    if (connections.length > 0) {
+                        await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                            connection_status: 'CONNECTED',
+                            last_sync: new Date().toISOString()
+                        }));
+                    }
+                } catch (heartbeatErr) {
+                    console.error("Heartbeat update failed:", heartbeatErr);
+                }
+
                 // Fetch only ONE pending signal
                 const signals = await withRetry(() => base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 1));
 
