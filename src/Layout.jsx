@@ -45,7 +45,7 @@ export default function Layout({ children }) {
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 5000,
+    refetchInterval: 3000, // Poll every 3 seconds for faster detection
     initialData: []
   });
 
@@ -56,7 +56,7 @@ export default function Layout({ children }) {
     if (!activeConnection) return false;
     const lastSync = new Date(activeConnection.last_sync).getTime();
     const now = new Date().getTime();
-    const isStale = (now - lastSync) > 60000; // Stale if no sync in 60 seconds
+    const isStale = (now - lastSync) > 15000; // Stale if no sync in 15 seconds (EA syncs every 5s)
     return !isStale && activeConnection.connection_status === 'CONNECTED';
   }, [activeConnection]);
   
