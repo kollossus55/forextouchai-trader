@@ -150,6 +150,28 @@ Deno.serve(async (req) => {
         }
 
         // ---------------------------------------------------------
+        // HEAD: Heartbeat/Ping (Fastest - No Signal Check)
+        // ---------------------------------------------------------
+        if (req.method === 'HEAD') {
+            try {
+                // Ultra-lightweight heartbeat - just update last_sync
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
+                
+                if (connections.length > 0) {
+                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                        connection_status: 'CONNECTED',
+                        last_sync: new Date().toISOString()
+                    }));
+                }
+                
+                return new Response(null, { status: 204 }); // No content
+            } catch (err) {
+                console.error("Heartbeat Error:", err);
+                return new Response(null, { status: 500 });
+            }
+        }
+
+        // ---------------------------------------------------------
         // GET: Fetch Signal (Ultra-Lightweight)
         // ---------------------------------------------------------
         if (req.method === 'GET') {
