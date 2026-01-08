@@ -37,18 +37,33 @@ export default function Overview() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
   
-  // Scan Settings State
-  const [scanSettings, setScanSettings] = useState({
-    minConfidence: 80,
-    lotSize: 0.01,
-    indicators: {
-        rsi: true,
-        macd: true,
-        bollinger: false,
-        ema: true,
-        stochastic: false
+  // Scan Settings State with localStorage persistence
+  const [scanSettings, setScanSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aiScanSettings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load scan settings', e);
     }
+    return {
+      minConfidence: 80,
+      lotSize: 0.01,
+      indicators: {
+          rsi: true,
+          macd: true,
+          bollinger: false,
+          ema: true,
+          stochastic: false
+      }
+    };
   });
+
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('aiScanSettings', JSON.stringify(scanSettings));
+  }, [scanSettings]);
 
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
