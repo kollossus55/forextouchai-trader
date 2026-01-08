@@ -50,33 +50,40 @@ export default function Layout({ children }) {
   });
 
   const activeConnection = connections?.[0];
-  const isConnected = activeConnection?.connection_status === 'CONNECTED';
+  
+  // Calculate connection status with staleness check
+  const isConnected = React.useMemo(() => {
+    if (!activeConnection) return false;
+    const lastSync = new Date(activeConnection.last_sync).getTime();
+    const now = new Date().getTime();
+    const isStale = (now - lastSync) > 60000; // Stale if no sync in 60 seconds
+    return !isStale && activeConnection.connection_status === 'CONNECTED';
+  }, [activeConnection]);
   
   // Monitor connection status globally
-  const [lastConnectionState, setLastConnectionState] = React.useState(isConnected);
+  const [lastConnectionState, setLastConnectionState] = React.useState(null);
   
   React.useEffect(() => {
-    if (activeConnection) {
-      const lastSync = new Date(activeConnection.last_sync).getTime();
-      const now = new Date().getTime();
-      const isStale = (now - lastSync) > 60000;
-      const currentlyConnected = !isStale && activeConnection.connection_status === 'CONNECTED';
-      
-      // Alert on disconnection
-      if (lastConnectionState && !currentlyConnected) {
-        toast.error("MT4/MT5 Connection Lost", {
-          description: "Trading platform disconnected. Check your EA.",
-          duration: 10000,
-          action: {
-            label: "Settings",
-            onClick: () => window.location.href = createPageUrl('Settings')
-          }
-        });
-      }
-      
-      setLastConnectionState(currentlyConnected);
+    // Skip first render (initialization)
+    if (lastConnectionState === null) {
+      setLastConnectionState(isConnected);
+      return;
     }
-  }, [activeConnection, lastConnectionState]);
+    
+    // Alert on disconnection
+    if (lastConnectionState && !isConnected) {
+      toast.error("MT4/MT5 Connection Lost", {
+        description: "Trading platform disconnected. Check your EA.",
+        duration: 10000,
+        action: {
+          label: "Settings",
+          onClick: () => window.location.href = createPageUrl('Settings')
+        }
+      });
+    }
+    
+    setLastConnectionState(isConnected);
+  }, [isConnected]);
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
