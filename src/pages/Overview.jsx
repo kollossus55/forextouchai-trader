@@ -50,6 +50,8 @@ export default function Overview() {
     return {
       minConfidence: 80,
       lotSize: 0.01,
+      riskLevel: 'MEDIUM',
+      signalSensitivity: 'BALANCED',
       indicators: {
           rsi: true,
           macd: true,
