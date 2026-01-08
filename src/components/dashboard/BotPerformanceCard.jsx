@@ -87,11 +87,77 @@ export default function BotPerformanceCard() {
           <Bot className="w-5 h-5 text-blue-400" /> Bot Performance
         </CardTitle>
         <CardDescription className="text-slate-400">
-          Real-time metrics for {activeBots.length} active bot{activeBots.length > 1 ? 's' : ''}
+          {activeBots.length > 0 
+            ? `Real-time metrics for ${activeBots.length} active bot${activeBots.length > 1 ? 's' : ''}`
+            : 'Showing all automated trade metrics'}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* Overall Summary Card */}
+          {hasAnyTrades && (
+            <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-200">All Auto Trades</h4>
+                    <p className="text-xs text-slate-500">Combined performance</p>
+                  </div>
+                </div>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+                  Summary
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-800/50">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+                    <DollarSign className="w-3 h-3" /> Total P/L
+                  </div>
+                  <div className={`font-bold text-sm ${
+                    overallMetrics.totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {overallMetrics.totalPnL >= 0 ? '+' : ''}${overallMetrics.totalPnL.toFixed(2)}
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-800/50">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+                    <Target className="w-3 h-3" /> Win Rate
+                  </div>
+                  <div className={`font-bold text-sm ${
+                    overallMetrics.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    {overallMetrics.winRate.toFixed(1)}%
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-800/50">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+                    <TrendingUp className="w-3 h-3" /> Avg P/L
+                  </div>
+                  <div className={`font-bold text-sm ${
+                    overallMetrics.avgPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {overallMetrics.avgPnL >= 0 ? '+' : ''}${overallMetrics.avgPnL.toFixed(2)}
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-800/50">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+                    <Activity className="w-3 h-3" /> Trades
+                  </div>
+                  <div className="font-bold text-sm text-slate-200">
+                    {overallMetrics.totalTrades}
+                    {overallMetrics.openTrades > 0 && (
+                      <span className="text-blue-400 ml-1">+{overallMetrics.openTrades} open</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Individual Bot Cards */}
           {activeBots.map((bot) => {
             const metrics = calculateBotMetrics(bot.id);
             return (
