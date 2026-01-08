@@ -403,6 +403,57 @@ export default function Overview() {
                             <p className="text-xs text-slate-500">Adjust trade volume (0.01 - 1.00 lots)</p>
                         </div>
                         <div className="space-y-3 pt-2 border-t border-slate-800">
+                            <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Risk Management</h4>
+
+                            <div className="space-y-2">
+                                <Label className="text-sm text-slate-300">Risk Level</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['LOW', 'MEDIUM', 'HIGH'].map(level => (
+                                        <button
+                                            key={level}
+                                            onClick={() => setScanSettings(s => ({...s, riskLevel: level}))}
+                                            className={`px-3 py-2 rounded text-xs font-medium transition-all ${
+                                                scanSettings.riskLevel === level
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {level}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    {scanSettings.riskLevel === 'LOW' && 'Conservative: Wider stops, 2:1 R/R'}
+                                    {scanSettings.riskLevel === 'MEDIUM' && 'Balanced: Standard stops, 1.5:1 R/R'}
+                                    {scanSettings.riskLevel === 'HIGH' && 'Aggressive: Tighter stops, 1.2:1 R/R'}
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-sm text-slate-300">Signal Sensitivity</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE'].map(sens => (
+                                        <button
+                                            key={sens}
+                                            onClick={() => setScanSettings(s => ({...s, signalSensitivity: sens}))}
+                                            className={`px-3 py-2 rounded text-xs font-medium transition-all ${
+                                                scanSettings.signalSensitivity === sens
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {sens.charAt(0) + sens.slice(1).toLowerCase()}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    {scanSettings.signalSensitivity === 'CONSERVATIVE' && 'Strict: Multi-indicator confluence required'}
+                                    {scanSettings.signalSensitivity === 'BALANCED' && 'Standard: 2-3 indicators alignment'}
+                                    {scanSettings.signalSensitivity === 'AGGRESSIVE' && 'Opportunistic: Single strong indicator'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="space-y-3 pt-2 border-t border-slate-800">
                             <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Active Indicators</h4>
                             
                             <div className="flex items-center justify-between">
