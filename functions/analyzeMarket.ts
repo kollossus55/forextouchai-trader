@@ -195,16 +195,39 @@ Deno.serve(async (req) => {
             'D1': 'Daily chart analysis, weekly trends, major market structure shifts'
         };
 
+        // Risk level adjustments
+        const riskAdjustments = {
+            'LOW': { minPips: 40, targetMultiplier: 2.0, confidenceBoost: 5 },
+            'MEDIUM': { minPips: 30, targetMultiplier: 1.5, confidenceBoost: 0 },
+            'HIGH': { minPips: 20, targetMultiplier: 1.2, confidenceBoost: -5 }
+        };
+        const riskConfig = riskAdjustments[riskLevel] || riskAdjustments['MEDIUM'];
+
+        // Signal sensitivity adjustments
+        const sensitivityConfig = {
+            'CONSERVATIVE': 'Only recommend signals with strong multi-indicator confluence and clear trends',
+            'BALANCED': 'Balance between opportunity and risk, require at least 2-3 indicators to align',
+            'AGGRESSIVE': 'Be more opportunistic, single strong indicator with supportive price action is acceptable'
+        };
+        const sensitivityGuide = sensitivityConfig[signalSensitivity] || sensitivityConfig['BALANCED'];
+
         const prompt = `
-        You are an expert Forex and Crypto trading analyst with access to REAL calculated technical indicators.
-        
+        You are an expert Forex and Crypto trading analyst with access to REAL calculated technical indicators and market sentiment data.
+
         CRITICAL: Perform technical analysis specifically for the ${timeframe} timeframe.
         ${timeframeGuide[timeframe] || 'Standard technical analysis'}
-        
+
         Configuration:
         - Timeframe: ${timeframe} (MUST analyze based on this timeframe's characteristics)
+        - Risk Level: ${riskLevel} (Adjust SL/TP accordingly: ${riskConfig.minPips} pips minimum, ${riskConfig.targetMultiplier}x risk/reward)
+        - Signal Sensitivity: ${signalSensitivity} (${sensitivityGuide})
         - Minimum Confidence: ${minConfidence}%
         - Active Indicators: ${activeIndicators}
+
+        MARKET SENTIMENT CONTEXT:
+        - Recent News Sentiment: ${overallSentiment}
+        - Latest Headlines: ${newsItems.slice(0, 3).map(n => n.title).join(' | ')}
+        - Overall Market Bias: ${overallSentiment === 'POSITIVE' ? 'Risk-On (favor BUY signals)' : overallSentiment === 'NEGATIVE' ? 'Risk-Off (favor SELL signals)' : 'Neutral'}
 
         CALCULATED TECHNICAL INDICATORS (Real Values):
         ${JSON.stringify(pairSummary, null, 2)}
