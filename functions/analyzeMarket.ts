@@ -300,25 +300,25 @@ Deno.serve(async (req) => {
             };
         }
 
-        // Sanity Check & Normalization
+        // Sanity Check & Normalization with Risk-Adjusted Parameters
         if (signal.pair && signal.entry_price) {
             const isJpy = signal.pair.includes('JPY');
             const pip = isJpy ? 0.01 : 0.0001;
-            const minDist = 30 * pip; // Enforce 30 pips minimum
+            const minDist = riskConfig.minPips * pip; // Risk-adjusted minimum distance
 
             if (signal.type === 'BUY') {
                 if (signal.stop_loss >= signal.entry_price - minDist) {
                     signal.stop_loss = signal.entry_price - minDist;
                 }
                 if (signal.take_profit <= signal.entry_price + minDist) {
-                    signal.take_profit = signal.entry_price + (minDist * 2);
+                    signal.take_profit = signal.entry_price + (minDist * riskConfig.targetMultiplier);
                 }
             } else if (signal.type === 'SELL') {
                 if (signal.stop_loss <= signal.entry_price + minDist) {
                     signal.stop_loss = signal.entry_price + minDist;
                 }
                 if (signal.take_profit >= signal.entry_price - minDist) {
-                    signal.take_profit = signal.entry_price - (minDist * 2);
+                    signal.take_profit = signal.entry_price - (minDist * riskConfig.targetMultiplier);
                 }
             }
 
