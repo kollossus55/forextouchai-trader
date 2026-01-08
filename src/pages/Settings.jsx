@@ -620,9 +620,26 @@ export default function Settings() {
          string headers = "Content-Type: application/json\\r\\n";
          string resH;
          
-         int r = WebRequest("POST", Endpoint, headers, 3000, data, res, resH);
-         // Suppress error -1 (General Error) as it can be intermittent even when working
-         if(r != 200 && r != -1) Print("Sync Failed: ", r);
+         ResetLastError();
+         int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resH); // Increased timeout to 5s
+         
+         if(r == 200) {
+            // Success - connection is healthy
+            return;
+         }
+         
+         int err = GetLastError();
+         
+         // Only log significant errors (not intermittent -1 errors)
+         if(r != 200 && r != -1) {
+            Print("[BRIDGE ERROR] Sync Failed - HTTP: ", r, " | MT4 Error: ", err);
+            if(ArraySize(res) > 0) {
+               string response = CharArrayToString(res);
+               if(StringLen(response) > 0 && StringLen(response) < 500) {
+                  Print("[BRIDGE] Server Response: ", response);
+               }
+            }
+         }
       }
       
       void CheckSignals() {
