@@ -25,6 +25,7 @@ const withRetry = async (fn, retries = 3, delay = 200) => {
 };
 
 Deno.serve(async (req) => {
+    const startTime = Date.now();
     try {
         const base44 = createClientFromRequest(req);
         
@@ -36,11 +37,13 @@ Deno.serve(async (req) => {
             try {
                 body = await req.json();
             } catch (e) {
+                console.error("Invalid JSON in POST body");
                 return Response.json({ error: "Invalid JSON" }, { status: 400 });
             }
             
             const { trades, account } = body;
             const errors = [];
+            console.log(`[BRIDGE POST] Started - ${trades?.length || 0} trades, ${account ? 'with account' : 'no account'}`);
 
             // 1. Account Sync (Optimized)
             if (account) {
@@ -96,13 +99,13 @@ Deno.serve(async (req) => {
                         const existing = dbTradesMap.get(ticket);
 
                         if (existing) {
-                            // Update existing trade (Individual updates are unavoidable but safer than bulk update usually)
-                            // We swallow errors here to ensure the loop completes
-                            withRetry(() => base44.asServiceRole.entities.Trade.update(existing.id, {
+                            // Update existing trade - batch these at the end instead of individually
+                            // Store for later batch processing
+                            existing._needsUpdate = {
                                 pnl: Number(t.pnl),
                                 close_price: Number(t.current_price || 0),
                                 updated_date: new Date().toISOString()
-                            })).catch(e => console.error(`Update failed for ${ticket}:`, e.message));
+                            };
                         } else {
                             // New trade detected
                             tradesToCreate.push({
@@ -118,9 +121,24 @@ Deno.serve(async (req) => {
                                 bot_id: t.magic ? String(t.magic) : null
                             });
                         }
-                    }
+                        }
 
-                    // Bulk Create New Trades (One DB call)
+                        // Batch update existing trades (more efficient than individual updates)
+                        const tradesToUpdate = openDbTrades.filter(t => t._needsUpdate);
+                        if (tradesToUpdate.length > 0) {
+                        console.log(`Updating ${tradesToUpdate.length} existing trades`);
+                        // Process updates in smaller batches to avoid overwhelming the API
+                        const batchSize = 10;
+                        for (let i = 0; i < tradesToUpdate.length; i += batchSize) {
+                            const batch = tradesToUpdate.slice(i, i + batchSize);
+                            await Promise.all(batch.map(t => 
+                                withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, t._needsUpdate))
+                                    .catch(e => console.error(`Update failed for ${t.ticket}:`, e.message))
+                            ));
+                        }
+                        }
+
+                        // Bulk Create New Trades (One DB call)
                     if (tradesToCreate.length > 0) {
                         try {
                             await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate));
@@ -131,13 +149,16 @@ Deno.serve(async (req) => {
                         }
                     }
 
-                    // Detect Closed Trades
+                    // Detect Closed Trades - batch these too
                     const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
-                    for (const t of closedTrades) {
-                        withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
-                            status: 'CLOSED',
-                            updated_date: new Date().toISOString()
-                        })).catch(e => console.error(`Close failed for ${t.ticket}:`, e.message));
+                    if (closedTrades.length > 0) {
+                        console.log(`Closing ${closedTrades.length} trades`);
+                        await Promise.all(closedTrades.map(t =>
+                            withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
+                                status: 'CLOSED',
+                                updated_date: new Date().toISOString()
+                            })).catch(e => console.error(`Close failed for ${t.ticket}:`, e.message))
+                        ));
                     }
 
                 } catch (err) {
@@ -146,7 +167,9 @@ Deno.serve(async (req) => {
                 }
             }
 
-            return Response.json({ status: "SYNCED", errors: errors.length ? errors : undefined });
+            const duration = Date.now() - startTime;
+            console.log(`[BRIDGE POST] Completed in ${duration}ms ${errors.length ? `with ${errors.length} errors` : 'successfully'}`);
+            return Response.json({ status: "SYNCED", errors: errors.length ? errors : undefined, duration_ms: duration });
         }
 
         // ---------------------------------------------------------

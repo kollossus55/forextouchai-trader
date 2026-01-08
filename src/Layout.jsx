@@ -56,7 +56,7 @@ export default function Layout({ children }) {
     if (!activeConnection) return false;
     const lastSync = new Date(activeConnection.last_sync).getTime();
     const now = new Date().getTime();
-    const isStale = (now - lastSync) > 15000; // Stale if no sync in 15 seconds (EA syncs every 5s)
+    const isStale = (now - lastSync) > 20000; // Allow up to 4 missed syncs (EA syncs every 5s)
     return !isStale && activeConnection.connection_status === 'CONNECTED';
   }, [activeConnection]);
   
