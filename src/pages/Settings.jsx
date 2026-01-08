@@ -85,10 +85,10 @@ export default function Settings() {
               }));
           }
 
-          // Check if connection is stale (older than 30 seconds)
+          // Check if connection is stale (older than 60 seconds to account for EA intervals)
           const lastSync = new Date(conn.last_sync).getTime();
           const now = new Date().getTime();
-          const isStale = (now - lastSync) > 30000;
+          const isStale = (now - lastSync) > 60000;
 
           const wasConnected = connectionStatus === 'CONNECTED';
           const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
