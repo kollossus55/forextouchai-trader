@@ -20,8 +20,17 @@ export default function BotPerformanceCard() {
     initialData: []
   });
 
+  // Calculate metrics for a specific bot OR all auto trades if botId is null
   const calculateBotMetrics = (botId) => {
-    const botTrades = allTrades.filter(t => t.bot_id === botId && t.is_auto === true);
+    // Match trades by bot_id OR include unassigned auto trades
+    const botTrades = allTrades.filter(t => {
+      if (botId) {
+        return t.bot_id === botId && t.is_auto === true;
+      }
+      // For "All Bots" summary, include all auto trades
+      return t.is_auto === true;
+    });
+    
     const closedTrades = botTrades.filter(t => t.status === 'CLOSED');
     const openTrades = botTrades.filter(t => t.status === 'OPEN');
     
@@ -47,6 +56,10 @@ export default function BotPerformanceCard() {
   };
 
   const activeBots = bots.filter(b => b.status === 'RUNNING');
+  
+  // Calculate overall metrics for all auto trades
+  const overallMetrics = calculateBotMetrics(null);
+  const hasAnyTrades = overallMetrics.totalTrades > 0 || overallMetrics.openTrades > 0;
 
   if (activeBots.length === 0) {
     return (
