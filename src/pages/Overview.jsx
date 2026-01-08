@@ -163,11 +163,13 @@ export default function Overview() {
               return names[key];
           });
 
-      // Invoke Backend Function for Real AI Analysis with Timeframe
+      // Invoke Backend Function for Real AI Analysis with Enhanced Parameters
       const response = await base44.functions.invoke('analyzeMarket', {
           pairs,
           marketData: MarketDataService.prices,
           minConfidence: scanSettings.minConfidence,
+          riskLevel: scanSettings.riskLevel,
+          signalSensitivity: scanSettings.signalSensitivity,
           indicators: activeIndicators,
           timeframe: 'H1' // Default to H1 for Overview page signals
       });
