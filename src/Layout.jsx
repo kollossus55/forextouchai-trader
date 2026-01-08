@@ -60,8 +60,9 @@ export default function Layout({ children }) {
     return !isStale && activeConnection.connection_status === 'CONNECTED';
   }, [activeConnection]);
   
-  // Monitor connection status globally
+  // Monitor connection status globally with reconnection feedback
   const [lastConnectionState, setLastConnectionState] = React.useState(null);
+  const [disconnectTime, setDisconnectTime] = React.useState(null);
   
   React.useEffect(() => {
     // Skip first render (initialization)
@@ -72,6 +73,7 @@ export default function Layout({ children }) {
     
     // Alert on disconnection
     if (lastConnectionState && !isConnected) {
+      setDisconnectTime(Date.now());
       toast.error("MT4/MT5 Connection Lost", {
         description: "Trading platform disconnected. Check your EA.",
         duration: 10000,
@@ -82,8 +84,18 @@ export default function Layout({ children }) {
       });
     }
     
+    // Alert on reconnection
+    if (!lastConnectionState && isConnected && disconnectTime) {
+      const downSeconds = Math.floor((Date.now() - disconnectTime) / 1000);
+      toast.success("MT4/MT5 Reconnected", {
+        description: `Connection restored after ${downSeconds}s downtime`,
+        duration: 5000
+      });
+      setDisconnectTime(null);
+    }
+    
     setLastConnectionState(isConnected);
-  }, [isConnected]);
+  }, [isConnected, lastConnectionState, disconnectTime]);
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
