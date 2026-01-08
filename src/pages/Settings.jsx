@@ -646,7 +646,9 @@ export default function Settings() {
          char post[], result[];
          string headers = "Content-Type: application/json\\r\\n";
          string resHeaders;
-         int res = WebRequest("GET", Endpoint, headers, 3000, post, result, resHeaders);
+         
+         ResetLastError();
+         int res = WebRequest("GET", Endpoint, headers, 5000, post, result, resHeaders); // Increased timeout
          
          if(res == 200) {
             string json = CharArrayToString(result);
@@ -655,8 +657,7 @@ export default function Settings() {
             
             if(status == "ERROR") {
                 // Backend is reachable but reported an error (e.g. database down)
-                // We print it once per unique error to avoid spam, or just log it.
-                Print("Backend Reported Error: " + GetJsonValue(json, "error"));
+                Print("[BRIDGE] Backend Error: " + GetJsonValue(json, "error"));
             }
             else if(status == "PENDING" && id != "" && id != lastSignalId) {
               Print(">>> NEW SIGNAL RECEIVED: ", id);
