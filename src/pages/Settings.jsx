@@ -85,10 +85,10 @@ export default function Settings() {
               }));
           }
 
-          // Check if connection is stale (older than 20 seconds - EA syncs every 5s)
+          // Check if connection is stale (older than 30 seconds - EA syncs every 5s, allow buffer)
           const lastSync = new Date(conn.last_sync).getTime();
           const now = new Date().getTime();
-          const isStale = (now - lastSync) > 20000;
+          const isStale = (now - lastSync) > 30000;
 
           const wasConnected = connectionStatus === 'CONNECTED';
           const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
@@ -922,17 +922,30 @@ export default function Settings() {
                       </CardTitle>
                       <CardDescription className="text-slate-400">Connect your broker account securely</CardDescription>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
-                      connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                      connectionStatus === 'DISCONNECTED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                      connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                      'bg-slate-800 text-slate-400 border-slate-700'
-                  }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        connectionStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 
-                        connectionStatus === 'DISCONNECTED' ? 'bg-rose-500' : 'bg-slate-600'
-                      }`}></div>
-                      {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
+                  <div className="flex flex-col gap-1 items-end">
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
+                        connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                        connectionStatus === 'DISCONNECTED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                        connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                        'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}>
+                        <div className={`w-2 h-2 rounded-full ${
+                          connectionStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 
+                          connectionStatus === 'DISCONNECTED' ? 'bg-rose-500' : 'bg-slate-600'
+                        }`}></div>
+                        {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
+                    </div>
+                    {connectionId && (
+                      <span className="text-[10px] text-slate-500">
+                        Last sync: {(() => {
+                          const connections = require('@tanstack/react-query').useQuery;
+                          const conn = connections?.[0];
+                          if (!conn?.last_sync) return 'Never';
+                          const seconds = Math.floor((Date.now() - new Date(conn.last_sync).getTime()) / 1000);
+                          return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+                        })()}
+                      </span>
+                    )}
                   </div>
               </div>
             </CardHeader>
