@@ -107,7 +107,31 @@ Deno.serve(async (req) => {
                                 updated_date: new Date().toISOString()
                             };
                         } else {
-                            // New trade detected
+                            // New trade detected - need to find matching signal/bot
+                            let botId = null;
+
+                            // Try to match with a recent signal to get bot_id
+                            try {
+                                const recentSignals = await withRetry(() => 
+                                    base44.asServiceRole.entities.Signal.filter({ 
+                                        status: 'ACTIVE',
+                                        pair: String(t.symbol || "").replace("/", "")
+                                    }, '-created_date', 10)
+                                );
+
+                                // Find signal matching this trade's direction
+                                const matchingSignal = recentSignals.find(s => 
+                                    s.type === String(t.type || "BUY") && 
+                                    Math.abs(s.entry_price - Number(t.open_price)) < 0.0001
+                                );
+
+                                if (matchingSignal?.bot_id) {
+                                    botId = matchingSignal.bot_id;
+                                }
+                            } catch (e) {
+                                console.warn("Failed to match trade to signal:", e.message);
+                            }
+
                             tradesToCreate.push({
                                 pair: String(t.symbol || "UNKNOWN"),
                                 type: String(t.type || "BUY"),
@@ -118,7 +142,7 @@ Deno.serve(async (req) => {
                                 ticket: ticket,
                                 status: 'OPEN',
                                 is_auto: Boolean(t.magic !== 0),
-                                bot_id: t.magic ? String(t.magic) : null
+                                bot_id: botId
                             });
                         }
                         }
