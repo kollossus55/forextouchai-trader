@@ -72,7 +72,7 @@ export default function Layout({ children }) {
     }
     
     // Alert on disconnection
-    if (lastConnectionState && !isConnected) {
+    if (lastConnectionState === true && isConnected === false) {
       setDisconnectTime(Date.now());
       toast.error("MT4/MT5 Connection Lost", {
         description: "Trading platform disconnected. Check your EA.",
@@ -85,17 +85,17 @@ export default function Layout({ children }) {
     }
     
     // Alert on reconnection
-    if (!lastConnectionState && isConnected && disconnectTime) {
-      const downSeconds = Math.floor((Date.now() - disconnectTime) / 1000);
-      toast.success("MT4/MT5 Reconnected", {
-        description: `Connection restored after ${downSeconds}s downtime`,
+    if (lastConnectionState === false && isConnected === true) {
+      const downSeconds = disconnectTime ? Math.floor((Date.now() - disconnectTime) / 1000) : 0;
+      toast.success("MT4/MT5 Reconnected! ✓", {
+        description: downSeconds > 0 ? `Connection restored after ${downSeconds}s offline` : "Connection restored",
         duration: 5000
       });
       setDisconnectTime(null);
     }
     
     setLastConnectionState(isConnected);
-  }, [isConnected, lastConnectionState, disconnectTime]);
+  }, [isConnected]);
 
   const navItems = [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
