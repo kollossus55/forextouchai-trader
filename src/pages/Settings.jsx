@@ -85,10 +85,10 @@ export default function Settings() {
               }));
           }
 
-          // Check if connection is stale (older than 60 seconds to account for EA intervals)
+          // Check if connection is stale (older than 20 seconds - EA syncs every 5s)
           const lastSync = new Date(conn.last_sync).getTime();
           const now = new Date().getTime();
-          const isStale = (now - lastSync) > 60000;
+          const isStale = (now - lastSync) > 20000;
 
           const wasConnected = connectionStatus === 'CONNECTED';
           const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
@@ -145,7 +145,7 @@ export default function Settings() {
     };
 
     fetchConnection();
-    const interval = setInterval(fetchConnection, 5000); // Poll every 5 seconds
+    const interval = setInterval(fetchConnection, 3000); // Poll every 3 seconds
     return () => clearInterval(interval);
   }, [connectionId, user]);
 
@@ -1074,17 +1074,46 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold text-amber-300">Connection Status: DISCONNECTED</h4>
+                    <p className="text-xs text-amber-200/80">
+                      The MT4/MT5 platform is not sending data. The EA must be running and properly configured.
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
+                        EA Not Attached
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
+                        Check MT4 Terminal
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
-                  <li>Enable <strong>Backend Functions</strong> in your App Settings (Required for API access).</li>
                   <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
-                  <li>Open it in MetaEditor, compile, and attach to <strong>ONLY ONE</strong> chart.</li>
-                  <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors in MT4.</li>
-                  <li>Check <strong>"Allow WebRequest..."</strong> and add your App URL to the list.</li>
-                  <li className="text-amber-400 font-bold">IMPORTANT: Do NOT include a trailing slash "/" at the end of the URL in MT4.</li>
-                  <li className="text-white font-mono bg-slate-900 p-1 mt-1 block text-center select-all">https://forex-ai-trader-cc744e2a.base44.app</li>
-                  <li><strong>Error -1</strong> means the URL is missing from the allowed list or WebRequest is disabled.</li>
+                  <li>Open MT4/MT5 → File → Open Data Folder → MQL4 → Experts → paste the .mq4 file there.</li>
+                  <li>In MT4, right-click on Navigator → Refresh. You should see "ForexTouchAI_Bridge" in Expert Advisors.</li>
+                  <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors.</li>
+                  <li>Check <strong>"Allow WebRequest for listed URLs"</strong> and add your App URL to the list.</li>
+                  <li className="text-white font-mono bg-slate-900 p-1.5 mt-1 block text-center select-all rounded">https://forex-ai-trader-cc744e2a.base44.app</li>
+                  <li className="text-amber-400 font-bold">Do NOT include a trailing slash "/" at the end of the URL.</li>
+                  <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
+                  <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
+                  <li className="text-emerald-400 font-medium">If setup is correct, you'll see "SUCCESS: Connected to server successfully" in the Experts tab.</li>
+                  <li><strong>Common Errors:</strong>
+                    <ul className="list-disc ml-6 mt-1 space-y-1">
+                      <li>Error 5203: URL not in allowed list</li>
+                      <li>Error -1: WebRequest disabled or URL has trailing slash</li>
+                      <li>No connection: EA not attached to chart or AutoTrading is off</li>
+                    </ul>
+                  </li>
                   </ol>
                   </div>
                   <div className="flex items-center gap-4">
