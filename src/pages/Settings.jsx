@@ -922,30 +922,17 @@ export default function Settings() {
                       </CardTitle>
                       <CardDescription className="text-slate-400">Connect your broker account securely</CardDescription>
                   </div>
-                  <div className="flex flex-col gap-1 items-end">
-                    <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
-                        connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                        connectionStatus === 'DISCONNECTED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                        connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                        'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          connectionStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 
-                          connectionStatus === 'DISCONNECTED' ? 'bg-rose-500' : 'bg-slate-600'
-                        }`}></div>
-                        {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
-                    </div>
-                    {connectionId && (
-                      <span className="text-[10px] text-slate-500">
-                        Last sync: {(() => {
-                          const connections = require('@tanstack/react-query').useQuery;
-                          const conn = connections?.[0];
-                          if (!conn?.last_sync) return 'Never';
-                          const seconds = Math.floor((Date.now() - new Date(conn.last_sync).getTime()) / 1000);
-                          return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
-                        })()}
-                      </span>
-                    )}
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
+                      connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                      connectionStatus === 'DISCONNECTED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                      connectionStatus === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                      'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        connectionStatus === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 
+                        connectionStatus === 'DISCONNECTED' ? 'bg-rose-500' : 'bg-slate-600'
+                      }`}></div>
+                      {connectionStatus === 'ERROR' ? 'CONNECTION FAILED' : connectionStatus}
                   </div>
               </div>
             </CardHeader>
@@ -1087,25 +1074,27 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
-                <div className="flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-amber-300">Connection Status: DISCONNECTED</h4>
-                    <p className="text-xs text-amber-200/80">
-                      The MT4/MT5 platform is not sending data. The EA must be running and properly configured.
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
-                        EA Not Attached
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
-                        Check MT4 Terminal
-                      </Badge>
+              {connectionStatus === 'DISCONNECTED' && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+                  <div className="flex gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-amber-300">Connection Status: DISCONNECTED</h4>
+                      <p className="text-xs text-amber-200/80">
+                        The MT4/MT5 platform is not sending data. The EA must be running and properly configured.
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
+                          EA Not Attached
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
+                          Check MT4 Terminal
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
