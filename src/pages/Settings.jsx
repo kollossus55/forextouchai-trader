@@ -1055,7 +1055,7 @@ export default function Settings() {
                   disabled={isSaving}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all"
                   >
-                  {isSaving ? 'Processing...' : (connectionStatus === 'CONNECTED' ? 'Update Settings' : 'Connect Account')}
+                  {isSaving ? 'Processing...' : (connectionStatus === 'CONNECTED' ? 'Update Settings For Latest Broker' : 'Connect Account')}
               </Button>
 
               {errorMessage && (
