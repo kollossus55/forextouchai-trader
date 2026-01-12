@@ -562,7 +562,7 @@ export default function Settings() {
             managedTrades[i] = managedTrades[i + 1];
          }
          managedCount--;
-         ArrayResize(managedTrades, managedCount);
+         ArrayResize(managedTrades, (int)managedCount);
       }
       
       //+------------------------------------------------------------------+
@@ -768,11 +768,11 @@ export default function Settings() {
 
                  // Store for hidden SL/TP management
                  if(HideSLTP && (finalSL > 0 || finalTP > 0)) {
-                    ArrayResize(managedTrades, managedCount + 1);
-                    managedTrades[managedCount].ticket = ticket;
-                    managedTrades[managedCount].openPrice = currentPrice;
-                    managedTrades[managedCount].hiddenSL = finalSL;
-                    managedTrades[managedCount].hiddenTP = finalTP;
+                    ArrayResize(managedTrades, (int)(managedCount + 1));
+                    managedTrades[managedCount].ticket = (int)ticket;
+                    managedTrades[managedCount].openPrice = (double)currentPrice;
+                    managedTrades[managedCount].hiddenSL = (double)finalSL;
+                    managedTrades[managedCount].hiddenTP = (double)finalTP;
                     managedCount++;
                     Print("Hidden levels stored: SL=", finalSL, " TP=", finalTP);
                  }
