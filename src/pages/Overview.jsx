@@ -245,107 +245,150 @@ export default function Overview() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header & Connection Status */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Overview</h1>
-          <p className="text-slate-400 mt-1">MT4 Account Status & Market Intelligence</p>
-        </div>
-        <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-800 backdrop-blur-sm">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium ${isConnected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-            {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-            {isConnected ? `Connected to ${activeConnection?.platform || 'MT4'}` : 'Disconnected'}
-          </div>
-          {activeConnection && (
-              <div className="hidden md:flex items-center gap-2 px-2 text-xs text-slate-400 border-l border-slate-700 pl-3">
-                  <span className="font-mono text-slate-300">{activeConnection.server_name}</span>
-                  <span className="opacity-50">#</span>
-                  <span className="font-mono text-slate-300">{activeConnection.account_number}</span>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Enhanced Header & Connection Status */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-blue-500/10 rounded-2xl blur-3xl"></div>
+        <div className="relative bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 rounded-2xl p-6 shadow-2xl">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-emerald-100 to-cyan-100 bg-clip-text text-transparent tracking-tight">
+                Trading Dashboard
+              </h1>
+              <p className="text-slate-400 mt-2 text-lg">MT4 Account Status & Market Intelligence</p>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800/50 backdrop-blur-sm shadow-lg">
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${isConnected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-lg shadow-emerald-500/20' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                {isConnected ? <Wifi className="w-4 h-4 animate-pulse" /> : <WifiOff className="w-4 h-4" />}
+                {isConnected ? `Connected to ${activeConnection?.platform || 'MT4'}` : 'Disconnected'}
               </div>
-          )}
-          <div className="h-6 w-[1px] bg-slate-700 mx-1"></div>
-          <span className="text-xs text-slate-500 mr-2">
-            Last update: {lastUpdated.toLocaleTimeString()}
-          </span>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={refreshConnection}>
-            <RefreshCw className={`w-4 h-4`} />
-          </Button>
+              {activeConnection && (
+                  <div className="hidden md:flex items-center gap-2 px-3 text-xs text-slate-400 border-l border-slate-700 pl-3">
+                      <span className="font-mono text-slate-300">{activeConnection.server_name}</span>
+                      <span className="opacity-50">#</span>
+                      <span className="font-mono text-slate-300">{activeConnection.account_number}</span>
+                  </div>
+              )}
+              <div className="h-6 w-[1px] bg-slate-700 mx-1"></div>
+              <span className="text-xs text-slate-500 mr-2">
+                Last update: {lastUpdated.toLocaleTimeString()}
+              </span>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-400" onClick={refreshConnection}>
+                <RefreshCw className={`w-4 h-4`} />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* MT4 Account Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-900 border-slate-800 shadow-lg relative overflow-hidden group">
+      {/* Enhanced MT4 Account Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-emerald-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-emerald-500/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <DollarSign className="w-16 h-16 text-emerald-500" />
+            <DollarSign className="w-20 h-20 text-emerald-500" />
           </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Balance</CardTitle>
+          <CardHeader className="pb-2 relative">
+            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <div className="p-1.5 bg-emerald-500/20 rounded-lg">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+              </div>
+              Balance
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-            <p className="text-xs text-slate-500 mt-1 flex justify-between">
-              <span>Broker: <span className="text-slate-300">{mt4Account.broker}</span></span>
-              {activeConnection && <span className="text-emerald-400 text-[10px] border border-emerald-500/20 px-1 rounded bg-emerald-500/10">Live</span>}
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-br from-white to-emerald-100 bg-clip-text text-transparent mb-2">
+              ${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 flex justify-between items-center">
+              <span>Broker: <span className="text-slate-300 font-medium">{mt4Account.broker}</span></span>
+              {activeConnection && <span className="text-emerald-400 text-[10px] border border-emerald-500/30 px-2 py-0.5 rounded-full bg-emerald-500/10 font-semibold">Live</span>}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-900 border-slate-800 shadow-lg relative overflow-hidden group">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-cyan-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-cyan-500/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity className="w-16 h-16 text-blue-500" />
+            <Activity className="w-20 h-20 text-cyan-500" />
           </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Equity</CardTitle>
+          <CardHeader className="pb-2 relative">
+            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <div className="p-1.5 bg-cyan-500/20 rounded-lg">
+                <Activity className="w-4 h-4 text-cyan-400" />
+              </div>
+              Equity
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">${mt4Account.equity.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-            <div className={`flex items-center text-xs mt-1 ${mt4Account.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-br from-white to-cyan-100 bg-clip-text text-transparent mb-2">
+              ${mt4Account.equity.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            </div>
+            <div className={`flex items-center text-xs mt-1 font-semibold ${mt4Account.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {mt4Account.profit >= 0 ? '+' : ''}${mt4Account.profit.toFixed(2)} floating
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-900 border-slate-800 shadow-lg relative overflow-hidden group">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-purple-500/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <PieChart className="w-16 h-16 text-purple-500" />
+            <PieChart className="w-20 h-20 text-purple-500" />
           </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Margin Level</CardTitle>
+          <CardHeader className="pb-2 relative">
+            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                <PieChart className="w-4 h-4 text-purple-400" />
+              </div>
+              Margin Level
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{mt4Account.marginLevel.toFixed(2)}%</div>
-            <Progress value={Math.min(100, mt4Account.marginLevel/50)} className="h-1.5 mt-2 bg-slate-800" indicatorClassName="bg-purple-500" />
-            <p className="text-xs text-slate-500 mt-1">Leverage: {mt4Account.leverage}</p>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-br from-white to-purple-100 bg-clip-text text-transparent mb-2">
+              {mt4Account.marginLevel.toFixed(2)}%
+            </div>
+            <Progress value={Math.min(100, mt4Account.marginLevel/50)} className="h-2 mt-2 bg-slate-800/50 rounded-full" indicatorClassName="bg-gradient-to-r from-purple-500 to-purple-400 rounded-full" />
+            <p className="text-xs text-slate-500 mt-2">Leverage: <span className="text-slate-300 font-medium">{mt4Account.leverage}</span></p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-900 border-slate-800 shadow-lg relative overflow-hidden group">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-amber-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-amber-500/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <BarChart3 className="w-16 h-16 text-amber-500" />
+            <BarChart3 className="w-20 h-20 text-amber-500" />
           </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Free Margin</CardTitle>
+          <CardHeader className="pb-2 relative">
+            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <div className="p-1.5 bg-amber-500/20 rounded-lg">
+                <BarChart3 className="w-4 h-4 text-amber-400" />
+              </div>
+              Free Margin
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">${mt4Account.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-br from-white to-amber-100 bg-clip-text text-transparent mb-2">
+              ${mt4Account.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            </div>
             <p className="text-xs text-slate-500 mt-1">
-              Used: <span className="text-slate-300">${mt4Account.margin.toLocaleString()}</span>
+              Used: <span className="text-slate-300 font-medium">${mt4Account.margin.toLocaleString()}</span>
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* AI Signal Generator Banner */}
-      <Card className="bg-gradient-to-r from-emerald-900/30 to-slate-900 border-emerald-500/30 relative overflow-hidden mb-6">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+      {/* Enhanced AI Signal Generator Banner */}
+      <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 via-emerald-900/30 to-slate-900/90 border-emerald-500/30 backdrop-blur-xl shadow-2xl shadow-emerald-500/10">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-transparent rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-500/10 to-transparent rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative">
           <div>
-            <CardTitle className="text-white flex items-center gap-2">
-              <BrainCircuit className="w-5 h-5 text-emerald-400" /> AI Signal Generator
+            <CardTitle className="text-white flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-emerald-500/20 rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-500/20">
+                <BrainCircuit className="w-6 h-6 text-emerald-400" />
+              </div>
+              AI Signal Generator
             </CardTitle>
-            <CardDescription className="text-emerald-200/60">
+            <CardDescription className="text-emerald-200/70 mt-2 text-base">
               Real-time market analysis and setup detection
             </CardDescription>
           </div>
