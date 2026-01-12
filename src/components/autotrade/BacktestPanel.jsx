@@ -171,7 +171,7 @@ export default function BacktestPanel({ preselectedBot }) {
               <BarChart className="w-5 h-5 text-blue-400" /> Simulation Results
             </CardTitle>
             {results && (
-              <Button variant="outline" size="sm" className="border-slate-700 text-slate-300">
+              <Button variant="outline" size="sm" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20">
                 <FileText className="w-4 h-4 mr-2" /> Export Report
               </Button>
             )}
