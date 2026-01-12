@@ -96,6 +96,16 @@ export default function Layout({ children }) {
         description: downSeconds > 0 ? `Connection restored after ${downSeconds}s offline` : "Connection restored",
         duration: 5000
       });
+      
+      // Send reconnection email
+      if (user?.email && downSeconds > 0) {
+        base44.integrations.Core.SendEmail({
+          to: user.email,
+          subject: 'MT4/MT5 Connection Restored',
+          body: `Your trading platform has reconnected successfully after ${Math.floor(downSeconds / 60)} minutes offline.`
+        }).catch(e => console.error("Failed to send reconnection email:", e));
+      }
+      
       setDisconnectTime(null);
     }
     
