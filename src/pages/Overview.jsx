@@ -225,10 +225,10 @@ export default function Overview() {
   const marginLevel = activeConnection?.margin_level || (currentMargin > 0 ? (currentEquity / currentMargin) * 100 : 0);
   
   const mt4Account = {
-    broker: activeConnection ? activeConnection.server_name.split('-')[0] : "Demo Broker",
-    server: activeConnection ? activeConnection.server_name : "Demo-Server",
-    accountNumber: activeConnection ? activeConnection.account_number : "---",
-    platform: activeConnection ? activeConnection.platform : "MT4",
+    broker: activeConnection?.server_name || "Demo Broker",
+    server: activeConnection?.server_name || "Demo-Server",
+    accountNumber: activeConnection?.account_number || "---",
+    platform: activeConnection?.platform || "MT4",
     leverage: activeConnection?.leverage || "1:500",
     currency: activeConnection?.currency || "USD",
     balance: baseBalance,
