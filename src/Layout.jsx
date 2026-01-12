@@ -45,18 +45,21 @@ export default function Layout({ children }) {
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 3000, // Poll every 3 seconds for faster detection
     initialData: []
   });
 
   const activeConnection = connections?.[0];
   
-  // Calculate connection status with staleness check
+  // Calculate connection status with stricter staleness check
   const isConnected = React.useMemo(() => {
     if (!activeConnection) return false;
+    if (!activeConnection.last_sync) return false;
     const lastSync = new Date(activeConnection.last_sync).getTime();
     const now = new Date().getTime();
-    const isStale = (now - lastSync) > 30000; // Allow up to 6 missed syncs (EA syncs every 5s)
+    const timeSinceSync = now - lastSync;
+    // EA syncs every 5s, allow 15s buffer (3 missed syncs)
+    const isStale = timeSinceSync > 15000;
     return !isStale && activeConnection.connection_status === 'CONNECTED';
   }, [activeConnection]);
   
@@ -103,18 +106,29 @@ export default function Layout({ children }) {
     if (lastConnectionState === false && isConnected === true) {
       console.log('[Connection Monitor] RECONNECTION DETECTED - Showing alert');
       const downSeconds = disconnectTime ? Math.floor((Date.now() - disconnectTime) / 1000) : 0;
+      const downMinutes = Math.floor(downSeconds / 60);
+      
       toast.success("MT4/MT5 Reconnected! ✓", {
         description: downSeconds > 0 ? `Connection restored after ${downSeconds}s offline` : "Connection restored",
         duration: 5000
       });
       
-      // Send reconnection email
-      if (user?.email && downSeconds > 0) {
+      // ALWAYS send reconnection email when connection is restored
+      if (user?.email) {
+        const emailBody = downSeconds > 0 
+          ? `Your MT4/MT5 trading platform has successfully reconnected after being offline for ${downMinutes > 0 ? downMinutes + ' minute(s)' : downSeconds + ' second(s)'}.\n\nConnection Status: ONLINE\nReconnected At: ${new Date().toLocaleString()}\n\nYour trading bots can now resume operations.`
+          : `Your MT4/MT5 trading platform connection has been successfully established.\n\nConnection Status: ONLINE\nConnected At: ${new Date().toLocaleString()}`;
+        
+        console.log('[Connection Monitor] Sending reconnection email to:', user.email);
         base44.integrations.Core.SendEmail({
           to: user.email,
-          subject: 'MT4/MT5 Connection Restored',
-          body: `Your trading platform has reconnected successfully after ${Math.floor(downSeconds / 60)} minutes offline.`
-        }).catch(e => console.error("Failed to send reconnection email:", e));
+          subject: '✅ ForexTouchAI - MT4/MT5 Connection Restored',
+          body: emailBody
+        }).then(() => {
+          console.log('[Connection Monitor] Reconnection email sent successfully');
+        }).catch(e => {
+          console.error("[Connection Monitor] Failed to send reconnection email:", e);
+        });
       }
       
       setDisconnectTime(null);
