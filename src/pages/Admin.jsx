@@ -1,17 +1,62 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, 
   Server, 
   Activity, 
   Database, 
   Cpu,
-  Users
+  Users,
+  Mail,
+  UserCog
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Admin() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await base44.auth.me();
+        setCurrentUser(user);
+      } catch (e) {
+        console.error("Failed to fetch user", e);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['all-users'],
+    queryFn: () => base44.entities.User.list('-created_date'),
+    enabled: currentUser?.role === 'admin',
+    initialData: []
+  });
+
+  const { data: brokerConnections = [] } = useQuery({
+    queryKey: ['all-broker-connections'],
+    queryFn: () => base44.entities.BrokerConnection.list('-created_date'),
+    enabled: currentUser?.role === 'admin',
+    initialData: []
+  });
+
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 flex items-center justify-center min-h-[60vh]">
+        <Card className="bg-slate-900/50 border-slate-800 p-8 text-center max-w-md">
+          <Shield className="w-16 h-16 text-rose-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+          <p className="text-slate-400">This page is only accessible to administrators.</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -29,6 +74,32 @@ export default function Admin() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-slate-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{allUsers.length}</div>
+            <div className="flex items-center gap-2 mt-3 text-xs text-slate-400">
+               <UserCog className="w-3 h-3" /> {allUsers.filter(u => u.role === 'admin').length} Admins
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Broker Connections</CardTitle>
+            <Database className="h-4 w-4 text-slate-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{brokerConnections.length}</div>
+            <div className="flex items-center gap-2 mt-3 text-xs text-emerald-400">
+               <Activity className="w-3 h-3" /> {brokerConnections.filter(b => b.connection_status === 'CONNECTED').length} Connected
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Server CPU Load</CardTitle>
             <Cpu className="h-4 w-4 text-slate-400" />
           </CardHeader>
@@ -38,32 +109,79 @@ export default function Admin() {
             <p className="text-xs text-slate-500 mt-2">Optimal range</p>
           </CardContent>
         </Card>
-
-        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Database Size</CardTitle>
-            <Database className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">1.2 GB</div>
-            <Progress value={45} className="h-2 mt-3 bg-slate-800" indicatorClassName="bg-blue-500" />
-            <p className="text-xs text-slate-500 mt-2">45% of allocated storage</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Connected Users</CardTitle>
-            <Users className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">142</div>
-            <div className="flex items-center gap-2 mt-3 text-xs text-emerald-400">
-               <Activity className="w-3 h-3" /> +12 from last hour
-            </div>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* User Management Section */}
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-cyan-400" /> User Management
+          </CardTitle>
+          <CardDescription className="text-slate-400">All registered users and their details</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-950/50">
+                <TableRow className="border-slate-800 hover:bg-slate-900/50">
+                  <TableHead className="text-slate-400">User</TableHead>
+                  <TableHead className="text-slate-400">Email</TableHead>
+                  <TableHead className="text-slate-400">Role</TableHead>
+                  <TableHead className="text-slate-400">Joined</TableHead>
+                  <TableHead className="text-slate-400">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                      No users found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  allUsers.map((user) => (
+                    <TableRow key={user.id} className="border-slate-800 hover:bg-slate-800/30">
+                      <TableCell className="font-medium text-slate-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm">
+                            {user.full_name?.[0] || user.email[0].toUpperCase()}
+                          </div>
+                          {user.full_name || 'N/A'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3 h-3 text-slate-500" />
+                          {user.email}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={user.role === 'admin' 
+                            ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' 
+                            : 'border-blue-500/30 text-blue-400 bg-blue-500/10'
+                          }
+                        >
+                          {user.role || 'user'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-slate-400 text-sm">
+                        {new Date(user.created_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                          Active
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-slate-900/50 border-slate-800">
