@@ -63,6 +63,7 @@ export default function Layout({ children }) {
   // Monitor connection status globally with reconnection feedback
   const [lastConnectionState, setLastConnectionState] = React.useState(null);
   const [disconnectTime, setDisconnectTime] = React.useState(null);
+  const [hasShownReconnection, setHasShownReconnection] = React.useState(false);
   
   React.useEffect(() => {
     console.log('[Connection Monitor] isConnected:', isConnected, 'lastConnectionState:', lastConnectionState);
@@ -71,6 +72,15 @@ export default function Layout({ children }) {
     if (lastConnectionState === null) {
       console.log('[Connection Monitor] First render - initializing to:', isConnected);
       setLastConnectionState(isConnected);
+      // If connected on first load, assume this might be a reconnection
+      if (isConnected && !hasShownReconnection) {
+        console.log('[Connection Monitor] Connected on page load - showing reconnection toast');
+        toast.success("MT4/MT5 Connected! ✓", {
+          description: "Trading platform is online and syncing",
+          duration: 5000
+        });
+        setHasShownReconnection(true);
+      }
       return;
     }
     
@@ -78,6 +88,7 @@ export default function Layout({ children }) {
     if (lastConnectionState === true && isConnected === false) {
       console.log('[Connection Monitor] DISCONNECTION DETECTED - Showing alert');
       setDisconnectTime(Date.now());
+      setHasShownReconnection(false);
       toast.error("MT4/MT5 Connection Lost", {
         description: "Trading platform disconnected. Check your EA.",
         duration: 10000,
@@ -107,6 +118,7 @@ export default function Layout({ children }) {
       }
       
       setDisconnectTime(null);
+      setHasShownReconnection(true);
     }
     
     setLastConnectionState(isConnected);
