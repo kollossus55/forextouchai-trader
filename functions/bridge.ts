@@ -99,20 +99,31 @@ Deno.serve(async (req) => {
                                 };
                             } else {
                                 let botId = null;
-                                try {
-                                    const recentSignals = await withRetry(() => 
-                                        base44.asServiceRole.entities.Signal.filter({ 
-                                            status: 'ACTIVE',
-                                            pair: String(t.symbol || "").replace("/", "")
-                                        }, '-created_date', 10)
-                                    );
-                                    const matchingSignal = recentSignals.find(s => 
-                                        s.type === String(t.type || "BUY") && 
-                                        Math.abs(s.entry_price - Number(t.open_price)) < 0.0001
-                                    );
-                                    if (matchingSignal?.bot_id) botId = matchingSignal.bot_id;
-                                } catch (e) {
-                                    console.warn("Signal match failed:", e.message);
+                                
+                                // Extract bot_id from magic number if available
+                                if (t.magic && String(t.magic).length > 5) {
+                                    botId = String(t.magic);
+                                    console.log(`[Trade ${ticket}] Using magic as bot_id:`, botId);
+                                } else {
+                                    // Fallback: Try to match with recent signals
+                                    try {
+                                        const recentSignals = await withRetry(() => 
+                                            base44.asServiceRole.entities.Signal.filter({ 
+                                                status: 'ACTIVE',
+                                                pair: String(t.symbol || "").replace("/", "")
+                                            }, '-created_date', 10)
+                                        );
+                                        const matchingSignal = recentSignals.find(s => 
+                                            s.type === String(t.type || "BUY") && 
+                                            Math.abs(s.entry_price - Number(t.open_price)) < 0.0001
+                                        );
+                                        if (matchingSignal?.bot_id) {
+                                            botId = matchingSignal.bot_id;
+                                            console.log(`[Trade ${ticket}] Matched to signal bot_id:`, botId);
+                                        }
+                                    } catch (e) {
+                                        console.warn("Signal match failed:", e.message);
+                                    }
                                 }
 
                                 tradesToCreate.push({
