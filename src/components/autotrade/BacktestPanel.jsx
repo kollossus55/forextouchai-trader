@@ -99,7 +99,7 @@ export default function BacktestPanel({ preselectedBot }) {
                       <Activity className="w-3.5 h-3.5 text-blue-400" /> Symbol
                   </Label>
                   <Select defaultValue="eurusd">
-                  <SelectTrigger className="bg-slate-950 border-slate-800">
+                  <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
                       <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -122,7 +122,7 @@ export default function BacktestPanel({ preselectedBot }) {
                       <Zap className="w-3.5 h-3.5 text-purple-400" /> Timeframe
                   </Label>
                   <Select defaultValue="h1">
-                  <SelectTrigger className="bg-slate-950 border-slate-800">
+                  <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
                       <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
