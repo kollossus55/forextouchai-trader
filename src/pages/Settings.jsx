@@ -101,23 +101,29 @@ export default function Settings() {
               duration: 10000
             });
 
-            // Send immediate email alert
-            try {
-              await base44.integrations.Core.SendEmail({
-                to: user?.email || 'trader@example.com',
-                subject: 'ALERT: MT4/MT5 Platform Disconnected',
-                body: `Your trading platform has lost connection. Last sync: ${new Date(lastSync).toLocaleString()}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
-              });
-              
-              // Create in-app alert
-              await base44.entities.Alert.create({
-                title: "MT4/MT5 Disconnected",
-                message: "Your trading platform connection has been lost. Check EA and internet connection.",
-                type: "ERROR",
-                is_read: false
-              });
-            } catch (e) {
-              console.error("Failed to send alert:", e);
+            // Send email alert only once initially
+            const lastEmailAlert = sessionStorage.getItem('lastEmailAlert');
+            const shouldSendEmail = !lastEmailAlert;
+
+            if (shouldSendEmail) {
+              sessionStorage.setItem('lastEmailAlert', Date.now().toString());
+              try {
+                await base44.integrations.Core.SendEmail({
+                  to: user?.email || 'trader@example.com',
+                  subject: 'ALERT: MT4/MT5 Platform Disconnected',
+                  body: `Your trading platform has lost connection. Last sync: ${new Date(lastSync).toLocaleString()}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
+                });
+
+                // Create in-app alert
+                await base44.entities.Alert.create({
+                  title: "MT4/MT5 Disconnected",
+                  message: "Your trading platform connection has been lost. Check EA and internet connection.",
+                  type: "ERROR",
+                  is_read: false
+                });
+              } catch (e) {
+                console.error("Failed to send alert:", e);
+              }
             }
           }
 
@@ -125,13 +131,31 @@ export default function Settings() {
           if (newStatus === 'DISCONNECTED') {
             const minutesDisconnected = Math.floor((now - lastSync) / 60000);
             if (minutesDisconnected > 0 && minutesDisconnected % 5 === 0) {
-              const lastAlertKey = `alert_${minutesDisconnected}`;
+              const lastAlertKey = `toast_${minutesDisconnected}`;
+              const lastEmailAlert = sessionStorage.getItem('lastEmailAlert');
+              const lastEmailTime = lastEmailAlert ? parseInt(lastEmailAlert) : 0;
+              const shouldSendEmail = (Date.now() - lastEmailTime) >= 300000; // 5 minutes
+
               if (!sessionStorage.getItem(lastAlertKey)) {
                 sessionStorage.setItem(lastAlertKey, 'true');
                 toast.error("Still Disconnected", {
                   description: `Platform offline for ${minutesDisconnected} minutes`,
                   duration: 8000
                 });
+
+                // Send email reminder every 5 minutes
+                if (shouldSendEmail) {
+                  sessionStorage.setItem('lastEmailAlert', Date.now().toString());
+                  try {
+                    await base44.integrations.Core.SendEmail({
+                      to: user?.email || 'trader@example.com',
+                      subject: 'REMINDER: MT4/MT5 Still Disconnected',
+                      body: `Your trading platform has been offline for ${minutesDisconnected} minutes.\n\nLast sync: ${new Date(lastSync).toLocaleString()}`
+                    });
+                  } catch (e) {
+                    console.error("Failed to send reminder:", e);
+                  }
+                }
               }
             }
           } else {
