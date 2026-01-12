@@ -57,7 +57,7 @@ export default function BacktestPanel({ preselectedBot }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <div className="lg:col-span-1 space-y-6">
+      <div className="lg:col-span-2 space-y-6">
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-white text-lg flex items-center gap-2">
@@ -163,7 +163,7 @@ export default function BacktestPanel({ preselectedBot }) {
         </Card>
       </div>
 
-      <div className="lg:col-span-3 space-y-6">
+      <div className="lg:col-span-2 space-y-6">
         {/* Results Area */}
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm min-h-[400px] flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between">
