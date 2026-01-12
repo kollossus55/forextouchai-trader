@@ -9,14 +9,14 @@ export default function BotPerformanceCard() {
   const { data: bots } = useQuery({
     queryKey: ['bots-performance'],
     queryFn: () => base44.entities.BotConfig.list(),
-    refetchInterval: 5000,
+    refetchInterval: 15000,
     initialData: []
   });
 
   const { data: allTrades } = useQuery({
     queryKey: ['trades-performance'],
     queryFn: () => base44.entities.Trade.list(),
-    refetchInterval: 5000,
+    refetchInterval: 15000,
     initialData: []
   });
 
