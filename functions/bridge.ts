@@ -257,10 +257,25 @@ Deno.serve(async (req) => {
                         status: 'ACTIVE' 
                     }));
 
-                    // Return signal with bot_id for MT4 to use as magic number
+                    // Get bot name for trade comment
+                    let botName = 'Manual';
+                    if (signal.bot_id) {
+                        try {
+                            const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list());
+                            const matchingBot = allBots.find(b => b.id === signal.bot_id);
+                            if (matchingBot) {
+                                botName = matchingBot.name;
+                            }
+                        } catch (e) {
+                            console.warn("Failed to fetch bot name:", e.message);
+                        }
+                    }
+
+                    // Return signal with bot_id for MT4 to use as magic number and bot name for comment
                     return Response.json({
                         ...signal,
-                        magic: signal.bot_id || 0
+                        magic: signal.bot_id || 0,
+                        comment: botName
                     });
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
