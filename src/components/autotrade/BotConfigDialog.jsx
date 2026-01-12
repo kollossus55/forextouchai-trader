@@ -11,7 +11,8 @@ import { Slider } from '@/components/ui/slider';
 import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Shield, BarChart, Settings, Zap } from 'lucide-react';
+import { Clock, Shield, BarChart, Settings, Zap, Bot } from 'lucide-react';
+import BotConfigAI from './BotConfigAI';
 
 export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialData }) {
   const { data: availablePairs } = useQuery({
@@ -122,11 +123,14 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
         <form onSubmit={handleSubmit} className="mt-4">
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-slate-950 border border-slate-800">
-              <TabsTrigger value="general" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">General</TabsTrigger>
-              <TabsTrigger value="risk" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white">Risk & Lots</TabsTrigger>
-              <TabsTrigger value="schedule" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Schedule</TabsTrigger>
-              <TabsTrigger value="ai" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">AI Thresholds</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 bg-slate-950 border border-slate-800">
+              <TabsTrigger value="general" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs">General</TabsTrigger>
+              <TabsTrigger value="risk" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs">Risk</TabsTrigger>
+              <TabsTrigger value="schedule" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs">Schedule</TabsTrigger>
+              <TabsTrigger value="ai" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-xs">AI</TabsTrigger>
+              <TabsTrigger value="assistant" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-xs">
+                <Bot className="w-3 h-3 mr-1" />Assistant
+              </TabsTrigger>
             </TabsList>
 
             {/* General Tab */}
@@ -441,6 +445,15 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                   className="bg-slate-950 border-slate-800"
                 />
               </div>
+            </TabsContent>
+
+            {/* AI Assistant Tab */}
+            <TabsContent value="assistant" className="mt-4">
+              <BotConfigAI 
+                currentConfig={formData}
+                onApplyRecommendation={(updates) => setFormData(prev => ({ ...prev, ...updates }))}
+                backtestResults={null}
+              />
             </TabsContent>
           </Tabs>
 
