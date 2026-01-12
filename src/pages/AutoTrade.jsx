@@ -32,12 +32,34 @@ export default function AutoTrade() {
   const [backtestBot, setBacktestBot] = useState(null);
   const [activeTab, setActiveTab] = useState("bots");
   const [terminalLogs, setTerminalLogs] = useState([]);
+  const [user, setUser] = useState(null);
   
-  const { data: bots } = useQuery({
+  // Fetch current user
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userData = await base44.auth.me();
+        setUser(userData);
+      } catch (e) {
+        console.error("Failed to fetch user", e);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // Fetch bots with role-based filtering
+  const { data: allBots } = useQuery({
     queryKey: ['bots'],
     queryFn: () => base44.entities.BotConfig.list(),
     initialData: []
   });
+
+  // Filter bots based on user role
+  const bots = React.useMemo(() => {
+    if (!user) return [];
+    if (user.role === 'admin') return allBots; // Admins see all bots
+    return allBots.filter(bot => bot.owner_email === user.email || bot.created_by === user.email); // Traders see only their bots
+  }, [allBots, user]);
 
   // Initialize Market Data Service
   useEffect(() => {
@@ -136,7 +158,11 @@ export default function AutoTrade() {
   };
 
   const createBot = useMutation({
-    mutationFn: (data) => base44.entities.BotConfig.create(data),
+    mutationFn: (data) => {
+      // Automatically assign owner_email on creation
+      const botData = { ...data, owner_email: user?.email };
+      return base44.entities.BotConfig.create(botData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['bots']);
       setIsConfigOpen(false);
@@ -153,17 +179,35 @@ export default function AutoTrade() {
   });
 
   const deleteBot = useMutation({
-      mutationFn: (id) => base44.entities.BotConfig.delete(id),
+      mutationFn: (bot) => {
+        // Check permissions before deleting
+        if (user?.role !== 'admin' && bot.owner_email !== user?.email && bot.created_by !== user?.email) {
+          throw new Error('You do not have permission to delete this bot.');
+        }
+        return base44.entities.BotConfig.delete(bot.id);
+      },
       onSuccess: () => {
           queryClient.invalidateQueries(['bots']);
+      },
+      onError: (error) => {
+        alert(error.message);
       }
   });
 
   const toggleBot = useMutation({
-    mutationFn: (bot) => base44.entities.BotConfig.update(bot.id, { 
-      status: bot.status === 'RUNNING' ? 'STOPPED' : 'RUNNING' 
-    }),
-    onSuccess: () => queryClient.invalidateQueries(['bots'])
+    mutationFn: (bot) => {
+      // Check permissions before toggling
+      if (user?.role !== 'admin' && bot.owner_email !== user?.email && bot.created_by !== user?.email) {
+        throw new Error('You do not have permission to control this bot.');
+      }
+      return base44.entities.BotConfig.update(bot.id, { 
+        status: bot.status === 'RUNNING' ? 'STOPPED' : 'RUNNING' 
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries(['bots']),
+    onError: (error) => {
+      alert(error.message);
+    }
   });
 
   const handleSave = (data) => {
@@ -175,6 +219,11 @@ export default function AutoTrade() {
   };
 
   const handleEdit = (bot) => {
+      // Check if user can edit this bot
+      if (user?.role !== 'admin' && bot.owner_email !== user?.email && bot.created_by !== user?.email) {
+        alert('You do not have permission to edit this bot.');
+        return;
+      }
       setSelectedBot(bot);
       setIsConfigOpen(true);
   };
@@ -190,8 +239,15 @@ export default function AutoTrade() {
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
             <Bot className="w-8 h-8 text-emerald-500" /> Auto Trading Bots
+            {user?.role === 'admin' && (
+              <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-400 bg-amber-500/10">
+                Admin View - All Bots
+              </Badge>
+            )}
           </h1>
-          <p className="text-slate-400 mt-1">Manage your AI automated trading strategies</p>
+          <p className="text-slate-400 mt-1">
+            {user?.role === 'admin' ? 'Manage all trading bots across the platform' : 'Manage your AI automated trading strategies'}
+          </p>
         </div>
         
         <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
@@ -231,6 +287,11 @@ export default function AutoTrade() {
                       }`}>
                         {bot.status}
                       </Badge>
+                      {user?.role === 'admin' && bot.owner_email && (
+                        <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
+                          Owner: {bot.owner_email}
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription className="text-slate-400">
                       {bot.strategy_type.replace('_', ' ')}
@@ -338,7 +399,12 @@ export default function AutoTrade() {
                    }} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs">
                      <Clock className="w-3 h-3 mr-2" /> Backtest
                    </Button>
-                   <Button variant="ghost" size="sm" onClick={() => deleteBot.mutate(bot.id)} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs">
+                   <Button 
+                     variant="ghost" 
+                     size="sm" 
+                     onClick={() => deleteBot.mutate(bot)} 
+                     className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs"
+                   >
                      <Trash2 className="w-3 h-3 mr-2" /> Delete
                    </Button>
                 </CardFooter>
