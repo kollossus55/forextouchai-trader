@@ -66,7 +66,7 @@ export default function Settings() {
     fetchUser();
   }, []);
 
-  // Fetch existing connection settings with polling
+  // Enhanced connection monitoring with improved staleness detection
   React.useEffect(() => {
     const fetchConnection = async () => {
       try {
@@ -74,6 +74,7 @@ export default function Settings() {
         if (connections && connections.length > 0) {
           const conn = connections[0];
           setConnectionId(conn.id);
+          
           // Only update form config if it's the first load to avoid overwriting user input while typing
           if (!connectionId) {
               setMt4Config(prev => ({
@@ -85,13 +86,24 @@ export default function Settings() {
               }));
           }
 
-          // Check if connection is stale (older than 30 seconds - EA syncs every 5s, allow buffer)
+          // Enhanced staleness check: EA syncs every 5s, allow 12s buffer (2 missed syncs)
           const lastSync = new Date(conn.last_sync).getTime();
           const now = new Date().getTime();
-          const isStale = (now - lastSync) > 30000;
+          const timeSinceSync = now - lastSync;
+          const isStale = timeSinceSync > 12000;
 
           const wasConnected = connectionStatus === 'CONNECTED';
-          const newStatus = conn.connection_status === 'DISCONNECTED' ? 'DISCONNECTED' : (isStale ? 'DISCONNECTED' : 'CONNECTED');
+          
+          // Determine new status with ERROR state handling
+          let newStatus;
+          if (conn.connection_status === 'ERROR' || isStale) {
+            newStatus = 'DISCONNECTED';
+          } else if (conn.connection_status === 'DISCONNECTED') {
+            newStatus = 'DISCONNECTED';
+          } else {
+            newStatus = 'CONNECTED';
+          }
+          
           setConnectionStatus(newStatus);
 
           // IMMEDIATE alert on disconnection
@@ -169,9 +181,9 @@ export default function Settings() {
     };
 
     fetchConnection();
-    const interval = setInterval(fetchConnection, 3000); // Poll every 3 seconds
+    const interval = setInterval(fetchConnection, 2000); // Faster polling: every 2 seconds
     return () => clearInterval(interval);
-  }, [connectionId, user]);
+  }, [connectionId, user, connectionStatus]);
 
   const handleSaveConnection = async () => {
     setErrorMessage('');

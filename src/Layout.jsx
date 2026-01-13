@@ -42,26 +42,40 @@ export default function Layout({ children }) {
     fetchUser();
   }, []);
 
-  const { data: connections } = useQuery({
+  const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 3000, // Poll every 3 seconds for faster detection
+    refetchInterval: 2000, // Faster polling: every 2 seconds
+    refetchIntervalInBackground: true, // Keep polling even when tab is inactive
+    staleTime: 1000, // Consider data stale after 1s
+    retry: 3, // Retry failed requests
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
     initialData: []
   });
 
   const activeConnection = connections?.[0];
-  
-  // Calculate connection status with stricter staleness check
+
+  // Enhanced connection status with multiple health checks
   const isConnected = React.useMemo(() => {
     if (!activeConnection) return false;
     if (!activeConnection.last_sync) return false;
+
     const lastSync = new Date(activeConnection.last_sync).getTime();
     const now = new Date().getTime();
     const timeSinceSync = now - lastSync;
-    // EA syncs every 5s, allow 15s buffer (3 missed syncs)
-    const isStale = timeSinceSync > 15000;
-    return !isStale && activeConnection.connection_status === 'CONNECTED';
-  }, [activeConnection]);
+
+    // EA syncs every 5s - allow 12s buffer (allows 2 missed syncs + network latency)
+    const isStale = timeSinceSync > 12000;
+
+    // Connection is healthy if:
+    // 1. Status is CONNECTED or undefined (undefined = initial state)
+    // 2. Last sync is recent (not stale)
+    // 3. No connection errors
+    const statusOk = !activeConnection.connection_status || 
+                    activeConnection.connection_status === 'CONNECTED';
+
+    return !isStale && statusOk && !connectionError;
+  }, [activeConnection, connectionError]);
   
   // Monitor connection status globally with reconnection feedback
   const [lastConnectionState, setLastConnectionState] = React.useState(null);
