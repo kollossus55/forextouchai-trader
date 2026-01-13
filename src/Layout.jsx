@@ -152,7 +152,7 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = async () => {
-    await base44.auth.logout();
+    await base44.auth.logout(createPageUrl('Home'));
   };
 
   return (
