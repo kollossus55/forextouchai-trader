@@ -64,16 +64,18 @@ export default function Layout({ children }) {
     const now = new Date().getTime();
     const timeSinceSync = now - lastSync;
 
-    // EA syncs every 5s - allow 12s buffer (allows 2 missed syncs + network latency)
-    const isStale = timeSinceSync > 12000;
+    // EA syncs every 5s - allow 20s buffer for tolerance (4 missed syncs + network recovery time)
+    const isStale = timeSinceSync > 20000;
 
-    // CRITICAL FIX: Connection is ONLY healthy if:
+    // Connection is healthy if:
     // 1. Last sync is recent (not stale) - PRIMARY check
-    // 2. Status is explicitly CONNECTED (ignore undefined/other states)
-    // 3. No connection errors from query
-    const statusOk = activeConnection.connection_status === 'CONNECTED';
+    // 2. Status is CONNECTED (explicit)
+    // 3. No query errors
+    // TOLERANCE: Allow brief status errors if sync is very recent (< 8s)
+    const veryRecentSync = timeSinceSync < 8000;
+    const statusOk = activeConnection.connection_status === 'CONNECTED' || 
+                     (veryRecentSync && activeConnection.connection_status !== 'ERROR');
 
-    // Connection requires BOTH fresh sync AND connected status
     return !isStale && statusOk && !connectionError;
   }, [activeConnection, connectionError]);
   

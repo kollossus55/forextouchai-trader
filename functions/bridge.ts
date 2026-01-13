@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             console.log(`[BRIDGE POST] Received - ${trades?.length || 0} trades, ${account ? 'with account' : 'no account'}`);
 
-            // CRITICAL: Update heartbeat IMMEDIATELY with enhanced reliability
+            // CRITICAL: Update heartbeat IMMEDIATELY with enhanced reliability and graceful degradation
             try {
                 const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
                 
@@ -106,16 +106,26 @@ Deno.serve(async (req) => {
                 updateHealth(false);
                 console.error(`[✗] Heartbeat failed (${connectionHealth.consecutiveFailures} consecutive):`, err.message);
                 
-                // Try to mark as degraded but don't fail the request
+                // CRITICAL: Update last_sync even on failure to prevent false disconnects
+                // Only mark as ERROR after sustained failures (5+ consecutive)
                 try {
                     const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
-                    if (connections.length > 0 && connectionHealth.consecutiveFailures >= 3) {
-                        await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                            connection_status: 'ERROR'
-                        });
+                    if (connections.length > 0) {
+                        // Update last_sync to keep connection alive during transient errors
+                        const statusUpdate = {
+                            last_sync: new Date().toISOString()
+                        };
+                        
+                        // Only mark as ERROR after 5 consecutive failures (25s of failures)
+                        if (connectionHealth.consecutiveFailures >= 5) {
+                            statusUpdate.connection_status = 'ERROR';
+                        }
+                        
+                        await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, statusUpdate);
+                        console.log(`[⚠] Heartbeat partial update - keeping alive (${connectionHealth.consecutiveFailures} failures)`);
                     }
                 } catch (markErr) {
-                    console.error("Could not mark connection as degraded:", markErr.message);
+                    console.error("Could not update connection timestamp:", markErr.message);
                 }
             }
 
@@ -257,6 +267,19 @@ Deno.serve(async (req) => {
             } catch (err) {
                 updateHealth(false);
                 console.error("[HEAD] Heartbeat Error:", err.message);
+                
+                // Still update last_sync even on error to prevent false disconnect
+                try {
+                    const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
+                    if (connections.length > 0) {
+                        await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                            last_sync: new Date().toISOString()
+                        });
+                    }
+                } catch (updateErr) {
+                    // Silently fail - worst case the connection times out
+                }
+                
                 return new Response(null, { 
                     status: 503, // Service Unavailable
                     headers: {
@@ -271,7 +294,7 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'GET') {
             try {
-                // Update connection heartbeat on EVERY GET request with enhanced error handling
+                // Update connection heartbeat on EVERY GET request with graceful degradation
                 try {
                     const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 5, 300);
                     if (connections.length > 0) {
@@ -284,7 +307,19 @@ Deno.serve(async (req) => {
                 } catch (heartbeatErr) {
                     updateHealth(false);
                     console.error("[GET] Heartbeat update failed:", heartbeatErr.message);
-                    // Continue with signal fetch even if heartbeat fails
+                    
+                    // Fallback: Try to at least update last_sync to keep connection alive
+                    try {
+                        const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
+                        if (connections.length > 0) {
+                            await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                                last_sync: new Date().toISOString()
+                            });
+                            console.log("[GET] Fallback: Updated last_sync only");
+                        }
+                    } catch (fallbackErr) {
+                        // Silent fail - continue with signal fetch
+                    }
                 }
 
                 // Fetch only ONE pending signal - sorted by created_date to ensure FIFO execution
