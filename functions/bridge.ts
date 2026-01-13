@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-// Robust retry with exponential backoff for network/rate-limit errors
-const withRetry = async (fn, retries = 3, delay = 200) => {
+// Enhanced retry with exponential backoff and connection persistence
+const withRetry = async (fn, retries = 5, delay = 300) => {
     let lastError;
     for (let i = 0; i < retries; i++) {
         try {
@@ -9,19 +9,49 @@ const withRetry = async (fn, retries = 3, delay = 200) => {
         } catch (error) {
             lastError = error;
             const msg = error.message?.toLowerCase() || "";
-            // Retry on fetch, network, or rate limit errors
-            if (msg.includes('fetch') || msg.includes('network') || msg.includes('limit')) {
+            // Retry on fetch, network, timeout, or rate limit errors
+            const shouldRetry = msg.includes('fetch') || 
+                               msg.includes('network') || 
+                               msg.includes('limit') || 
+                               msg.includes('timeout') ||
+                               msg.includes('econnrefused') ||
+                               msg.includes('enotfound');
+            
+            if (shouldRetry) {
                 const isRateLimit = msg.includes('limit');
-                // Aggressive backoff for rate limits (start at 500ms)
+                // More aggressive backoff: 300ms, 600ms, 1200ms, 2400ms, 4800ms
                 const waitTime = isRateLimit ? (500 * Math.pow(2, i)) : (delay * Math.pow(2, i));
-                console.warn(`Attempt ${i + 1} failed: ${error.message}. Retrying in ${waitTime}ms...`);
+                console.warn(`[RETRY ${i + 1}/${retries}] ${error.message}. Waiting ${waitTime}ms...`);
                 await new Promise(r => setTimeout(r, waitTime));
             } else {
                 throw error; 
             }
         }
     }
+    console.error(`[RETRY EXHAUSTED] All ${retries} attempts failed:`, lastError.message);
     throw lastError;
+};
+
+// Connection health tracking
+let connectionHealth = {
+    lastSuccessfulSync: Date.now(),
+    consecutiveFailures: 0,
+    isHealthy: true
+};
+
+// Update connection health
+const updateHealth = (success) => {
+    if (success) {
+        connectionHealth.lastSuccessfulSync = Date.now();
+        connectionHealth.consecutiveFailures = 0;
+        connectionHealth.isHealthy = true;
+    } else {
+        connectionHealth.consecutiveFailures++;
+        // Mark unhealthy after 3 consecutive failures
+        if (connectionHealth.consecutiveFailures >= 3) {
+            connectionHealth.isHealthy = false;
+        }
+    }
 };
 
 Deno.serve(async (req) => {
@@ -44,33 +74,49 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             console.log(`[BRIDGE POST] Received - ${trades?.length || 0} trades, ${account ? 'with account' : 'no account'}`);
 
-            // CRITICAL: Update heartbeat IMMEDIATELY to prevent stale connection
+            // CRITICAL: Update heartbeat IMMEDIATELY with enhanced reliability
             try {
                 const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
+                
+                const updateData = {
+                    connection_status: 'CONNECTED',
+                    last_sync: new Date().toISOString(),
+                    balance: account ? Number(account.balance) || 0 : (connections[0]?.balance || 0),
+                    equity: account ? Number(account.equity) || 0 : (connections[0]?.equity || 0),
+                    margin: account ? Number(account.margin) || 0 : (connections[0]?.margin || 0),
+                    free_margin: account ? Number(account.free_margin) || 0 : (connections[0]?.free_margin || 0),
+                    margin_level: account ? Number(account.margin_level) || 0 : (connections[0]?.margin_level || 0)
+                };
+                
                 if (connections.length > 0) {
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                        connection_status: 'CONNECTED',
-                        last_sync: new Date().toISOString(),
-                        balance: account ? Number(account.balance) || 0 : connections[0].balance,
-                        equity: account ? Number(account.equity) || 0 : connections[0].equity,
-                        margin: account ? Number(account.margin) || 0 : connections[0].margin,
-                        free_margin: account ? Number(account.free_margin) || 0 : connections[0].free_margin,
-                        margin_level: account ? Number(account.margin_level) || 0 : connections[0].margin_level
-                    }));
+                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 5, 300);
                 } else if (account) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
-                        platform: 'MT4',
+                        platform: account.platform || 'MT4',
                         server_name: account.server_name || 'MT4 Server',
                         account_number: String(account.account_number || 'Unknown'),
-                        connection_status: 'CONNECTED',
-                        balance: Number(account.balance) || 0,
-                        equity: Number(account.equity) || 0,
-                        last_sync: new Date().toISOString()
-                    }));
+                        ...updateData
+                    }), 5, 300);
                 }
+                
+                updateHealth(true);
+                console.log(`[✓] Heartbeat synced - Health: ${connectionHealth.consecutiveFailures} failures`);
+                
             } catch (err) {
-                console.error("Heartbeat update failed:", err.message);
-                // Don't fail entire request on heartbeat error
+                updateHealth(false);
+                console.error(`[✗] Heartbeat failed (${connectionHealth.consecutiveFailures} consecutive):`, err.message);
+                
+                // Try to mark as degraded but don't fail the request
+                try {
+                    const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
+                    if (connections.length > 0 && connectionHealth.consecutiveFailures >= 3) {
+                        await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                            connection_status: 'ERROR'
+                        });
+                    }
+                } catch (markErr) {
+                    console.error("Could not mark connection as degraded:", markErr.message);
+                }
             }
 
             // Process trades asynchronously (don't block response)
@@ -172,8 +218,15 @@ Deno.serve(async (req) => {
                 })();
             }
 
-            // Return immediately to prevent EA timeout
-            return Response.json({ status: "SYNCED", duration_ms: Date.now() - startTime });
+            // Return immediately to prevent EA timeout with health metrics
+            return Response.json({ 
+                status: "SYNCED", 
+                duration_ms: Date.now() - startTime,
+                health: {
+                    consecutive_failures: connectionHealth.consecutiveFailures,
+                    is_healthy: connectionHealth.isHealthy
+                }
+            });
         }
 
         // ---------------------------------------------------------
@@ -181,20 +234,35 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'HEAD') {
             try {
-                // Ultra-lightweight heartbeat - just update last_sync
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
+                // Ultra-lightweight heartbeat - just update last_sync with enhanced reliability
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 5, 300);
                 
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
                         connection_status: 'CONNECTED',
                         last_sync: new Date().toISOString()
-                    }));
+                    }), 5, 300);
+                    updateHealth(true);
+                } else {
+                    console.warn("[HEAD] No connection record found");
                 }
                 
-                return new Response(null, { status: 204 }); // No content
+                return new Response(null, { 
+                    status: 204,
+                    headers: {
+                        'X-Health-Score': connectionHealth.consecutiveFailures.toString(),
+                        'X-Last-Success': connectionHealth.lastSuccessfulSync.toString()
+                    }
+                });
             } catch (err) {
-                console.error("Heartbeat Error:", err);
-                return new Response(null, { status: 500 });
+                updateHealth(false);
+                console.error("[HEAD] Heartbeat Error:", err.message);
+                return new Response(null, { 
+                    status: 503, // Service Unavailable
+                    headers: {
+                        'Retry-After': '5' // Tell EA to retry after 5 seconds
+                    }
+                });
             }
         }
 
@@ -203,17 +271,20 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'GET') {
             try {
-                // Update connection heartbeat on EVERY GET request
+                // Update connection heartbeat on EVERY GET request with enhanced error handling
                 try {
-                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1));
+                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 5, 300);
                     if (connections.length > 0) {
                         await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
                             connection_status: 'CONNECTED',
                             last_sync: new Date().toISOString()
-                        }));
+                        }), 5, 300);
+                        updateHealth(true);
                     }
                 } catch (heartbeatErr) {
-                    console.error("Heartbeat update failed:", heartbeatErr);
+                    updateHealth(false);
+                    console.error("[GET] Heartbeat update failed:", heartbeatErr.message);
+                    // Continue with signal fetch even if heartbeat fails
                 }
 
                 // Fetch only ONE pending signal
