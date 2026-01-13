@@ -178,11 +178,14 @@ export default function Overview() {
       const aiSignal = response.data;
 
       if (aiSignal && aiSignal.pair && !aiSignal.error) {
-          // Prevent duplicates
-          const isDuplicate = signals.some(s => s.pair === aiSignal.pair && s.status === 'ANALYSIS');
+          // Prevent duplicates - check both ANALYSIS and PENDING/ACTIVE signals
+          const isDuplicate = signals.some(s => 
+            s.pair === aiSignal.pair && 
+            (s.status === 'ANALYSIS' || s.status === 'PENDING' || s.status === 'ACTIVE')
+          );
 
           if (isDuplicate) {
-             toast.info("Analysis Updated", { description: `Latest setup for ${aiSignal.pair} is already shown.` });
+             toast.info("Signal Already Exists", { description: `${aiSignal.pair} signal is already active or pending.` });
              return;
           }
 

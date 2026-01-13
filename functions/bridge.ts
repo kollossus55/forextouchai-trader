@@ -287,11 +287,22 @@ Deno.serve(async (req) => {
                     // Continue with signal fetch even if heartbeat fails
                 }
 
-                // Fetch only ONE pending signal
-                const signals = await withRetry(() => base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 1));
+                // Fetch only ONE pending signal - sorted by created_date to ensure FIFO execution
+                const signals = await withRetry(() => base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, 'created_date', 1), 5, 300);
 
                 if (signals && signals.length > 0) {
                     const signal = signals[0];
+                    
+                    // CRITICAL: Check for duplicate open trades on same pair
+                    const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', pair: signal.pair }), 3, 200);
+                    if (openTrades && openTrades.length > 0) {
+                        console.warn(`[DUPLICATE PREVENTION] Signal ${signal.id} skipped - ${signal.pair} already has ${openTrades.length} open trade(s)`);
+                        await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                            status: 'SKIPPED',
+                            result_pnl: 0 
+                        }));
+                        return Response.json({ status: "NO_SIGNAL", reason: "PAIR_ALREADY_OPEN" });
+                    }
 
                     // AUTO-TRADING CHECK: Only if signal has a bot_id
                     if (signal.bot_id) {
