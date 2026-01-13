@@ -491,7 +491,8 @@ export default function Settings() {
       void ManageTrailingStops() {
          for(int i = OrdersTotal() - 1; i >= 0; i--) {
             if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-            if(OrderMagicNumber() != 0) continue; // Only manage our trades
+            if(OrderCloseTime() != 0) continue; // Skip closed orders
+            if(OrderType() > 1) continue; // Only manage market orders (BUY/SELL)
             
             double point = MarketInfo(OrderSymbol(), MODE_POINT);
             int digits = (int)MarketInfo(OrderSymbol(), MODE_DIGITS);
@@ -537,28 +538,42 @@ export default function Settings() {
                RemoveTradeFromArray(i);
                continue;
             }
-            
+
+            // CRITICAL FIX: Check if order is still open before attempting to close
+            if(OrderCloseTime() != 0) {
+               // Trade already closed by broker/manually
+               Print("Trade ", managedTrades[i].ticket, " already closed externally");
+               RemoveTradeFromArray(i);
+               continue;
+            }
+
             double currentPrice = (OrderType() == OP_BUY) ? 
                MarketInfo(OrderSymbol(), MODE_BID) : 
                MarketInfo(OrderSymbol(), MODE_ASK);
-            
+
             // Check hidden SL
             if(managedTrades[i].hiddenSL > 0) {
                if((OrderType() == OP_BUY && currentPrice <= managedTrades[i].hiddenSL) ||
                   (OrderType() == OP_SELL && currentPrice >= managedTrades[i].hiddenSL)) {
                   if(OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrRed)) {
                      Print("Hidden SL Hit: Ticket ", OrderTicket());
+                     RemoveTradeFromArray(i);
+                  } else {
+                     Print("Hidden SL close failed: ", GetLastError());
                   }
                   continue;
                }
             }
-            
+
             // Check hidden TP
             if(managedTrades[i].hiddenTP > 0) {
                if((OrderType() == OP_BUY && currentPrice >= managedTrades[i].hiddenTP) ||
                   (OrderType() == OP_SELL && currentPrice <= managedTrades[i].hiddenTP)) {
                   if(OrderClose(OrderTicket(), OrderLots(), currentPrice, 20, clrGreen)) {
                      Print("Hidden TP Hit: Ticket ", OrderTicket());
+                     RemoveTradeFromArray(i);
+                  } else {
+                     Print("Hidden TP close failed: ", GetLastError());
                   }
                   continue;
                }
