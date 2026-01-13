@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
-import AITradeManagerCard from '@/components/dashboard/AITradeManagerCard';
+
 import BotPerformanceCard from '@/components/dashboard/BotPerformanceCard';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MarketDataService } from '@/components/services/MarketDataService';
@@ -611,11 +611,6 @@ export default function Overview() {
           </div>
         </CardContent>
       </Card>
-
-      {/* AI Trade Manager Card */}
-      <div className="grid grid-cols-1 gap-6">
-        <AITradeManagerCard />
-      </div>
 
       {/* Bot Performance Metrics */}
       <BotPerformanceCard />
