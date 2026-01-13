@@ -67,13 +67,13 @@ export default function Layout({ children }) {
     // EA syncs every 5s - allow 12s buffer (allows 2 missed syncs + network latency)
     const isStale = timeSinceSync > 12000;
 
-    // Connection is healthy if:
-    // 1. Status is CONNECTED or undefined (undefined = initial state)
-    // 2. Last sync is recent (not stale)
-    // 3. No connection errors
-    const statusOk = !activeConnection.connection_status || 
-                    activeConnection.connection_status === 'CONNECTED';
+    // CRITICAL FIX: Connection is ONLY healthy if:
+    // 1. Last sync is recent (not stale) - PRIMARY check
+    // 2. Status is explicitly CONNECTED (ignore undefined/other states)
+    // 3. No connection errors from query
+    const statusOk = activeConnection.connection_status === 'CONNECTED';
 
+    // Connection requires BOTH fresh sync AND connected status
     return !isStale && statusOk && !connectionError;
   }, [activeConnection, connectionError]);
   
