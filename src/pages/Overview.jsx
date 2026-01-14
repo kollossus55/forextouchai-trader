@@ -634,11 +634,15 @@ export default function Overview() {
                   size="sm"
                   onClick={async () => {
                     toast.loading('Syncing with MT4...', { id: 'sync-trades' });
-                    await queryClient.invalidateQueries(['trades-home']);
-                    await queryClient.invalidateQueries(['broker-connections']);
-                    setTimeout(() => {
+                    try {
+                      await Promise.all([
+                        queryClient.refetchQueries(['trades-home']),
+                        queryClient.refetchQueries(['broker-connections'])
+                      ]);
                       toast.success('Sync complete', { id: 'sync-trades' });
-                    }, 500);
+                    } catch (e) {
+                      toast.error('Sync failed', { id: 'sync-trades' });
+                    }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
                 >
