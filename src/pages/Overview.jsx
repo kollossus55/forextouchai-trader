@@ -636,8 +636,8 @@ export default function Overview() {
                     toast.loading('Syncing with MT4...', { id: 'sync-trades' });
                     try {
                       await Promise.all([
-                        queryClient.refetchQueries(['trades-home']),
-                        queryClient.refetchQueries(['broker-connections'])
+                        queryClient.refetchQueries({ queryKey: ['trades-home'] }),
+                        queryClient.refetchQueries({ queryKey: ['broker-connections'] })
                       ]);
                       toast.success('Sync complete', { id: 'sync-trades' });
                     } catch (e) {
