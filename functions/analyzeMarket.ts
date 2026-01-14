@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
         const activeIndicators = indicators.length > 0 ? indicators.join(', ') : 'Price Action, Trend Analysis';
 
         // Fetch recent market news sentiment
-        const newsItems = await withRetry(() => base44.asServiceRole.entities.NewsItem.list('-created_date', 5));
+        const newsItems = await base44.asServiceRole.entities.NewsItem.list('-created_date', 5);
         const newsSentiment = newsItems.reduce((acc, item) => {
             acc[item.sentiment] = (acc[item.sentiment] || 0) + 1;
             return acc;
