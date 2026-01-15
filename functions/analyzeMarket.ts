@@ -327,8 +327,9 @@ Deno.serve(async (req) => {
             "stop_loss": number,
             "take_profit": number,
             "confidence": number (${minConfidence}-99),
-            "strategy": "String (e.g. 'H1 RSI(28.5) Oversold + MACD Bullish Cross + EMA Support')",
-            "analysis_summary": "Detailed analysis referencing actual indicator values",
+            "strategy": "String (e.g. 'MTF: H1 RSI(28.5) Oversold + H4/D1 Bullish Trend Confirmed')",
+            "analysis_summary": "Detailed multi-timeframe analysis referencing actual indicator values",
+            "timeframe_alignment": "String describing higher TF confirmation (e.g., 'H4 and D1 confirm bullish bias')",
             "indicators": {
                 "rsi": number,
                 "macd_histogram": number,
@@ -342,11 +343,14 @@ Deno.serve(async (req) => {
         1. Stop Loss must be at least ${riskConfig.minPips} PIPS away from entry price (Risk Level: ${riskLevel}).
         2. Take Profit should target ${riskConfig.targetMultiplier}x the risk (e.g., if SL is 30 pips, TP should be ${Math.round(30 * riskConfig.targetMultiplier)} pips).
         3. INCORPORATE news sentiment: If market sentiment is ${overallSentiment}, give slight preference to ${overallSentiment === 'POSITIVE' ? 'BUY' : overallSentiment === 'NEGATIVE' ? 'SELL' : 'both'} setups.
-        4. REFERENCE actual indicator values in your strategy name (e.g., "RSI(28.5)").
-        5. Confidence should be higher when multiple indicators align AND news sentiment supports the direction.
+        4. REFERENCE actual indicator values AND timeframes in your strategy name (e.g., "MTF: H1 RSI(28.5) + H4 Trend").
+        5. Confidence MUST reflect multi-timeframe alignment:
+           - Boost +10% if all higher TFs confirm
+           - Reduce -15% if higher TFs contradict
         6. Apply ${signalSensitivity} signal sensitivity: ${sensitivityGuide}
         7. Include the calculated indicator values in the response.
-        8. Only return the JSON object.
+        8. MANDATORY: Include "timeframe_alignment" field explaining higher TF confirmation.
+        9. Only return the JSON object.
         `;
 
         const completion = await openai.chat.completions.create({
