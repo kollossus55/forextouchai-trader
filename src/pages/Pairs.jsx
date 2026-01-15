@@ -537,9 +537,12 @@ export default function Pairs() {
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    variant={showAdvancedChart ? 'default' : 'outline'}
                     onClick={() => setShowAdvancedChart(!showAdvancedChart)}
-                    className="text-xs"
+                    className={`text-xs font-semibold ${
+                      showAdvancedChart 
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                        : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30'
+                    }`}
                   >
                     {showAdvancedChart ? 'Basic Charts' : 'Advanced Charts'}
                   </Button>
