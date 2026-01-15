@@ -183,11 +183,12 @@ Deno.serve(async (req) => {
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
                             if (closedTrades.length > 0) {
+                                console.log(`[POST] Marking ${closedTrades.length} trades as CLOSED: ${closedTrades.map(t => t.ticket).join(', ')}`);
                                 await Promise.all(closedTrades.slice(0, 20).map(t =>
                                     withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
                                         status: 'CLOSED',
                                         updated_date: new Date().toISOString()
-                                    }), 1).catch(e => console.error(`Close failed:`, e.message))
+                                    }), 1).catch(e => console.error(`Close ticket ${t.ticket} failed:`, e.message))
                                 ));
                             }
                             console.log(`[POST] ✓ Trade sync complete`);
