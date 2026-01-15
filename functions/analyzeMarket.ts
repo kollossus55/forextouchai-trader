@@ -273,11 +273,12 @@ Deno.serve(async (req) => {
         const prompt = `
         You are an expert Forex and Crypto trading analyst with access to REAL calculated technical indicators and market sentiment data.
 
-        CRITICAL: Perform technical analysis specifically for the ${timeframe} timeframe.
+        CRITICAL: Perform MULTI-TIMEFRAME technical analysis for the ${timeframe} timeframe.
         ${timeframeGuide[timeframe] || 'Standard technical analysis'}
 
         Configuration:
-        - Timeframe: ${timeframe} (MUST analyze based on this timeframe's characteristics)
+        - Primary Timeframe: ${timeframe} (MUST analyze based on this timeframe's characteristics)
+        - Higher Timeframes for Confirmation: ${higherTimeframes.join(', ')}
         - Risk Level: ${riskLevel} (Adjust SL/TP accordingly: ${riskConfig.minPips} pips minimum, ${riskConfig.targetMultiplier}x risk/reward)
         - Signal Sensitivity: ${signalSensitivity} (${sensitivityGuide})
         - Minimum Confidence: ${minConfidence}%
@@ -288,7 +289,7 @@ Deno.serve(async (req) => {
         - Latest Headlines: ${newsItems.slice(0, 3).map(n => n.title).join(' | ')}
         - Overall Market Bias: ${overallSentiment === 'POSITIVE' ? 'Risk-On (favor BUY signals)' : overallSentiment === 'NEGATIVE' ? 'Risk-Off (favor SELL signals)' : 'Neutral'}
 
-        CALCULATED TECHNICAL INDICATORS (Real Values):
+        MULTI-TIMEFRAME TECHNICAL INDICATORS (Real Values):
         ${JSON.stringify(pairSummary, null, 2)}
         
         INTERPRETATION GUIDE:
@@ -298,13 +299,25 @@ Deno.serve(async (req) => {
         - Stochastic K/D: <20 (Oversold), >80 (Overbought), K crossing above D (Bullish signal)
         - EMA200: Price above EMA (Bullish trend), Price below EMA (Bearish trend)
 
-        TIMEFRAME-SPECIFIC REQUIREMENTS:
-        - For M1/M5: Look for ultra-short-term momentum, scalping opportunities
-        - For M15/H1: Identify intraday swing patterns and hourly trend shifts
-        - For H4/D1: Focus on daily/weekly trends, major support/resistance zones
+        MULTI-TIMEFRAME ANALYSIS REQUIREMENTS:
+        1. PRIMARY TIMEFRAME (${timeframe}): Identify entry signals using all available indicators
+        2. HIGHER TIMEFRAMES (${higherTimeframes.join(', ')}): Check for trend confirmation
+           - Compare RSI trends across timeframes
+           - Verify MACD direction aligns with higher TFs
+           - Ensure price is on the correct side of EMA200 on higher TFs
+        3. CONFLUENCE SCORING:
+           - Base confidence on ${timeframe} setup quality
+           - ADD +5-10% confidence if all higher timeframes confirm the direction
+           - REDUCE -10-15% confidence if higher timeframes contradict the signal
+        
+        EXAMPLE - BUY Signal on H1:
+        - H1 shows RSI oversold + MACD bullish cross (entry signal)
+        - H4 shows price above EMA200 + RSI in uptrend (confirms bullish bias)
+        - D1 shows uptrend intact (validates overall direction)
+        - Result: HIGH confidence BUY with multi-timeframe alignment
         
         CRITICAL: Use the ACTUAL calculated indicator values above to determine the best trade setup.
-        Look for confluence (multiple indicators agreeing) to increase confidence.
+        Prioritize signals where ALL timeframes show directional agreement.
 
         You must output valid JSON matching this schema:
         {
