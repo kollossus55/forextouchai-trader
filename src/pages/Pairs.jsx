@@ -205,20 +205,12 @@ export default function Pairs() {
           }));
         }
         
-        // Generate chart data from historical data
+        // Generate chart data from historical data (preserve indicators)
         if (historicalData && historicalData.length > 0) {
-          const chartData = historicalData.map((candle, i) => ({
-            time: i,
-            price: candle.close,
-            high: candle.high,
-            low: candle.low,
-            open: candle.open
-          }));
-          
-          console.log('Generated chart data:', chartData.length, 'points');
+          console.log('Generated chart data:', historicalData.length, 'points');
           setPairChartData(prev => ({
             ...prev,
-            [pair.id]: chartData
+            [pair.id]: historicalData  // Pass the full data with embedded indicators
           }));
         } else {
           console.warn('No historical data returned');
