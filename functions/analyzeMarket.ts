@@ -381,8 +381,11 @@ Deno.serve(async (req) => {
                 50, 
                 getTimeframeMultiplier(timeframe)
             );
+            console.log('Generated historicalData with', signal.historicalData.length, 'candles');
         }
 
+        console.log('Final signal has historicalData?', !!signal.historicalData);
+        
         // Sanity Check & Normalization with Risk-Adjusted Parameters
         if (signal.pair && signal.entry_price) {
             const isJpy = signal.pair.includes('JPY');
