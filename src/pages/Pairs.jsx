@@ -178,38 +178,52 @@ export default function Pairs() {
     setSelectedPairDetails(pair);
     setDetailsModalOpen(true);
     
-    // Calculate indicators for this pair if not already cached
-    if (!pairIndicators[pair.id]) {
-      const calculatePairIndicators = async () => {
-        try {
-          const { data } = await base44.functions.invoke('analyzeMarket', {
-            pairs: [pair.symbol],
-            marketData: { [pair.symbol]: pair.current_price },
-            minConfidence: 50,
-            indicators: ['RSI', 'MACD', 'Bollinger Bands', 'EMA', 'Stochastic'],
-            timeframe
-          });
+    // Always recalculate indicators when modal opens
+    const calculatePairIndicators = async () => {
+      try {
+        const { data } = await base44.functions.invoke('analyzeMarket', {
+          pairs: [pair.symbol],
+          marketData: { [pair.symbol]: pair.current_price },
+          minConfidence: 50,
+          indicators: ['RSI', 'MACD', 'Bollinger Bands', 'EMA', 'Stochastic'],
+          timeframe
+        });
+        
+        // Extract indicators and generate chart data from response
+        if (data) {
+          const indicators = data.calculated_indicators || data.indicators;
+          const historicalData = data.historicalData || [];
           
-          if (data?.calculated_indicators) {
+          // Store indicators
+          if (indicators) {
             setPairIndicators(prev => ({
               ...prev,
-              [pair.id]: data.calculated_indicators
+              [pair.id]: indicators
             }));
           }
           
-          if (data?.chartData) {
+          // Generate chart data from historical data
+          if (historicalData.length > 0) {
+            const chartData = historicalData.map((candle, i) => ({
+              time: i,
+              price: candle.close,
+              high: candle.high,
+              low: candle.low,
+              open: candle.open
+            }));
+            
             setPairChartData(prev => ({
               ...prev,
-              [pair.id]: data.chartData
+              [pair.id]: chartData
             }));
           }
-        } catch (e) {
-          console.error('Failed to calculate indicators:', e);
         }
-      };
-      
-      calculatePairIndicators();
-    }
+      } catch (e) {
+        console.error('Failed to calculate indicators:', e);
+      }
+    };
+    
+    calculatePairIndicators();
   };
 
   const executeTrade = () => {
