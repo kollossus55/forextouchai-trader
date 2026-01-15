@@ -181,7 +181,7 @@ export default function Pairs() {
     // Always recalculate indicators when modal opens
     const calculatePairIndicators = async () => {
       try {
-        const { data } = await base44.functions.invoke('analyzeMarket', {
+        const response = await base44.functions.invoke('analyzeMarket', {
           pairs: [pair.symbol],
           marketData: { [pair.symbol]: pair.current_price },
           minConfidence: 50,
@@ -189,34 +189,39 @@ export default function Pairs() {
           timeframe
         });
         
-        // Extract indicators and generate chart data from response
-        if (data) {
-          const indicators = data.calculated_indicators || data.indicators;
-          const historicalData = data.historicalData || [];
+        // Response structure: { data: { ...signal data } }
+        const result = response.data || response;
+        console.log('Indicator response:', result);
+        
+        // Extract indicators
+        const indicators = result.calculated_indicators || result.indicators;
+        const historicalData = result.historicalData || [];
+        
+        // Store indicators
+        if (indicators) {
+          setPairIndicators(prev => ({
+            ...prev,
+            [pair.id]: indicators
+          }));
+        }
+        
+        // Generate chart data from historical data
+        if (historicalData && historicalData.length > 0) {
+          const chartData = historicalData.map((candle, i) => ({
+            time: i,
+            price: candle.close,
+            high: candle.high,
+            low: candle.low,
+            open: candle.open
+          }));
           
-          // Store indicators
-          if (indicators) {
-            setPairIndicators(prev => ({
-              ...prev,
-              [pair.id]: indicators
-            }));
-          }
-          
-          // Generate chart data from historical data
-          if (historicalData.length > 0) {
-            const chartData = historicalData.map((candle, i) => ({
-              time: i,
-              price: candle.close,
-              high: candle.high,
-              low: candle.low,
-              open: candle.open
-            }));
-            
-            setPairChartData(prev => ({
-              ...prev,
-              [pair.id]: chartData
-            }));
-          }
+          console.log('Generated chart data:', chartData.length, 'points');
+          setPairChartData(prev => ({
+            ...prev,
+            [pair.id]: chartData
+          }));
+        } else {
+          console.warn('No historical data returned');
         }
       } catch (e) {
         console.error('Failed to calculate indicators:', e);
