@@ -106,7 +106,8 @@ Deno.serve(async (req) => {
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 2, 200);
                     heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Heartbeat updated`);
+                    const latency = Date.now() - startTime;
+                    console.log(`[POST] ✓ Heartbeat updated (${latency}ms)`);
                 } else if (account) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                         platform: account.platform || 'MT4',

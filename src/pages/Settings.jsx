@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import ConnectionDiagnostics from '../components/settings/ConnectionDiagnostics';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -964,6 +965,8 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="trading" className="mt-6 space-y-6">
+          <ConnectionDiagnostics />
+          
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <div className="flex justify-between items-start">
