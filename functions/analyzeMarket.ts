@@ -217,15 +217,32 @@ Deno.serve(async (req) => {
         });
         
         // Prepare lightweight data for AI prompt (only latest values)
-        const pairSummary = pairAnalysis.map(p => ({
-            symbol: p.symbol,
-            price: p.price,
-            rsi: p.indicators.rsi,
-            macd: p.indicators.macd,
-            bollingerBands: p.indicators.bollingerBands,
-            ema200: p.indicators.ema200,
-            stochastic: p.indicators.stochastic
-        }));
+        const pairSummary = pairAnalysis.map(p => {
+            const summary = {
+                symbol: p.symbol,
+                price: p.price,
+                [timeframe]: {
+                    rsi: p.indicators.rsi,
+                    macd: p.indicators.macd,
+                    bollingerBands: p.indicators.bollingerBands,
+                    ema200: p.indicators.ema200,
+                    stochastic: p.indicators.stochastic
+                }
+            };
+            
+            // Add higher timeframe data
+            higherTimeframes.forEach(tf => {
+                if (p.higherTimeframes[tf]) {
+                    summary[tf] = {
+                        rsi: p.higherTimeframes[tf].rsi,
+                        macd: p.higherTimeframes[tf].macd,
+                        ema200: p.higherTimeframes[tf].ema200
+                    };
+                }
+            });
+            
+            return summary;
+        });
         
         // Timeframe-specific guidance for technical analysis
         const timeframeGuide = {
