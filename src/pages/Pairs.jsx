@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import TickChart from '@/components/market/TickChart';
 import IndicatorPanel from '@/components/market/IndicatorPanel';
 import IndicatorCharts from '@/components/market/IndicatorCharts';
+import AdvancedChart from '@/components/charts/AdvancedChart';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Pairs() {
@@ -43,6 +44,7 @@ export default function Pairs() {
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
+  const [showAdvancedChart, setShowAdvancedChart] = useState(false);
   
   // Real-time State
   const [liveData, setLiveData] = useState({});
@@ -531,13 +533,35 @@ export default function Pairs() {
           <div className="py-4 space-y-6">
             {selectedPairDetails && pairIndicators[selectedPairDetails.id] ? (
               <>
+                {/* Chart Mode Toggle */}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant={showAdvancedChart ? 'default' : 'outline'}
+                    onClick={() => setShowAdvancedChart(!showAdvancedChart)}
+                    className="text-xs"
+                  >
+                    {showAdvancedChart ? 'Basic Charts' : 'Advanced Charts'}
+                  </Button>
+                </div>
+                
                 {/* Charts Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-300 mb-3">Indicator Charts</h3>
-                  <IndicatorCharts 
-                    priceData={pairChartData[selectedPairDetails.id] || []}
-                    indicators={pairIndicators[selectedPairDetails.id]}
-                  />
+                  <h3 className="text-sm font-semibold text-slate-300 mb-3">
+                    {showAdvancedChart ? 'Advanced Chart Analysis' : 'Indicator Charts'}
+                  </h3>
+                  {showAdvancedChart ? (
+                    <AdvancedChart
+                      priceData={pairChartData[selectedPairDetails.id] || []}
+                      pairSymbol={selectedPairDetails.symbol}
+                      currentPrice={selectedPairDetails.current_price}
+                    />
+                  ) : (
+                    <IndicatorCharts 
+                      priceData={pairChartData[selectedPairDetails.id] || []}
+                      indicators={pairIndicators[selectedPairDetails.id]}
+                    />
+                  )}
                 </div>
                 
                 {/* Values Panel */}
