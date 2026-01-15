@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock, Activity, Calendar, DollarSign, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function BacktestPanel({ preselectedBot }) {
   const [isRunning, setIsRunning] = useState(false);
