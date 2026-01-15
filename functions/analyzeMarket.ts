@@ -2,20 +2,22 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai';
 import { RSI, MACD, BollingerBands, EMA, Stochastic } from 'npm:technicalindicators';
 
-// Helper to generate synthetic historical price data
-const generateHistoricalData = (currentPrice, periods = 100) => {
+// Helper to generate synthetic historical price data with timeframe-specific characteristics
+const generateHistoricalData = (currentPrice, periods = 100, timeframeMultiplier = 1) => {
     const data = [];
     let price = currentPrice;
     
+    // Higher timeframes have proportionally larger movements
+    const baseVolatility = 0.002 * timeframeMultiplier;
+    
     for (let i = periods; i > 0; i--) {
-        const volatility = 0.002;
-        const change = (Math.random() - 0.5) * volatility;
+        const change = (Math.random() - 0.5) * baseVolatility;
         price = price * (1 + change);
         
         data.push({
             close: price,
-            high: price * (1 + Math.random() * 0.001),
-            low: price * (1 - Math.random() * 0.001),
+            high: price * (1 + Math.random() * 0.001 * timeframeMultiplier),
+            low: price * (1 - Math.random() * 0.001 * timeframeMultiplier),
             open: price
         });
     }
@@ -28,6 +30,32 @@ const generateHistoricalData = (currentPrice, periods = 100) => {
     });
     
     return data;
+};
+
+// Determine higher timeframes to check based on primary timeframe
+const getHigherTimeframes = (primaryTimeframe) => {
+    const hierarchy = {
+        'M1': ['M5', 'M15', 'H1'],
+        'M5': ['M15', 'H1', 'H4'],
+        'M15': ['H1', 'H4', 'D1'],
+        'H1': ['H4', 'D1'],
+        'H4': ['D1'],
+        'D1': []
+    };
+    return hierarchy[primaryTimeframe] || ['H4', 'D1'];
+};
+
+// Get timeframe multiplier for realistic data generation
+const getTimeframeMultiplier = (timeframe) => {
+    const multipliers = {
+        'M1': 1,
+        'M5': 1.5,
+        'M15': 2,
+        'H1': 3,
+        'H4': 5,
+        'D1': 8
+    };
+    return multipliers[timeframe] || 3;
 };
 
 // Calculate all technical indicators with historical data
