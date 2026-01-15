@@ -375,16 +375,33 @@ Deno.serve(async (req) => {
                 stochastic: selectedPairData.indicators.stochastic
             };
             
-            // Generate historical data for charts
-            signal.historicalData = generateHistoricalData(
+            // Generate historical data for charts with embedded indicators
+            const rawHistory = generateHistoricalData(
                 selectedPairData.price, 
                 50, 
                 getTimeframeMultiplier(timeframe)
             );
-            console.log('Generated historicalData with', signal.historicalData.length, 'candles');
+            
+            // Recalculate indicators for chart data
+            const chartIndicators = calculateIndicators(rawHistory);
+            
+            // Embed indicator histories into each candle
+            signal.historicalData = rawHistory.map((candle, i) => ({
+                ...candle,
+                indicators: {
+                    rsi: chartIndicators.rsiHistory?.[i] || null,
+                    ema200: chartIndicators.emaHistory?.[i] || null,
+                    macdValue: chartIndicators.macdHistory?.[i]?.MACD || null,
+                    macdSignal: chartIndicators.macdHistory?.[i]?.signal || null,
+                    macdHistogram: chartIndicators.macdHistory?.[i]?.histogram || null,
+                    bbUpper: chartIndicators.bbHistory?.[i]?.upper || null,
+                    bbMiddle: chartIndicators.bbHistory?.[i]?.middle || null,
+                    bbLower: chartIndicators.bbHistory?.[i]?.lower || null,
+                    stochK: chartIndicators.stochHistory?.[i]?.k || null,
+                    stochD: chartIndicators.stochHistory?.[i]?.d || null
+                }
+            }));
         }
-
-        console.log('Final signal has historicalData?', !!signal.historicalData);
         
         // Sanity Check & Normalization with Risk-Adjusted Parameters
         if (signal.pair && signal.entry_price) {
