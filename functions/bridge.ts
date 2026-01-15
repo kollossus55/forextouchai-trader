@@ -27,19 +27,35 @@ const withRetry = async (fn, retries = 3, delay = 200) => {
     throw lastError;
 };
 
-// Connection health tracking
+// Connection health tracking with detailed metrics
 let connectionHealth = {
     lastSuccessfulSync: Date.now(),
     consecutiveFailures: 0,
-    isHealthy: true
+    isHealthy: true,
+    totalRequests: 0,
+    successfulRequests: 0,
+    averageLatency: 0,
+    latencyHistory: []
 };
 
-// Update connection health
-const updateHealth = (success) => {
+// Update connection health with metrics
+const updateHealth = (success, latency = 0) => {
+    connectionHealth.totalRequests++;
+    
     if (success) {
         connectionHealth.lastSuccessfulSync = Date.now();
         connectionHealth.consecutiveFailures = 0;
         connectionHealth.isHealthy = true;
+        connectionHealth.successfulRequests++;
+        
+        // Track latency (keep last 20)
+        connectionHealth.latencyHistory.push(latency);
+        if (connectionHealth.latencyHistory.length > 20) {
+            connectionHealth.latencyHistory.shift();
+        }
+        connectionHealth.averageLatency = Math.round(
+            connectionHealth.latencyHistory.reduce((a, b) => a + b, 0) / connectionHealth.latencyHistory.length
+        );
     } else {
         connectionHealth.consecutiveFailures++;
         // Mark unhealthy after 3 consecutive failures
@@ -225,10 +241,11 @@ Deno.serve(async (req) => {
                         connection_status: 'CONNECTED',
                         last_sync: new Date().toISOString()
                     }), 2, 200);
-                    updateHealth(true);
-                } else {
+                    updateHealth(true, Date.now() - startTime);
+                    } else {
                     console.warn("[HEAD] No connection found");
-                }
+                    updateHealth(false);
+                    }
                 
                 return new Response(null, { 
                     status: 204,
@@ -273,10 +290,10 @@ Deno.serve(async (req) => {
                             connection_status: 'CONNECTED',
                             last_sync: new Date().toISOString()
                         }), 2, 200);
-                        updateHealth(true);
-                    }
-                } catch (heartbeatErr) {
-                    updateHealth(false);
+                        updateHealth(true, Date.now() - startTime);
+                        }
+                        } catch (heartbeatErr) {
+                        updateHealth(false, Date.now() - startTime);
                     console.error("[GET ERROR] Heartbeat:", heartbeatErr.message);
                     
                     // Fallback
@@ -372,6 +389,28 @@ Deno.serve(async (req) => {
                 console.error("[GET ERROR]:", err.message, err.stack?.slice(0, 200));
                 return Response.json({ status: "NO_SIGNAL", error: "Backend Error" });
             }
+        }
+
+        // ---------------------------------------------------------
+        // OPTIONS: Connection Diagnostics (for debugging)
+        // ---------------------------------------------------------
+        if (req.method === 'OPTIONS') {
+            const uptime = Date.now() - connectionHealth.lastSuccessfulSync;
+            const successRate = connectionHealth.totalRequests > 0 
+                ? ((connectionHealth.successfulRequests / connectionHealth.totalRequests) * 100).toFixed(2)
+                : 0;
+            
+            return Response.json({
+                status: connectionHealth.isHealthy ? 'HEALTHY' : 'UNHEALTHY',
+                uptime_ms: uptime,
+                consecutive_failures: connectionHealth.consecutiveFailures,
+                total_requests: connectionHealth.totalRequests,
+                successful_requests: connectionHealth.successfulRequests,
+                success_rate: successRate + '%',
+                average_latency_ms: connectionHealth.averageLatency,
+                last_successful_sync: new Date(connectionHealth.lastSuccessfulSync).toISOString(),
+                latency_history: connectionHealth.latencyHistory
+            });
         }
 
         return Response.json({ error: "Method not allowed" }, { status: 405 });
