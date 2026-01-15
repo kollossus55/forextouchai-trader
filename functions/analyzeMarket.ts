@@ -189,16 +189,30 @@ Deno.serve(async (req) => {
             newsSentiment[a] > newsSentiment[b] ? a : b, 'NEUTRAL'
         );
 
-        // Calculate indicators for top candidate pairs
+        // Calculate indicators for top candidate pairs across multiple timeframes
+        const higherTimeframes = getHigherTimeframes(timeframe);
+        
         const pairAnalysis = pairs.slice(0, 10).map(pairSymbol => {
             const price = marketData[pairSymbol] || 1.0;
-            const historicalData = generateHistoricalData(price);
-            const calculatedIndicators = calculateIndicators(historicalData);
+            
+            // Calculate for primary timeframe
+            const primaryMultiplier = getTimeframeMultiplier(timeframe);
+            const primaryData = generateHistoricalData(price, 100, primaryMultiplier);
+            const primaryIndicators = calculateIndicators(primaryData);
+            
+            // Calculate for higher timeframes
+            const higherTFIndicators = {};
+            higherTimeframes.forEach(tf => {
+                const tfMultiplier = getTimeframeMultiplier(tf);
+                const tfData = generateHistoricalData(price, 100, tfMultiplier);
+                higherTFIndicators[tf] = calculateIndicators(tfData);
+            });
             
             return {
                 symbol: pairSymbol,
                 price,
-                indicators: calculatedIndicators
+                indicators: primaryIndicators,
+                higherTimeframes: higherTFIndicators
             };
         });
         
