@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
 
         let signal = JSON.parse(completion.choices[0].message.content);
         
-        // Attach full indicator data for the selected pair (without heavy chart history)
+        // Attach full indicator data and historical data for the selected pair
         const selectedPairData = pairAnalysis.find(p => p.symbol === signal.pair);
         if (selectedPairData) {
             signal.calculated_indicators = {
@@ -374,6 +374,13 @@ Deno.serve(async (req) => {
                 ema200: selectedPairData.indicators.ema200,
                 stochastic: selectedPairData.indicators.stochastic
             };
+            
+            // Generate historical data for charts
+            signal.historicalData = generateHistoricalData(
+                selectedPairData.price, 
+                50, 
+                getTimeframeMultiplier(timeframe)
+            );
         }
 
         // Sanity Check & Normalization with Risk-Adjusted Parameters
