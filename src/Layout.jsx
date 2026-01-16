@@ -96,7 +96,11 @@ export default function Layout({ children }) {
         console.log('[Connection Monitor] Connected on page load - showing reconnection toast');
         toast.success("MT4/MT5 Connected! ✓", {
           description: "Trading platform is online and syncing",
-          duration: 5000
+          duration: 5000,
+          cancel: {
+            label: "✕",
+            onClick: () => {}
+          }
         });
         setHasShownReconnection(true);
       }
@@ -111,6 +115,10 @@ export default function Layout({ children }) {
       toast.error("MT4/MT5 Connection Lost", {
         description: "Trading platform disconnected. Check your EA.",
         duration: 10000,
+        cancel: {
+          label: "✕",
+          onClick: () => {}
+        },
         action: {
           label: "Settings",
           onClick: () => window.location.href = createPageUrl('Settings')
@@ -123,10 +131,14 @@ export default function Layout({ children }) {
       console.log('[Connection Monitor] RECONNECTION DETECTED - Showing alert');
       const downSeconds = disconnectTime ? Math.floor((Date.now() - disconnectTime) / 1000) : 0;
       const downMinutes = Math.floor(downSeconds / 60);
-      
+
       toast.success("MT4/MT5 Reconnected! ✓", {
         description: downSeconds > 0 ? `Connection restored after ${downSeconds}s offline` : "Connection restored",
-        duration: 5000
+        duration: 5000,
+        cancel: {
+          label: "✕",
+          onClick: () => {}
+        }
       });
       
       // ALWAYS send reconnection email when connection is restored
