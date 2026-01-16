@@ -179,19 +179,11 @@ export default function Layout({ children }) {
     { label: 'Admin', icon: Shield, path: '/Admin' },
   ];
 
-  const handleLogout = async () => {
-    try {
-      // Clear local state
-      setUser(null);
-      
-      // Perform logout - base44 will handle the redirect
-      // Use window origin to ensure proper navigation
-      await base44.auth.logout(window.location.origin + createPageUrl('Home'));
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Force navigation on error
-      window.location.href = createPageUrl('Home');
-    }
+  const handleLogout = () => {
+    // Clear local state
+    setUser(null);
+    // Logout - base44 handles redirect automatically
+    base44.auth.logout();
   };
 
   return (

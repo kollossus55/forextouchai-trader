@@ -8,49 +8,12 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 
 export default function Home() {
   const navigate = useNavigate();
-  const [isChecking, setIsChecking] = React.useState(true);
 
-  // Check authentication and redirect only if logged in
+  // Don't auto-redirect - let user choose to login
+  // This prevents redirect loops after logout
   useEffect(() => {
-    let mounted = true;
-    let timeoutId;
-    
-    const checkAuth = async () => {
-      try {
-        // Wait a bit to ensure any logout operations complete
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        if (!mounted) return;
-        
-        const isAuth = await base44.auth.isAuthenticated();
-        
-        if (!mounted) return;
-        
-        if (isAuth) {
-          // User is authenticated, redirect to Overview
-          timeoutId = setTimeout(() => {
-            if (mounted) {
-              navigate(createPageUrl('Overview'), { replace: true });
-            }
-          }, 200);
-        } else {
-          // User is not authenticated, stay on Home
-          setIsChecking(false);
-        }
-      } catch (error) {
-        // Error checking auth - stay on Home page
-        if (mounted) {
-          setIsChecking(false);
-        }
-      }
-    };
-    
-    checkAuth();
-    
-    return () => { 
-      mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    // Optional: Could check auth here but not redirect automatically
+    // This allows Home page to be the landing page after logout
   }, [navigate]);
 
   const handleLogin = () => {
