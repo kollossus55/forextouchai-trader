@@ -7,12 +7,12 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 import { createPageUrl } from '@/utils';
 
 export default function Home() {
-  const handleLogin = async () => {
-    await base44.auth.redirectToLogin(createPageUrl('Overview'));
+  const handleLogin = () => {
+    window.location.href = createPageUrl('Overview');
   };
 
-  const handleGoToDashboard = async () => {
-    await base44.auth.redirectToLogin(createPageUrl('Overview'));
+  const handleGoToDashboard = () => {
+    window.location.href = createPageUrl('Overview');
   };
 
   return (
