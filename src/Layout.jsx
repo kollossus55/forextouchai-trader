@@ -179,14 +179,12 @@ export default function Layout({ children }) {
     { label: 'Admin', icon: Shield, path: '/Admin' },
   ];
 
-  const handleLogout = async () => {
-    try {
-      await base44.auth.logout();
-      window.location.href = '/';
-    } catch (e) {
-      console.error('Logout error:', e);
-      window.location.href = '/';
-    }
+  const handleLogout = () => {
+    base44.auth.logout();
+    // Force immediate redirect
+    setTimeout(() => {
+      window.location.replace('/');
+    }, 100);
   };
 
   return (
