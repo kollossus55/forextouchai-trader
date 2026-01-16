@@ -635,11 +635,20 @@ export default function Overview() {
                   onClick={async () => {
                     toast.loading('Syncing with MT4...', { id: 'sync-trades' });
                     try {
+                      // Call manual sync function to close all open trades in DB
+                      const response = await base44.functions.invoke('manualSync');
+                      
+                      // Then refresh the queries
                       await Promise.all([
                         queryClient.refetchQueries({ queryKey: ['trades-home'] }),
                         queryClient.refetchQueries({ queryKey: ['broker-connections'] })
                       ]);
-                      toast.success('Sync complete', { id: 'sync-trades' });
+                      
+                      if (response.data.closed_count > 0) {
+                        toast.success(`Closed ${response.data.closed_count} stale trades`, { id: 'sync-trades' });
+                      } else {
+                        toast.success('Sync complete', { id: 'sync-trades' });
+                      }
                     } catch (e) {
                       toast.error('Sync failed', { id: 'sync-trades' });
                     }
