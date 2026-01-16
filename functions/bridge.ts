@@ -387,13 +387,17 @@ Deno.serve(async (req) => {
                         status: 'ACTIVE' 
                     }), 2);
 
-                    // Get bot name
-                    let botName = 'Manual';
+                    // Get bot details for MT4 comment
+                    let botComment = 'ForexTouchAI_Manual';
                     if (signal.bot_id) {
                         try {
                             const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list(), 1);
                             const matchingBot = allBots.find(b => b.id === signal.bot_id);
-                            if (matchingBot) botName = matchingBot.name;
+                            if (matchingBot) {
+                                // Format: ForexTouchAI_STRATEGY (e.g., ForexTouchAI_SCALPING)
+                                const strategy = matchingBot.strategy_type || 'UNKNOWN';
+                                botComment = `ForexTouchAI_${strategy}`;
+                            }
                         } catch (e) {
                             // Use default
                         }
@@ -403,7 +407,7 @@ Deno.serve(async (req) => {
                     return Response.json({
                         ...signal,
                         magic: signal.bot_id || 0,
-                        comment: botName
+                        comment: botComment
                     });
                 }
                 return Response.json({ status: "NO_SIGNAL", id: "" });
