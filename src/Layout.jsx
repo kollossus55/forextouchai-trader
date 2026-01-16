@@ -186,7 +186,7 @@ export default function Layout({ children }) {
     // Clear local state
     setUser(null);
     // Logout and redirect to home page
-    base44.auth.logout('/');
+    base44.auth.logout(createPageUrl('Home'));
   };
 
   // If on Home page, just render children without layout chrome
