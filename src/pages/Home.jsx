@@ -12,9 +12,14 @@ export default function Home() {
   // Redirect if already authenticated
   useEffect(() => {
     const checkAuth = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (isAuth) {
-        navigate(createPageUrl('Overview'));
+      try {
+        const isAuth = await base44.auth.isAuthenticated();
+        if (isAuth) {
+          navigate(createPageUrl('Overview'));
+        }
+      } catch (error) {
+        // User not authenticated, stay on Home page
+        console.log('Not authenticated');
       }
     };
     checkAuth();
