@@ -335,7 +335,14 @@ export default function AutoTrade() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mb-6">
+                  <div className="grid grid-cols-4 gap-2 mb-6">
+                    <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
+                       <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
+                         <BarChart className="w-3 h-3" />
+                         <span>Timeframe</span>
+                       </div>
+                       <span className="text-cyan-400 font-mono text-sm font-bold">{bot.timeframe || 'H1'}</span>
+                    </div>
                     <div className="bg-slate-950/30 p-2 rounded border border-slate-800/30 flex flex-col justify-center">
                        <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5">
                          <Target className="w-3 h-3" />
@@ -359,7 +366,7 @@ export default function AutoTrade() {
                          <Clock className="w-3 h-3" />
                          <span>Schedule</span>
                        </div>
-                       <span className="text-slate-200 font-mono text-xs">{bot.trading_start_time || '08:00'} - {bot.trading_end_time || '17:00'}</span>
+                       <span className="text-slate-200 font-mono text-[10px]">{bot.trading_start_time || '08:00'} - {bot.trading_end_time || '17:00'}</span>
                     </div>
                   </div>
 

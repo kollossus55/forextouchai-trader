@@ -33,6 +33,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
   const [formData, setFormData] = React.useState({
     name: '',
     strategy_type: 'AI_PREDICTIVE',
+    timeframe: 'H1',
     risk_level: 'MEDIUM',
     lot_size: 0.1,
     min_confidence: 80,
@@ -61,6 +62,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
       setFormData({
         name: '',
         strategy_type: 'AI_PREDICTIVE',
+        timeframe: 'H1',
         risk_level: 'MEDIUM',
         lot_size: 0.1,
         min_confidence: 80,
@@ -158,26 +160,49 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Strategy Engine</Label>
-                <Select 
-                  value={formData.strategy_type} 
-                  onValueChange={v => setFormData({...formData, strategy_type: v})}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AI_PREDICTIVE">AI Predictive Model</SelectItem>
-                    <SelectItem value="SCALPING">High Frequency Scalping</SelectItem>
-                    <SelectItem value="SWING">Swing Trading</SelectItem>
-                    <SelectItem value="DAY_TRADING">Day Trading</SelectItem>
-                    <SelectItem value="PRICE_ACTION">Price Action Analysis</SelectItem>
-                    <SelectItem value="PATTERN_TRADING">Chart Pattern Trading</SelectItem>
-                    <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
-                    <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Strategy Engine</Label>
+                  <Select 
+                    value={formData.strategy_type} 
+                    onValueChange={v => setFormData({...formData, strategy_type: v})}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AI_PREDICTIVE">AI Predictive Model</SelectItem>
+                      <SelectItem value="SCALPING">High Frequency Scalping</SelectItem>
+                      <SelectItem value="SWING">Swing Trading</SelectItem>
+                      <SelectItem value="DAY_TRADING">Day Trading</SelectItem>
+                      <SelectItem value="PRICE_ACTION">Price Action Analysis</SelectItem>
+                      <SelectItem value="PATTERN_TRADING">Chart Pattern Trading</SelectItem>
+                      <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
+                      <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Trading Timeframe</Label>
+                  <Select 
+                    value={formData.timeframe} 
+                    onValueChange={v => setFormData({...formData, timeframe: v})}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="M1">M1 - 1 Minute</SelectItem>
+                      <SelectItem value="M5">M5 - 5 Minutes</SelectItem>
+                      <SelectItem value="M15">M15 - 15 Minutes</SelectItem>
+                      <SelectItem value="M30">M30 - 30 Minutes</SelectItem>
+                      <SelectItem value="H1">H1 - 1 Hour</SelectItem>
+                      <SelectItem value="H4">H4 - 4 Hours</SelectItem>
+                      <SelectItem value="D1">D1 - Daily</SelectItem>
+                      <SelectItem value="W1">W1 - Weekly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Active Pairs</Label>
