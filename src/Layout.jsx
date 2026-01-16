@@ -168,7 +168,7 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = () => {
-    base44.auth.logout(createPageUrl('Home'));
+    base44.auth.logout();
   };
 
   return (
