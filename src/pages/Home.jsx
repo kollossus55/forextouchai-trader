@@ -9,6 +9,17 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 export default function Home() {
   const navigate = useNavigate();
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isAuth = await base44.auth.isAuthenticated();
+      if (isAuth) {
+        navigate(createPageUrl('Overview'));
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
   const handleLogin = () => {
     base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
