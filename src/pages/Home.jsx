@@ -8,19 +8,13 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 
 export default function Home() {
   const navigate = useNavigate();
-  
-  useEffect(() => {
-    base44.auth.isAuthenticated().then(isAuth => {
-      if (isAuth) {
-        navigate(createPageUrl('Overview'));
-      }
-    }).catch(() => {
-      // Stay on landing page if auth check fails
-    });
-  }, [navigate]);
 
   const handleLogin = () => {
     base44.auth.redirectToLogin(createPageUrl('Overview'));
+  };
+
+  const handleGoToDashboard = () => {
+    navigate(createPageUrl('Overview'));
   };
 
   return (
@@ -114,19 +108,26 @@ export default function Home() {
               </div>
 
               {/* CTA Button */}
-              <div>
+              <div className="flex gap-3">
                 <Button 
                   onClick={handleLogin}
                   size="lg"
-                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 hover:from-emerald-700 hover:via-emerald-600 hover:to-cyan-700 text-white text-lg px-12 py-6 shadow-2xl shadow-emerald-500/30 relative overflow-hidden group"
+                  className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 hover:from-emerald-700 hover:via-emerald-600 hover:to-cyan-700 text-white text-lg px-12 py-6 shadow-2xl shadow-emerald-500/30 relative overflow-hidden group"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                   <span className="relative flex items-center gap-2">
-                    Get Started
+                    Login
                     <TrendingUp className="w-5 h-5" />
                   </span>
                 </Button>
-                <p className="text-xs text-slate-500 mt-3">Free account • No credit card required</p>
+                <Button 
+                  onClick={handleGoToDashboard}
+                  size="lg"
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-lg px-12 py-6"
+                >
+                  Dashboard
+                </Button>
               </div>
             </div>
 

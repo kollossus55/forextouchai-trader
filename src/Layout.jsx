@@ -168,6 +168,7 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = () => {
+    window.location.href = '/Home';
     base44.auth.logout();
   };
 
