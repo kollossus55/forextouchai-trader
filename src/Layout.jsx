@@ -189,8 +189,14 @@ export default function Layout({ children }) {
     base44.auth.logout(createPageUrl('Home'));
   };
 
+  // If on Home page, just render children without layout chrome
+  if (isHomePage) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
+      <Toaster position="top-right" theme="dark" />
       {/* Sidebar */}
       <aside 
         className={`
