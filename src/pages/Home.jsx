@@ -110,9 +110,9 @@ export default function Home() {
                 <Button 
                   onClick={handleLogin}
                   size="lg"
-                  className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 hover:from-emerald-700 hover:via-emerald-600 hover:to-cyan-700 text-white text-lg px-12 py-6 shadow-2xl shadow-emerald-500/30 relative overflow-hidden group"
+                  className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 hover:from-emerald-700 hover:via-emerald-600 hover:to-cyan-700 text-white text-lg px-12 py-6 shadow-2xl shadow-emerald-500/30 relative overflow-hidden group pointer-events-auto"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none"></div>
                   <span className="relative flex items-center gap-2">
                     Login
                     <TrendingUp className="w-5 h-5" />
