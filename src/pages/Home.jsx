@@ -5,12 +5,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, CheckCircle2 } from 'lucide-react';
 
 export default function Home() {
-  const handleLogin = () => {
-    base44.auth.redirectToLogin();
+  const handleLogin = async () => {
+    try {
+      const isAuth = await base44.auth.isAuthenticated();
+      if (!isAuth) {
+        base44.auth.redirectToLogin();
+      } else {
+        window.location.href = '/Overview';
+      }
+    } catch (e) {
+      base44.auth.redirectToLogin();
+    }
   };
 
-  const handleGoToDashboard = () => {
-    base44.auth.redirectToLogin();
+  const handleGoToDashboard = async () => {
+    try {
+      const isAuth = await base44.auth.isAuthenticated();
+      if (!isAuth) {
+        base44.auth.redirectToLogin();
+      } else {
+        window.location.href = '/Overview';
+      }
+    } catch (e) {
+      base44.auth.redirectToLogin();
+    }
   };
 
   return (
