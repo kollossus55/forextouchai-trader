@@ -9,30 +9,12 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 export default function Home() {
   const navigate = useNavigate();
 
-  // Check if user is authenticated and redirect to Overview
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const isAuth = await base44.auth.isAuthenticated();
-        if (isAuth) {
-          navigate(createPageUrl('Overview'), { replace: true });
-        }
-      } catch (error) {
-        // User not authenticated, stay on Home
-      }
-    };
-    
-    checkAuth();
-  }, [navigate]);
-
   const handleLogin = () => {
-    // Redirect to login, will return to Home after success, then auto-redirect to Overview
-    base44.auth.redirectToLogin();
+    base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
 
   const handleGoToDashboard = () => {
-    // Same as login
-    base44.auth.redirectToLogin();
+    navigate(createPageUrl('Overview'));
   };
 
   return (
