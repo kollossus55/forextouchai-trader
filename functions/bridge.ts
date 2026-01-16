@@ -316,15 +316,37 @@ Deno.serve(async (req) => {
                 if (signals && signals.length > 0) {
                     const signal = signals[0];
                     
-                    // Check for duplicate open trades
-                    const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', pair: signal.pair }), 2, 200);
-                    if (openTrades && openTrades.length > 0) {
-                        console.log(`[GET] Signal ${signal.id} skipped - ${signal.pair} has ${openTrades.length} open`);
-                        await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
-                            status: 'SKIPPED',
-                            result_pnl: 0 
-                        }), 2);
-                        return Response.json({ status: "NO_SIGNAL", reason: "PAIR_ALREADY_OPEN" });
+                    // CRITICAL: For CLOSE signals, verify the ticket still exists in database as OPEN
+                    if (signal.type === 'CLOSE' || signal.action === 'CLOSE_TRADE') {
+                        const tradeTicket = signal.ticket || signal.trade_ticket;
+                        if (tradeTicket) {
+                            const existingTrade = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ 
+                                ticket: Number(tradeTicket), 
+                                status: 'OPEN' 
+                            }), 2, 200);
+                            
+                            if (!existingTrade || existingTrade.length === 0) {
+                                console.log(`[GET] CLOSE signal ${signal.id} skipped - ticket ${tradeTicket} not found or already closed`);
+                                await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                                    status: 'SKIPPED',
+                                    result_pnl: 0 
+                                }), 2);
+                                return Response.json({ status: "NO_SIGNAL", reason: "TICKET_NOT_FOUND" });
+                            }
+                        }
+                    }
+                    
+                    // Check for duplicate open trades (for new positions only)
+                    if (signal.type === 'BUY' || signal.type === 'SELL') {
+                        const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', pair: signal.pair }), 2, 200);
+                        if (openTrades && openTrades.length > 0) {
+                            console.log(`[GET] Signal ${signal.id} skipped - ${signal.pair} has ${openTrades.length} open`);
+                            await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                                status: 'SKIPPED',
+                                result_pnl: 0 
+                            }), 2);
+                            return Response.json({ status: "NO_SIGNAL", reason: "PAIR_ALREADY_OPEN" });
+                        }
                     }
 
                     // Bot check if signal has bot_id
