@@ -39,7 +39,8 @@ export default function Layout({ children }) {
         const userData = await base44.auth.me();
         setUser(userData);
       } catch (e) {
-        console.error("Not logged in");
+        console.error("Not logged in - redirecting to login");
+        base44.auth.redirectToLogin(window.location.pathname);
       }
     };
     fetchUser();
