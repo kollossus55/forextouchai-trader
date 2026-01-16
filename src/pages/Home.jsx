@@ -1,16 +1,18 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, CheckCircle2 } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 
 export default function Home() {
   const handleLogin = () => {
-    base44.auth.redirectToLogin();
+    window.location.href = createPageUrl('Overview');
   };
 
   const handleGoToDashboard = () => {
-    base44.auth.redirectToLogin();
+    window.location.href = createPageUrl('Overview');
   };
 
   return (
