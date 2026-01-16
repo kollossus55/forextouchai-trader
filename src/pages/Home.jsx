@@ -13,13 +13,22 @@ export default function Home() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const isAuth = await base44.auth.isAuthenticated();
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 3000)
+        );
+        
+        const authPromise = base44.auth.isAuthenticated();
+        
+        const isAuth = await Promise.race([authPromise, timeoutPromise]);
+        
         if (isAuth) {
           navigate(createPageUrl('Overview'));
         } else {
           setIsLoading(false);
         }
       } catch (e) {
+        console.log('Auth check failed or timed out, showing landing page');
         setIsLoading(false);
       }
     };
