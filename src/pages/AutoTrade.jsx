@@ -352,8 +352,8 @@ export default function AutoTrade() {
                       <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
                         <Zap className="w-3 h-3" /> Performance
                       </div>
-                      <div className="font-semibold text-emerald-400">
-                        +12.4% <span className="text-slate-500 text-xs font-normal">this week</span>
+                      <div className={`font-semibold ${botPerformance[bot.id] >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {botPerformance[bot.id] >= 0 ? '+' : ''}${botPerformance[bot.id].toFixed(2)} <span className="text-slate-500 text-xs font-normal">total P&L</span>
                       </div>
                     </div>
                   </div>
