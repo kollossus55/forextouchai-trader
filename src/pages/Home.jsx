@@ -109,7 +109,7 @@ export default function Home() {
               {/* CTA Button */}
               <div className="flex gap-3">
                 <Button 
-                  onClick={handleLogin}
+                  onClick={handleAuth}
                   size="lg"
                   className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-cyan-600 hover:from-emerald-700 hover:via-emerald-600 hover:to-cyan-700 text-white text-lg px-12 py-6 shadow-2xl shadow-emerald-500/30 relative overflow-hidden group pointer-events-auto"
                 >
@@ -120,7 +120,7 @@ export default function Home() {
                   </span>
                 </Button>
                 <Button 
-                  onClick={handleGoToDashboard}
+                  onClick={handleAuth}
                   size="lg"
                   className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white text-lg px-12 py-6 border border-cyan-500/50 shadow-lg shadow-cyan-500/20"
                 >
