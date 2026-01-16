@@ -9,11 +9,11 @@ export default function Home() {
   const navigate = useNavigate();
 
   const handleLogin = () => {
-    base44.auth.redirectToLogin();
+    navigate(createPageUrl('Overview'));
   };
 
   const handleGoToDashboard = () => {
-    base44.auth.redirectToLogin();
+    navigate(createPageUrl('Overview'));
   };
 
   return (
