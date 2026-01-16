@@ -9,22 +9,27 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 export default function Home() {
   const navigate = useNavigate();
 
-  // Redirect if already authenticated - but allow page to load first
+  // Only redirect if authenticated AND not coming from a logout
   useEffect(() => {
     let mounted = true;
     
     const checkAuth = async () => {
       try {
-        // Longer delay to ensure logout completes before auth check
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (!mounted) return;
-        
+        // Check if user is authenticated
         const isAuth = await base44.auth.isAuthenticated();
+        
+        // Only redirect if authenticated (don't redirect if just logged out)
         if (isAuth && mounted) {
-          navigate(createPageUrl('Overview'), { replace: true });
+          // Small delay to prevent race conditions
+          setTimeout(() => {
+            if (mounted) {
+              navigate(createPageUrl('Overview'), { replace: true });
+            }
+          }, 300);
         }
       } catch (error) {
-        // User not authenticated, stay on Home page
+        // User not authenticated - this is expected after logout
+        // Stay on Home page
       }
     };
     
