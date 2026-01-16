@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
         console.log(`[${method}] Bridge request started`);
         
         // ---------------------------------------------------------
-        // POST: Sync Trades & Account (Fast Acknowledgement)
+        // POST: Sync Trades & Account (Fast Acknowledgement) OR Initial Connection Test
         // ---------------------------------------------------------
         if (req.method === 'POST') {
             let body;
@@ -83,6 +83,28 @@ Deno.serve(async (req) => {
             } catch (e) {
                 console.error("[POST ERROR] Invalid JSON in body:", e.message);
                 return Response.json({ error: "Invalid JSON" }, { status: 400 });
+            }
+            
+            // Handle initial connection test from MT4 EA
+            if (body.test || body.action === 'test' || body.type === 'test') {
+                console.log("[POST] Connection test received");
+                try {
+                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2, 200);
+                    if (connections.length > 0) {
+                        await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                            connection_status: 'CONNECTED',
+                            last_sync: new Date().toISOString()
+                        }), 2, 200);
+                    }
+                } catch (err) {
+                    console.error("[POST ERROR] Test connection update failed:", err.message);
+                }
+                return Response.json({ 
+                    status: "OK", 
+                    message: "ForexTouchAI Bridge Connected",
+                    version: "3.0",
+                    timestamp: new Date().toISOString()
+                });
             }
             
             const { trades, account } = body;
