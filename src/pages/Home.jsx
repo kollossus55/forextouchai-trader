@@ -5,14 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, CheckCircle2 } from 'lucide-react';
 
 export default function Home() {
-  const navigate = useNavigate();
-
   const handleLogin = () => {
-    navigate(createPageUrl('Overview'));
+    base44.auth.redirectToLogin();
   };
 
   const handleGoToDashboard = () => {
-    navigate(createPageUrl('Overview'));
+    base44.auth.redirectToLogin();
   };
 
   return (
