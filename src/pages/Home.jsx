@@ -8,12 +8,7 @@ import { createPageUrl } from '@/utils';
 
 export default function Home() {
   const handleAuth = async () => {
-    const isAuth = await base44.auth.isAuthenticated();
-    if (isAuth) {
-      window.location.href = createPageUrl('Overview');
-    } else {
-      await base44.auth.redirectToLogin(createPageUrl('Overview'));
-    }
+    await base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
 
   return (
