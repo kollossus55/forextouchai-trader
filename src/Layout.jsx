@@ -179,8 +179,8 @@ export default function Layout({ children }) {
     { label: 'Admin', icon: Shield, path: '/Admin' },
   ];
 
-  const handleLogout = () => {
-    base44.auth.logout(createPageUrl('Home'));
+  const handleLogout = async () => {
+    await base44.auth.logout('/');
   };
 
   return (
