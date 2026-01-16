@@ -15,7 +15,8 @@ export default function Home() {
     
     const checkAuth = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay to let page render
+        // Longer delay to ensure logout completes before auth check
+        await new Promise(resolve => setTimeout(resolve, 500));
         if (!mounted) return;
         
         const isAuth = await base44.auth.isAuthenticated();
