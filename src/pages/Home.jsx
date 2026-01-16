@@ -10,7 +10,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   const handleLogin = () => {
-    navigate(createPageUrl('Overview'));
+    base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
 
   const handleGoToDashboard = () => {
