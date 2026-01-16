@@ -62,6 +62,28 @@ export default function AutoTrade() {
     return allBots.filter(bot => bot.owner_email === user.email || bot.created_by === user.email); // Traders see only their bots
   }, [allBots, user]);
 
+  // Fetch all trades to calculate bot performance
+  const { data: allTrades } = useQuery({
+    queryKey: ['all-trades'],
+    queryFn: () => base44.entities.Trade.list(),
+    initialData: []
+  });
+
+  // Calculate performance for each bot
+  const botPerformance = React.useMemo(() => {
+    const performance = {};
+    bots.forEach(bot => {
+      const botTrades = allTrades.filter(t => t.bot_id === bot.id && t.status === 'CLOSED');
+      if (botTrades.length > 0) {
+        const totalPnL = botTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        performance[bot.id] = totalPnL;
+      } else {
+        performance[bot.id] = 0;
+      }
+    });
+    return performance;
+  }, [bots, allTrades]);
+
   // Initialize Market Data Service
   useEffect(() => {
     MarketDataService.initialize();
