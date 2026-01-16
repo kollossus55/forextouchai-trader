@@ -182,8 +182,8 @@ export default function Layout({ children }) {
   const handleLogout = () => {
     // Clear local state
     setUser(null);
-    // Logout - base44 handles redirect automatically
-    base44.auth.logout();
+    // Logout and explicitly redirect to Home page
+    base44.auth.logout(createPageUrl('Home'));
   };
 
   return (
