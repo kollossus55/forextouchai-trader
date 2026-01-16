@@ -123,8 +123,7 @@ export default function Home() {
                 <Button 
                   onClick={handleGoToDashboard}
                   size="lg"
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-lg px-12 py-6"
+                  className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white text-lg px-12 py-6 border border-cyan-500/50 shadow-lg shadow-cyan-500/20"
                 >
                   Sign Up
                 </Button>
