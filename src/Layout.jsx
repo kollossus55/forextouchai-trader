@@ -29,6 +29,9 @@ export default function Layout({ children }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
+  
+  // Don't show layout chrome on Home page (landing page)
+  const isHomePage = location.pathname === '/' || location.pathname === '/Home';
 
   useEffect(() => {
     const fetchUser = async () => {
