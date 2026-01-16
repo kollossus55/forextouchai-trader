@@ -180,7 +180,16 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = async () => {
-    await base44.auth.logout('/');
+    try {
+      // Clear any local state before logout
+      setUser(null);
+      // Logout and redirect to home
+      await base44.auth.logout('/Home');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if logout fails
+      window.location.href = '/Home';
+    }
   };
 
   return (
