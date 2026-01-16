@@ -9,12 +9,22 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 export default function Home() {
   const navigate = useNavigate();
 
-  const handleLogin = () => {
-    base44.auth.redirectToLogin(createPageUrl('Overview'));
+  const handleLogin = async () => {
+    const isAuth = await base44.auth.isAuthenticated();
+    if (isAuth) {
+      navigate(createPageUrl('Overview'));
+    } else {
+      base44.auth.redirectToLogin(window.location.origin + createPageUrl('Overview'));
+    }
   };
 
-  const handleGoToDashboard = () => {
-    navigate(createPageUrl('Overview'));
+  const handleGoToDashboard = async () => {
+    const isAuth = await base44.auth.isAuthenticated();
+    if (isAuth) {
+      navigate(createPageUrl('Overview'));
+    } else {
+      base44.auth.redirectToLogin(window.location.origin + createPageUrl('Overview'));
+    }
   };
 
   return (
