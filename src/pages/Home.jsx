@@ -8,34 +8,49 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 
 export default function Home() {
   const navigate = useNavigate();
+  const [isChecking, setIsChecking] = React.useState(true);
 
-  // Only redirect if authenticated AND not coming from a logout
+  // Check authentication and redirect only if logged in
   useEffect(() => {
     let mounted = true;
+    let timeoutId;
     
     const checkAuth = async () => {
       try {
-        // Check if user is authenticated
+        // Wait a bit to ensure any logout operations complete
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        if (!mounted) return;
+        
         const isAuth = await base44.auth.isAuthenticated();
         
-        // Only redirect if authenticated (don't redirect if just logged out)
-        if (isAuth && mounted) {
-          // Small delay to prevent race conditions
-          setTimeout(() => {
+        if (!mounted) return;
+        
+        if (isAuth) {
+          // User is authenticated, redirect to Overview
+          timeoutId = setTimeout(() => {
             if (mounted) {
               navigate(createPageUrl('Overview'), { replace: true });
             }
-          }, 300);
+          }, 200);
+        } else {
+          // User is not authenticated, stay on Home
+          setIsChecking(false);
         }
       } catch (error) {
-        // User not authenticated - this is expected after logout
-        // Stay on Home page
+        // Error checking auth - stay on Home page
+        if (mounted) {
+          setIsChecking(false);
+        }
       }
     };
     
     checkAuth();
     
-    return () => { mounted = false; };
+    return () => { 
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [navigate]);
 
   const handleLogin = () => {
