@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
@@ -8,44 +8,20 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 
 export default function Home() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth check timeout')), 3000)
-        );
-        
-        const authPromise = base44.auth.isAuthenticated();
-        
-        const isAuth = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (isAuth) {
-          navigate(createPageUrl('Overview'));
-        } else {
-          setIsLoading(false);
-        }
-      } catch (e) {
-        console.log('Auth check failed or timed out, showing landing page');
-        setIsLoading(false);
+    base44.auth.isAuthenticated().then(isAuth => {
+      if (isAuth) {
+        navigate(createPageUrl('Overview'));
       }
-    };
-    checkAuth();
+    }).catch(() => {
+      // Stay on landing page if auth check fails
+    });
   }, [navigate]);
 
   const handleLogin = () => {
     base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-slate-400 animate-pulse">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden">
