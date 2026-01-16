@@ -180,7 +180,13 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = async () => {
-    await base44.auth.logout(createPageUrl('Home'));
+    try {
+      await base44.auth.logout();
+      window.location.href = '/';
+    } catch (e) {
+      console.error('Logout error:', e);
+      window.location.href = '/';
+    }
   };
 
   return (
