@@ -10,12 +10,11 @@ export default function Home() {
   const navigate = useNavigate();
 
   const handleLogin = () => {
-    // Always redirect to login page - let auth system handle if already logged in
-    window.location.href = '/login?next=' + encodeURIComponent(createPageUrl('Overview'));
+    base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
 
   const handleGoToDashboard = () => {
-    window.location.href = '/login?next=' + encodeURIComponent(createPageUrl('Overview'));
+    base44.auth.redirectToLogin(createPageUrl('Overview'));
   };
 
   return (
