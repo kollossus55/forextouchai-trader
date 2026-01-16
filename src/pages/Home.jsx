@@ -9,22 +9,13 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 export default function Home() {
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    const isAuth = await base44.auth.isAuthenticated();
-    if (isAuth) {
-      navigate(createPageUrl('Overview'));
-    } else {
-      base44.auth.redirectToLogin(window.location.origin + createPageUrl('Overview'));
-    }
+  const handleLogin = () => {
+    // Always redirect to login page - let auth system handle if already logged in
+    window.location.href = '/login?next=' + encodeURIComponent(createPageUrl('Overview'));
   };
 
-  const handleGoToDashboard = async () => {
-    const isAuth = await base44.auth.isAuthenticated();
-    if (isAuth) {
-      navigate(createPageUrl('Overview'));
-    } else {
-      base44.auth.redirectToLogin(window.location.origin + createPageUrl('Overview'));
-    }
+  const handleGoToDashboard = () => {
+    window.location.href = '/login?next=' + encodeURIComponent(createPageUrl('Overview'));
   };
 
   return (
