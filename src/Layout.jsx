@@ -180,11 +180,7 @@ export default function Layout({ children }) {
   ];
 
   const handleLogout = () => {
-    base44.auth.logout();
-    // Force immediate redirect
-    setTimeout(() => {
-      window.location.replace('/');
-    }, 100);
+    base44.auth.logout(createPageUrl('Home'));
   };
 
   return (
