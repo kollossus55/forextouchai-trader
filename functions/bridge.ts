@@ -188,9 +188,22 @@ Deno.serve(async (req) => {
                                         updated_date: new Date().toISOString()
                                     };
                                 } else {
+                                    // Extract bot_id from magic number OR comment
                                     let botId = null;
+                                    
+                                    // Method 1: From magic number (if it's a UUID/bot ID)
                                     if (t.magic && String(t.magic).length > 5) {
                                         botId = String(t.magic);
+                                    }
+                                    
+                                    // Method 2: Parse from comment (ForexTouchAI format)
+                                    if (!botId && t.comment) {
+                                        const comment = String(t.comment);
+                                        // Look for ForexTouchAI_ prefix and extract bot ID if present
+                                        const idMatch = comment.match(/Bot:([a-f0-9\-]{36})/i);
+                                        if (idMatch) {
+                                            botId = idMatch[1];
+                                        }
                                     }
 
                                     tradesToCreate.push({
