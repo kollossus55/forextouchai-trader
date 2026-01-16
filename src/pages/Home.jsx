@@ -126,7 +126,7 @@ export default function Home() {
                   variant="outline"
                   className="border-slate-700 text-slate-300 hover:bg-slate-800 text-lg px-12 py-6"
                 >
-                  Dashboard
+                  Sign Up
                 </Button>
               </div>
             </div>
