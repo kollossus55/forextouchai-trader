@@ -188,7 +188,7 @@ export default function Layout({ children }) {
 
   const handleLogout = async () => {
     setUser(null);
-    window.location.href = '/';
+    await base44.auth.logout('/');
   };
 
   // If on Home page, just render children without layout chrome
