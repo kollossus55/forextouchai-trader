@@ -34,6 +34,9 @@ export default function Layout({ children }) {
   const isHomePage = location.pathname === '/' || location.pathname === '/Home';
 
   useEffect(() => {
+    // Skip auth check on Home page (landing page)
+    if (isHomePage) return;
+    
     const fetchUser = async () => {
       try {
         const userData = await base44.auth.me();
@@ -44,7 +47,7 @@ export default function Layout({ children }) {
       }
     };
     fetchUser();
-  }, []);
+  }, [isHomePage]);
 
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
