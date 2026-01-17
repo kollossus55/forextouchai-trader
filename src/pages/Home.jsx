@@ -8,7 +8,7 @@ import { createPageUrl } from '@/utils';
 
 export default function Home() {
   const handleAuth = async () => {
-    await base44.auth.redirectToLogin(createPageUrl('Overview'));
+    await base44.auth.redirectToLogin();
   };
 
   return (
