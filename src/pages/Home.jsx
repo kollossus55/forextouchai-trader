@@ -7,15 +7,6 @@ import { LineChart, TrendingUp, Zap, Shield, BrainCircuit, Activity, BarChart3, 
 import { createPageUrl } from '@/utils';
 
 export default function Home() {
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (isAuth) {
-        window.location.href = createPageUrl('Overview');
-      }
-    };
-    checkAuth();
-  }, []);
 
   const handleAuth = async () => {
     await base44.auth.redirectToLogin();
