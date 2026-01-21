@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4'; 
 import OpenAI from 'npm:openai';
 
 Deno.serve(async (req) => {
