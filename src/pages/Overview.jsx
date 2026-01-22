@@ -644,29 +644,22 @@ export default function Overview() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    const toastId = toast.loading('Syncing with MT4...');
+                    const toastId = toast.loading('Refreshing trades...');
                     try {
-                      // Call manual sync function to close all open trades in DB
-                      const response = await base44.functions.invoke('manualSync');
-                      
-                      // Then refresh the queries
+                      // Just refresh the data - don't close trades
                       await queryClient.invalidateQueries({ queryKey: ['trades-home'] });
                       await queryClient.invalidateQueries({ queryKey: ['broker-connections'] });
                       
-                      if (response.data.closed_count > 0) {
-                        toast.success(`Closed ${response.data.closed_count} stale trades`, { id: toastId });
-                      } else {
-                        toast.success('Trades synced successfully', { id: toastId });
-                      }
+                      toast.success('Trades refreshed', { id: toastId });
                     } catch (e) {
-                      console.error('Sync error:', e);
-                      toast.error('Sync failed: ' + (e.message || 'Unknown error'), { id: toastId });
+                      console.error('Refresh error:', e);
+                      toast.error('Refresh failed', { id: toastId });
                     }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Sync Now
+                  Refresh
                 </Button>
                 <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/10">
                   {trades.length} Open
