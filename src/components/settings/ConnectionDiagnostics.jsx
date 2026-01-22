@@ -32,17 +32,17 @@ export default function ConnectionDiagnostics() {
   const testConnection = async () => {
     setIsTestingConnection(true);
     try {
-      const response = await base44.functions.invoke('bridge', {}, { method: 'OPTIONS' });
+      const response = await base44.functions.invoke('bridge');
       
       if (response.data) {
         setDiagnostics(response.data);
         toast.success('Connection test successful', {
-          description: `Latency: ${response.data.average_latency_ms}ms, Success Rate: ${response.data.success_rate}`
+          description: `Bridge endpoint is reachable and functioning`
         });
       }
     } catch (error) {
       toast.error('Connection test failed', {
-        description: error.message || 'Unable to reach bridge endpoint'
+        description: error.response?.data?.error || error.message || 'Unable to reach bridge endpoint'
       });
       setDiagnostics({ error: error.message });
     } finally {
