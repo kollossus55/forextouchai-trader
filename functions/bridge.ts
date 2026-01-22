@@ -1,30 +1,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-// Smarter retry with reduced attempts and better error classification
-const withRetry = async (fn, retries = 3, delay = 200) => {
-    let lastError;
+// Faster retry with minimal delays
+const withRetry = async (fn, retries = 2, delay = 100) => {
     for (let i = 0; i < retries; i++) {
         try {
             return await fn();
         } catch (error) {
-            lastError = error;
+            if (i === retries - 1) throw error;
             const msg = error.message?.toLowerCase() || "";
-            // Retry only on transient network/timeout errors
-            const shouldRetry = msg.includes('fetch') || 
-                               msg.includes('network') || 
-                               msg.includes('timeout') ||
-                               msg.includes('econnrefused');
-            
-            if (shouldRetry && i < retries - 1) {
-                const waitTime = delay * Math.pow(1.5, i); // Gentler backoff: 200ms, 300ms, 450ms
-                console.warn(`[RETRY ${i + 1}/${retries}] ${error.message}. Waiting ${waitTime}ms...`);
-                await new Promise(r => setTimeout(r, waitTime));
+            const shouldRetry = msg.includes('fetch') || msg.includes('network') || msg.includes('timeout');
+            if (shouldRetry) {
+                await new Promise(r => setTimeout(r, delay));
             } else {
-                throw error; 
+                throw error;
             }
         }
     }
-    throw lastError;
 };
 
 // Connection health tracking with detailed metrics
@@ -110,10 +101,10 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             console.log(`[POST] Received ${trades?.length || 0} trades, ${account ? 'account data' : 'no account'}`);
 
-            // CRITICAL: Update heartbeat IMMEDIATELY with timeout protection
+            // CRITICAL: Update heartbeat IMMEDIATELY
             let heartbeatSuccess = false;
             try {
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2, 200);
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1);
                 
                 const updateData = {
                     connection_status: 'CONNECTED',
@@ -126,17 +117,16 @@ Deno.serve(async (req) => {
                 };
                 
                 if (connections.length > 0) {
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 2, 200);
+                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 1);
                     heartbeatSuccess = true;
-                    const latency = Date.now() - startTime;
-                    console.log(`[POST] ✓ Heartbeat updated (${latency}ms)`);
+                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms`);
                 } else if (account) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                         platform: account.platform || 'MT4',
                         server_name: account.server_name || 'MT4 Server',
                         account_number: String(account.account_number || 'Unknown'),
                         ...updateData
-                    }), 2, 200);
+                    }), 1);
                     heartbeatSuccess = true;
                     console.log(`[POST] ✓ Connection created`);
                 }
@@ -145,21 +135,8 @@ Deno.serve(async (req) => {
                 
             } catch (err) {
                 updateHealth(false);
-                console.error(`[POST ERROR] Heartbeat failed (attempt ${connectionHealth.consecutiveFailures}):`, err.message, err.stack?.slice(0, 200));
-                
-                // Fallback: Try minimal last_sync update
-                try {
-                    const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
-                    if (connections.length > 0) {
-                        await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                            last_sync: new Date().toISOString(),
-                            connection_status: connectionHealth.consecutiveFailures >= 5 ? 'ERROR' : 'CONNECTED'
-                        });
-                        console.log(`[POST] ⚠ Fallback sync (${connectionHealth.consecutiveFailures} failures)`);
-                    }
-                } catch (fallbackErr) {
-                    console.error("[POST ERROR] Fallback failed:", fallbackErr.message);
-                }
+                console.error(`[POST ERROR] Heartbeat: ${err.message}`);
+                heartbeatSuccess = false;
             }
 
             // Process trades asynchronously (don't block response)
@@ -168,11 +145,10 @@ Deno.serve(async (req) => {
                 Promise.race([
                     (async () => {
                         try {
-                            // Get connection owner for created_by field
-                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2);
+                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1);
                             const ownerEmail = connections[0]?.created_by || null;
                             
-                            const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
+                            const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 1);
                             const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
                             
                             const tradesToCreate = [];
@@ -235,9 +211,9 @@ Deno.serve(async (req) => {
                             }
 
                             if (tradesToCreate.length > 0) {
-                                console.log(`[POST] Creating ${tradesToCreate.length} trades with owner: ${ownerEmail}`);
-                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2);
-                                console.log(`[POST] ✓ Created ${tradesToCreate.length} new trades`);
+                                console.log(`[POST] Creating ${tradesToCreate.length} trades`);
+                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1);
+                                console.log(`[POST] ✓ Created ${tradesToCreate.length} trades`);
                             }
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
@@ -255,8 +231,8 @@ Deno.serve(async (req) => {
                             console.error("[POST ERROR] Trade sync:", err.message);
                         }
                     })(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
-                ]).catch(e => console.error("[POST] Trade processing timeout/error:", e.message));
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+                ]).catch(e => console.error("[POST] Trade sync timeout:", e.message));
             }
 
             // Return immediately to prevent EA timeout
