@@ -644,24 +644,23 @@ export default function Overview() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    toast.loading('Syncing with MT4...', { id: 'sync-trades' });
+                    const toastId = toast.loading('Syncing with MT4...');
                     try {
                       // Call manual sync function to close all open trades in DB
                       const response = await base44.functions.invoke('manualSync');
                       
                       // Then refresh the queries
-                      await Promise.all([
-                        queryClient.refetchQueries({ queryKey: ['trades-home'] }),
-                        queryClient.refetchQueries({ queryKey: ['broker-connections'] })
-                      ]);
+                      await queryClient.invalidateQueries({ queryKey: ['trades-home'] });
+                      await queryClient.invalidateQueries({ queryKey: ['broker-connections'] });
                       
                       if (response.data.closed_count > 0) {
-                        toast.success(`Closed ${response.data.closed_count} stale trades`, { id: 'sync-trades' });
+                        toast.success(`Closed ${response.data.closed_count} stale trades`, { id: toastId });
                       } else {
-                        toast.success('Sync complete', { id: 'sync-trades' });
+                        toast.success('Trades synced successfully', { id: toastId });
                       }
                     } catch (e) {
-                      toast.error('Sync failed', { id: 'sync-trades' });
+                      console.error('Sync error:', e);
+                      toast.error('Sync failed: ' + (e.message || 'Unknown error'), { id: toastId });
                     }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
