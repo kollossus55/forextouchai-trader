@@ -241,7 +241,9 @@ Deno.serve(async (req) => {
                             }
 
                             if (tradesToCreate.length > 0) {
+                                console.log(`[POST] Creating ${tradesToCreate.length} trades with owner: ${ownerEmail}`);
                                 await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2);
+                                console.log(`[POST] ✓ Created ${tradesToCreate.length} new trades`);
                             }
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));

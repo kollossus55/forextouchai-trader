@@ -97,7 +97,11 @@ export default function Overview() {
 
   const { data: trades, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home'],
-    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 10),
+    queryFn: async () => {
+      const openTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
+      console.log('[Overview] Fetched trades:', openTrades.length, openTrades);
+      return openTrades;
+    },
     refetchInterval: 10000, // Refresh every 10s
     initialData: []
   });
