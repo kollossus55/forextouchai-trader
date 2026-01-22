@@ -644,16 +644,19 @@ export default function Overview() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    const toastId = toast.loading('Refreshing trades...');
+                    const toastId = toast.loading('Syncing with MT4...');
                     try {
-                      // Just refresh the data - don't close trades
                       await queryClient.invalidateQueries({ queryKey: ['trades-home'] });
                       await queryClient.invalidateQueries({ queryKey: ['broker-connections'] });
                       
-                      toast.success('Trades refreshed', { id: toastId });
+                      // Wait a moment for the refetch
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
+                      const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' });
+                      toast.success(`Synced - ${freshTrades.length} open trades`, { id: toastId });
                     } catch (e) {
-                      console.error('Refresh error:', e);
-                      toast.error('Refresh failed', { id: toastId });
+                      console.error('Sync error:', e);
+                      toast.error('Sync failed: ' + e.message, { id: toastId });
                     }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
@@ -778,10 +781,10 @@ export default function Overview() {
                           href={event.url || `https://www.google.com/search?q=${encodeURIComponent(event.title + " " + event.currency + " economic event")}`} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="p-1.5 hover:bg-slate-800 rounded transition-colors bg-slate-900/50 border border-slate-700 hover:border-emerald-500/50"
+                          className="p-1.5 rounded transition-all bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 shadow-lg shadow-emerald-500/20"
                           title="View Event Details"
                       >
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                          <ExternalLink className="w-3.5 h-3.5 text-white" />
                       </a>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-500">
