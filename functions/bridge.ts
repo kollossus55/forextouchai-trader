@@ -70,17 +70,8 @@ Deno.serve(async (req) => {
     const method = req.method;
     
     try {
-        // SECURITY: Validate API Key
-        const apiKey = req.headers.get('X-API-Key') || req.headers.get('Authorization')?.replace('Bearer ', '');
-        const expectedKey = Deno.env.get('BRIDGE_API_KEY');
-        
-        if (!apiKey || apiKey !== expectedKey) {
-            console.error(`[${method}] Unauthorized request - invalid or missing API key`);
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        
         const base44 = createClientFromRequest(req);
-        console.log(`[${method}] Bridge request started (authenticated)`);
+        console.log(`[${method}] Bridge request started`);
         
         // ---------------------------------------------------------
         // POST: Sync Trades & Account (Fast Acknowledgement) OR Initial Connection Test
