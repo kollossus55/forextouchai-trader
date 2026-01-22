@@ -37,8 +37,10 @@ export default function ConnectionDiagnostics() {
       
       if (data) {
         setDiagnostics(data);
-        toast.success('Connection test successful', {
-          description: `Latency: ${data.average_latency_ms}ms, Success Rate: ${data.success_rate}`
+        const latency = data.average_latency_ms || 'N/A';
+        const successRate = data.success_rate || '0%';
+        toast.success('Bridge connection healthy', {
+          description: `Status: ${data.status || 'OK'} - ${data.successful_requests || 0} successful requests`
         });
       }
     } catch (error) {
