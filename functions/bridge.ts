@@ -168,6 +168,10 @@ Deno.serve(async (req) => {
                 Promise.race([
                     (async () => {
                         try {
+                            // Get connection owner for created_by field
+                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2);
+                            const ownerEmail = connections[0]?.created_by || null;
+                            
                             const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
                             const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
                             
@@ -206,7 +210,7 @@ Deno.serve(async (req) => {
                                         }
                                     }
 
-                                    tradesToCreate.push({
+                                    const newTrade = {
                                         pair: String(t.symbol || "UNKNOWN"),
                                         type: String(t.type || "BUY"),
                                         lot_size: Number(t.lots) || 0.01,
@@ -217,7 +221,14 @@ Deno.serve(async (req) => {
                                         status: 'OPEN',
                                         is_auto: Boolean(t.magic !== 0),
                                         bot_id: botId
-                                    });
+                                    };
+                                    
+                                    // Set created_by to connection owner if available
+                                    if (ownerEmail) {
+                                        newTrade.created_by = ownerEmail;
+                                    }
+                                    
+                                    tradesToCreate.push(newTrade);
                                 }
                             }
 
