@@ -774,7 +774,7 @@ export default function Overview() {
                           href={event.url || `https://www.google.com/search?q=${encodeURIComponent(event.title + " " + event.currency + " economic event")}`} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="opacity-0 group-hover/link:opacity-100 transition-opacity p-1 hover:bg-slate-800 rounded"
+                          className="p-1.5 hover:bg-slate-800 rounded transition-colors bg-slate-900/50 border border-slate-700 hover:border-emerald-500/50"
                           title="View Event Details"
                       >
                           <ExternalLink className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
