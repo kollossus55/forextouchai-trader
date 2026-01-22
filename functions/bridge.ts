@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
                                         }
                                     }
 
-                                    const tradeData = {
+                                    tradesToCreate.push({
                                         pair: String(t.symbol || "UNKNOWN"),
                                         type: String(t.type || "BUY"),
                                         lot_size: Number(t.lots) || 0.01,
@@ -220,15 +220,9 @@ Deno.serve(async (req) => {
                                         ticket: ticket,
                                         status: 'OPEN',
                                         is_auto: Boolean(t.magic !== 0),
-                                        bot_id: botId
-                                    };
-                                    
-                                    // Set created_by to connection owner for RLS visibility
-                                    if (ownerEmail) {
-                                        tradeData.created_by = ownerEmail;
-                                    }
-                                    
-                                    tradesToCreate.push(tradeData);
+                                        bot_id: botId,
+                                        owner_email: ownerEmail
+                                    });
                                 }
                             }
 
