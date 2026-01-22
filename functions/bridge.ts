@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
                                         }
                                     }
 
-                                    tradesToCreate.push({
+                                    const tradeData = {
                                         pair: String(t.symbol || "UNKNOWN"),
                                         type: String(t.type || "BUY"),
                                         lot_size: Number(t.lots) || 0.01,
@@ -221,52 +221,40 @@ Deno.serve(async (req) => {
                                         status: 'OPEN',
                                         is_auto: Boolean(t.magic !== 0),
                                         bot_id: botId
-                                    });
+                                    };
+                                    
+                                    // Set created_by to connection owner for RLS visibility
+                                    if (ownerEmail) {
+                                        tradeData.created_by = ownerEmail;
+                                    }
+                                    
+                                    tradesToCreate.push(tradeData);
                                 }
                             }
 
                             const tradesToUpdate = openDbTrades.filter(t => t._needsUpdate);
                             if (tradesToUpdate.length > 0) {
-                                const updatePromises = ownerEmail 
-                                    ? tradesToUpdate.slice(0, 20).map(t => 
-                                        withRetry(() => base44.asServiceRole.impersonate(ownerEmail).entities.Trade.update(t.id, t._needsUpdate), 1)
-                                            .catch(e => console.error(`Update ${t.ticket}:`, e.message))
-                                    )
-                                    : tradesToUpdate.slice(0, 20).map(t => 
-                                        withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, t._needsUpdate), 1)
-                                            .catch(e => console.error(`Update ${t.ticket}:`, e.message))
-                                    );
-                                await Promise.all(updatePromises);
+                                await Promise.all(tradesToUpdate.slice(0, 20).map(t => 
+                                    withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, t._needsUpdate), 1)
+                                        .catch(e => console.error(`Update ${t.ticket}:`, e.message))
+                                ));
                             }
 
                             if (tradesToCreate.length > 0) {
                                 console.log(`[POST] Creating ${tradesToCreate.length} trades with owner: ${ownerEmail}`);
-                                // Use impersonation to create trades as the connection owner
-                                if (ownerEmail) {
-                                    await withRetry(() => base44.asServiceRole.impersonate(ownerEmail).entities.Trade.bulkCreate(tradesToCreate), 2);
-                                } else {
-                                    await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2);
-                                }
+                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2);
                                 console.log(`[POST] ✓ Created ${tradesToCreate.length} new trades`);
                             }
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
                             if (closedTrades.length > 0) {
                                 console.log(`[POST] Marking ${closedTrades.length} trades as CLOSED: ${closedTrades.map(t => t.ticket).join(', ')}`);
-                                const closePromises = ownerEmail
-                                    ? closedTrades.slice(0, 20).map(t =>
-                                        withRetry(() => base44.asServiceRole.impersonate(ownerEmail).entities.Trade.update(t.id, {
-                                            status: 'CLOSED',
-                                            updated_date: new Date().toISOString()
-                                        }), 1).catch(e => console.error(`Close ticket ${t.ticket} failed:`, e.message))
-                                    )
-                                    : closedTrades.slice(0, 20).map(t =>
-                                        withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
-                                            status: 'CLOSED',
-                                            updated_date: new Date().toISOString()
-                                        }), 1).catch(e => console.error(`Close ticket ${t.ticket} failed:`, e.message))
-                                    );
-                                await Promise.all(closePromises);
+                                await Promise.all(closedTrades.slice(0, 20).map(t =>
+                                    withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
+                                        status: 'CLOSED',
+                                        updated_date: new Date().toISOString()
+                                    }), 1).catch(e => console.error(`Close ticket ${t.ticket} failed:`, e.message))
+                                ));
                             }
                             console.log(`[POST] ✓ Trade sync complete`);
                         } catch (err) {
