@@ -755,17 +755,17 @@ export default function Overview() {
               <div className="divide-y divide-slate-800">
                 {events.map((event, i) => (
                   <div key={i} className={`p-4 hover:bg-slate-800/30 transition-colors border-l-4 ${
-                    event.impact === 'HIGH' ? 'border-l-red-500' :
-                    event.impact === 'MEDIUM' ? 'border-l-yellow-500' :
-                    'border-l-blue-500'
+                    event.impact === 'HIGH' ? 'border-l-red-500 bg-red-500/5' :
+                    event.impact === 'MEDIUM' ? 'border-l-yellow-500 bg-yellow-500/5' :
+                    'border-l-blue-500 bg-blue-500/5'
                   }`}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">{event.time}</span>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                          event.impact === 'HIGH' ? 'border-red-500/50 text-red-300 bg-red-500/20' :
-                          event.impact === 'MEDIUM' ? 'border-yellow-500/50 text-yellow-300 bg-yellow-500/20' :
-                          'border-blue-500/50 text-blue-300 bg-blue-500/20'
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded ${
+                          event.impact === 'HIGH' ? 'bg-red-500 text-white' :
+                          event.impact === 'MEDIUM' ? 'bg-yellow-500 text-slate-900' :
+                          'bg-blue-500 text-white'
                         }`}>
                           {event.impact}
                         </span>
