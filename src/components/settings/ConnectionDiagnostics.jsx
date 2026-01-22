@@ -28,21 +28,22 @@ export default function ConnectionDiagnostics() {
   const timeSinceSync = lastSyncTime ? Date.now() - lastSyncTime.getTime() : null;
   const syncStatus = timeSinceSync && timeSinceSync < 15000 ? 'HEALTHY' : 'STALE';
 
-  // Test connection to bridge endpoint
+  // Test connection to bridge endpoint - directly fetch diagnostics URL
   const testConnection = async () => {
     setIsTestingConnection(true);
     try {
-      const response = await base44.functions.invoke('bridge');
+      const response = await fetch('/functions/bridge', { method: 'OPTIONS' });
+      const data = await response.json();
       
-      if (response.data) {
-        setDiagnostics(response.data);
+      if (data) {
+        setDiagnostics(data);
         toast.success('Connection test successful', {
-          description: `Bridge endpoint is reachable and functioning`
+          description: `Latency: ${data.average_latency_ms}ms, Success Rate: ${data.success_rate}`
         });
       }
     } catch (error) {
       toast.error('Connection test failed', {
-        description: error.response?.data?.error || error.message || 'Unable to reach bridge endpoint'
+        description: error.message || 'Unable to reach bridge endpoint'
       });
       setDiagnostics({ error: error.message });
     } finally {
