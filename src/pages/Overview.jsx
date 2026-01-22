@@ -95,7 +95,7 @@ export default function Overview() {
     }
   }, [activeConnection]);
 
-  const { data: trades } = useQuery({
+  const { data: trades, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home'],
     queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 10),
     refetchInterval: 10000, // Refresh every 10s
@@ -646,14 +646,9 @@ export default function Overview() {
                   onClick={async () => {
                     const toastId = toast.loading('Syncing with MT4...');
                     try {
-                      await queryClient.invalidateQueries({ queryKey: ['trades-home'] });
-                      await queryClient.invalidateQueries({ queryKey: ['broker-connections'] });
-                      
-                      // Wait a moment for the refetch
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      
-                      const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' });
-                      toast.success(`Synced - ${freshTrades.length} open trades`, { id: toastId });
+                      const result = await refetchTrades();
+                      const count = result.data?.length || 0;
+                      toast.success(`Synced - ${count} open trades`, { id: toastId });
                     } catch (e) {
                       console.error('Sync error:', e);
                       toast.error('Sync failed: ' + e.message, { id: toastId });
