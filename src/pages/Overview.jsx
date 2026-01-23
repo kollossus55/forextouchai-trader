@@ -80,8 +80,14 @@ export default function Overview() {
 
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
-    queryFn: () => base44.entities.BrokerConnection.list(),
+    queryFn: async () => {
+      const conns = await base44.entities.BrokerConnection.list('-updated_date');
+      console.log('[Overview] Fetched connections:', conns.map(c => ({balance: c.balance, equity: c.equity})));
+      return conns;
+    },
     refetchInterval: 5000, // Poll every 5s
+    staleTime: 0, // Always refetch
+    cacheTime: 0, // No cache
     initialData: []
   });
 
