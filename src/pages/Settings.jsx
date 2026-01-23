@@ -985,101 +985,103 @@ export default function Settings() {
         <TabsContent value="trading" className="mt-6 space-y-6">
           <ConnectionDiagnostics />
           
-          {/* All Active Connections Display */}
+          {/* All Active Connections Display - Separate Panels */}
           {allConnections.length > 0 && (
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-emerald-400" /> Active MT4/MT5 Connections ({allConnections.length})
-                </CardTitle>
-                <CardDescription className="text-slate-400">All connected broker accounts - Real-time monitoring</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {allConnections.map((conn, idx) => {
-                    const lastSync = conn.last_sync ? new Date(conn.last_sync).getTime() : 0;
-                    const now = new Date().getTime();
-                    const timeSinceSync = lastSync > 0 ? now - lastSync : 999999999;
-                    const isStale = timeSinceSync > 30000;
-                    const isConnected = !isStale && conn.connection_status === 'CONNECTED';
-                    
-                    return (
-                      <div key={conn.id} className={`p-4 rounded-lg border ${isConnected ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-rose-500/5 border-rose-500/30'}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-                              <div>
-                                <p className="text-sm font-medium text-white">{conn.platform || 'MT4'} - {conn.account_number}</p>
-                                <p className="text-xs text-slate-500">{conn.server_name}</p>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 ml-5">
-                              <div>
-                                <p className="text-[10px] text-slate-500">Balance</p>
-                                <p className="text-sm font-medium text-slate-200">${conn.balance?.toFixed(2) || '0.00'}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">Equity</p>
-                                <p className="text-sm font-medium text-slate-200">${conn.equity?.toFixed(2) || '0.00'}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">DB Status</p>
-                                <p className="text-xs font-mono text-slate-300">{conn.connection_status}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">Last Sync</p>
-                                <p className={`text-xs font-mono ${timeSinceSync > 30000 ? 'text-rose-400' : timeSinceSync > 15000 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                  {lastSync > 0 ? `${Math.floor(timeSinceSync / 1000)}s ago` : 'Never'}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500">Health</p>
-                                <Badge variant="outline" className={`text-xs ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'}`}>
-                                  {isConnected ? '✓ ONLINE' : isStale ? '✕ STALE' : '✕ OFFLINE'}
-                                </Badge>
-                              </div>
-                            </div>
-                            
-                            {/* Debug Info */}
-                            <details className="ml-5 mt-2">
-                              <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-400">Debug Info</summary>
-                              <div className="mt-2 p-2 bg-slate-950 rounded border border-slate-800 text-[10px] font-mono text-slate-400 space-y-1">
-                                <div>Connection ID: {conn.id}</div>
-                                <div>Last Sync Raw: {conn.last_sync || 'NULL'}</div>
-                                <div>Time Since Sync: {Math.floor(timeSinceSync / 1000)}s ({timeSinceSync}ms)</div>
-                                <div>Is Stale: {isStale ? 'YES (>30s)' : 'NO'}</div>
-                                <div>Status Flag: {conn.connection_status}</div>
-                                <div>Created: {new Date(conn.created_date).toLocaleString()}</div>
-                                <div>Updated: {new Date(conn.updated_date).toLocaleString()}</div>
-                              </div>
-                            </details>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Activity className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-xl font-bold text-white">Connected Trading Platforms ({allConnections.length})</h2>
+              </div>
+              
+              {allConnections.map((conn, idx) => {
+                const lastSync = conn.last_sync ? new Date(conn.last_sync).getTime() : 0;
+                const now = new Date().getTime();
+                const timeSinceSync = lastSync > 0 ? now - lastSync : 999999999;
+                const isStale = timeSinceSync > 30000;
+                const isConnected = !isStale && conn.connection_status === 'CONNECTED';
+                
+                return (
+                  <Card key={conn.id} className={`bg-slate-900/50 border-2 ${isConnected ? 'border-emerald-500/40' : 'border-rose-500/40'}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                          <div>
+                            <CardTitle className="text-white text-lg">
+                              {conn.platform || 'MT4'} - Account {conn.account_number}
+                            </CardTitle>
+                            <CardDescription className="text-slate-400">{conn.server_name}</CardDescription>
                           </div>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              if (!window.confirm(`Delete connection ${conn.account_number}?`)) return;
-                              try {
-                                await base44.entities.BrokerConnection.delete(conn.id);
-                                toast.success("Connection deleted");
-                                const updated = await base44.entities.BrokerConnection.list('-updated_date');
-                                setAllConnections(updated);
-                              } catch (e) {
-                                toast.error("Failed to delete: " + e.message);
-                              }
-                            }}
-                            className="bg-rose-600 hover:bg-rose-700"
-                          >
-                            Delete
-                          </Button>
+                        </div>
+                        <Badge variant="outline" className={`text-sm px-3 py-1 ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'}`}>
+                          {isConnected ? '✓ ONLINE' : isStale ? '✕ STALE' : '✕ OFFLINE'}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500 mb-1">Balance</p>
+                          <p className="text-2xl font-bold text-white">${conn.balance?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500 mb-1">Equity</p>
+                          <p className="text-2xl font-bold text-emerald-400">${conn.equity?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500 mb-1">Margin</p>
+                          <p className="text-lg font-semibold text-slate-300">${conn.margin?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500 mb-1">Free Margin</p>
+                          <p className="text-lg font-semibold text-slate-300">${conn.free_margin?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500 mb-1">Last Sync</p>
+                          <p className={`text-sm font-mono ${timeSinceSync > 30000 ? 'text-rose-400' : timeSinceSync > 15000 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {lastSync > 0 ? `${Math.floor(timeSinceSync / 1000)}s ago` : 'Never'}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                      
+                      {/* Debug Info */}
+                      <details className="mt-2">
+                        <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400">Connection Diagnostics</summary>
+                        <div className="mt-3 p-3 bg-slate-950 rounded border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
+                          <div>Connection ID: {conn.id}</div>
+                          <div>Status: {conn.connection_status}</div>
+                          <div>Last Sync: {conn.last_sync || 'NULL'}</div>
+                          <div>Time Since Sync: {Math.floor(timeSinceSync / 1000)}s ({timeSinceSync}ms)</div>
+                          <div>Is Stale: {isStale ? 'YES (>30s)' : 'NO'}</div>
+                          <div>Created: {new Date(conn.created_date).toLocaleString()}</div>
+                          <div>Updated: {new Date(conn.updated_date).toLocaleString()}</div>
+                        </div>
+                      </details>
+                    </CardContent>
+                    <CardFooter className="flex justify-end pt-0">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={async () => {
+                          if (!window.confirm(`Delete connection for account ${conn.account_number}?`)) return;
+                          try {
+                            await base44.entities.BrokerConnection.delete(conn.id);
+                            toast.success("Connection deleted");
+                            const updated = await base44.entities.BrokerConnection.list('-updated_date');
+                            setAllConnections(updated);
+                          } catch (e) {
+                            toast.error("Failed to delete: " + e.message);
+                          }
+                        }}
+                        className="bg-rose-600 hover:bg-rose-700"
+                      >
+                        Delete Connection
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
           )}
 
           <Card className="bg-slate-900/50 border-slate-800">
