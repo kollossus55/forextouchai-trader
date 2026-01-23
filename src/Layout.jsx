@@ -51,11 +51,15 @@ export default function Layout({ children }) {
 
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
-    queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 5000, // Poll every 5 seconds
+    queryFn: async () => {
+      const data = await base44.entities.BrokerConnection.list();
+      console.log('[Layout] Fresh connection data:', data);
+      return data;
+    },
+    refetchInterval: 5000,
     refetchIntervalInBackground: true,
-    staleTime: 0, // Always refetch (no stale cache)
-    cacheTime: 0, // Don't cache results
+    staleTime: 0,
+    cacheTime: 0,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
     initialData: []
