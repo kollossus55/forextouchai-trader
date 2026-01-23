@@ -650,7 +650,10 @@ export default function Settings() {
       string BuildJson() {
          string j = "{\\"account\\":{" + 
             "\\"balance\\":" + DoubleToString(AccountBalance(), 2) + "," +
-            "\\"equity\\":" + DoubleToString(AccountEquity(), 2) + 
+            "\\"equity\\":" + DoubleToString(AccountEquity(), 2) + "," +
+            "\\"margin\\":" + DoubleToString(AccountMargin(), 2) + "," +
+            "\\"free_margin\\":" + DoubleToString(AccountFreeMargin(), 2) + "," +
+            "\\"margin_level\\":" + DoubleToString(AccountMargin() > 0 ? (AccountEquity() / AccountMargin() * 100) : 0, 2) + 
             "}, \\"trades\\":[";
             
          int count = 0;

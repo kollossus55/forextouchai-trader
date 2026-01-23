@@ -110,20 +110,25 @@ Deno.serve(async (req) => {
             try {
                 const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
                 
+                // Build update object - ONLY update fields that are present in account data
                 const updateData = {
                     connection_status: 'CONNECTED',
-                    last_sync: new Date().toISOString(),
-                    balance: account ? Number(account.balance) || 0 : (connections[0]?.balance || 0),
-                    equity: account ? Number(account.equity) || 0 : (connections[0]?.equity || 0),
-                    margin: account ? Number(account.margin) || 0 : (connections[0]?.margin || 0),
-                    free_margin: account ? Number(account.free_margin) || 0 : (connections[0]?.free_margin || 0),
-                    margin_level: account ? Number(account.margin_level) || 0 : (connections[0]?.margin_level || 0)
+                    last_sync: new Date().toISOString()
                 };
+                
+                // Add account fields if present
+                if (account) {
+                    if (account.balance !== undefined) updateData.balance = Number(account.balance) || 0;
+                    if (account.equity !== undefined) updateData.equity = Number(account.equity) || 0;
+                    if (account.margin !== undefined) updateData.margin = Number(account.margin) || 0;
+                    if (account.free_margin !== undefined) updateData.free_margin = Number(account.free_margin) || 0;
+                    if (account.margin_level !== undefined) updateData.margin_level = Number(account.margin_level) || 0;
+                }
                 
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
                     heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Updated balance: ${updateData.balance}, equity: ${updateData.equity}`);
+                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Updated: balance=${updateData.balance}, equity=${updateData.equity}, margin=${updateData.margin}`);
                 } else if (account) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                         platform: account.platform || 'MT4',
