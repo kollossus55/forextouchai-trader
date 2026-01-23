@@ -293,7 +293,7 @@ export default function Layout({ children }) {
             <div className="flex items-center">
               <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
               <span>MT4/MT5: <span className={`font-medium ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {isConnected ? `${activeConnectionCount} Connected` : 'Disconnected'}
+                {isConnected ? (activeConnectionCount > 1 ? `${activeConnectionCount} Accounts Connected` : '1 Account Connected') : 'Disconnected'}
               </span></span>
             </div>
             <div className="flex items-center">
