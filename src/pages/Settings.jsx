@@ -658,6 +658,9 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       string BuildJson() {
          string j = "{\\"account\\":{" + 
+            "\\"account_number\\":\\"" + IntegerToString(AccountNumber()) + "\\"," +
+            "\\"server_name\\":\\"" + AccountServer() + "\\"," +
+            "\\"platform\\":\\"MT4\\"," +
             "\\"balance\\":" + DoubleToString(AccountBalance(), 2) + "," +
             "\\"equity\\":" + DoubleToString(AccountEquity(), 2) + "," +
             "\\"margin\\":" + DoubleToString(AccountMargin(), 2) + "," +
