@@ -14,18 +14,17 @@ Deno.serve(async (req) => {
         let count = 0;
         
         if (target === 'trades' || target === 'all') {
-            // Fetch all trades (pagination loop might be needed for very large sets, simplified here)
-            const trades = await base44.entities.Trade.list(null, 100); 
-            // In a real scenario we'd loop until empty, but 100 is good for a simple reset
+            // Use service role to delete all trades regardless of ownership
+            const trades = await base44.asServiceRole.entities.Trade.list(null, 100); 
             
-            // Delete in parallel
-            await Promise.all(trades.map(t => base44.entities.Trade.delete(t.id)));
+            // Delete in parallel using service role
+            await Promise.all(trades.map(t => base44.asServiceRole.entities.Trade.delete(t.id)));
             count += trades.length;
         }
 
         if (target === 'signals' || target === 'all') {
-             const signals = await base44.entities.Signal.list(null, 100);
-             await Promise.all(signals.map(s => base44.entities.Signal.delete(s.id)));
+             const signals = await base44.asServiceRole.entities.Signal.list(null, 100);
+             await Promise.all(signals.map(s => base44.asServiceRole.entities.Signal.delete(s.id)));
              count += signals.length;
         }
 
