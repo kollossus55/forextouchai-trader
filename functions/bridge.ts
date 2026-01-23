@@ -104,12 +104,23 @@ Deno.serve(async (req) => {
             const timestamp = new Date().toISOString();
             console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
             if (account) {
-                console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}`);
+                console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}, account_number=${account.account_number}`);
+            }
 
             // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
             let heartbeatSuccess = false;
             try {
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
+                // Find connection by account_number if provided, otherwise fallback to first
+                const accountNumber = account?.account_number ? String(account.account_number) : null;
+
+                let connections;
+                if (accountNumber) {
+                    connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ 
+                        account_number: accountNumber 
+                    }), 3);
+                } else {
+                    connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
+                }
                 
                 // Build update object - ONLY update fields that are present in account data
                 const updateData = {
@@ -129,16 +140,17 @@ Deno.serve(async (req) => {
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
                     heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Updated: balance=${updateData.balance}, equity=${updateData.equity}, margin=${updateData.margin}`);
-                } else if (account) {
+                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Account ${accountNumber} - Updated: balance=${updateData.balance}, equity=${updateData.equity}, margin=${updateData.margin}`);
+                } else if (account && accountNumber) {
+                    // Create new connection for this account
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                         platform: account.platform || 'MT4',
                         server_name: account.server_name || 'MT4 Server',
-                        account_number: String(account.account_number || 'Unknown'),
+                        account_number: accountNumber,
                         ...updateData
                     }), 3);
                     heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Connection created`);
+                    console.log(`[POST] ✓ Connection created for account ${accountNumber}`);
                 }
                 
                 updateHealth(true);
