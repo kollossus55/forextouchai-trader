@@ -1,15 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-// Faster retry with minimal delays
-const withRetry = async (fn, retries = 2, delay = 100) => {
+// Aggressive retry with exponential backoff for connection resilience
+const withRetry = async (fn, retries = 3, baseDelay = 150) => {
     for (let i = 0; i < retries; i++) {
         try {
             return await fn();
         } catch (error) {
             if (i === retries - 1) throw error;
             const msg = error.message?.toLowerCase() || "";
-            const shouldRetry = msg.includes('fetch') || msg.includes('network') || msg.includes('timeout');
+            const shouldRetry = msg.includes('fetch') || msg.includes('network') || msg.includes('timeout') || msg.includes('500') || msg.includes('502') || msg.includes('503');
             if (shouldRetry) {
+                // Exponential backoff: 150ms, 300ms, 600ms
+                const delay = baseDelay * Math.pow(2, i);
                 await new Promise(r => setTimeout(r, delay));
             } else {
                 throw error;
@@ -101,10 +103,10 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             console.log(`[POST] Received ${trades?.length || 0} trades, ${account ? 'account data' : 'no account'}`);
 
-            // CRITICAL: Update heartbeat IMMEDIATELY
+            // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
             let heartbeatSuccess = false;
             try {
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1);
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
                 
                 const updateData = {
                     connection_status: 'CONNECTED',
@@ -117,7 +119,7 @@ Deno.serve(async (req) => {
                 };
                 
                 if (connections.length > 0) {
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 1);
+                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
                     heartbeatSuccess = true;
                     console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms`);
                 } else if (account) {
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
                         server_name: account.server_name || 'MT4 Server',
                         account_number: String(account.account_number || 'Unknown'),
                         ...updateData
-                    }), 1);
+                    }), 3);
                     heartbeatSuccess = true;
                     console.log(`[POST] ✓ Connection created`);
                 }
@@ -264,13 +266,13 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'HEAD') {
             try {
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2, 200);
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
                 
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
                         connection_status: 'CONNECTED',
                         last_sync: new Date().toISOString()
-                    }), 2, 200);
+                    }), 3);
                     updateHealth(true, Date.now() - startTime);
                     } else {
                     console.warn("[HEAD] No connection found");
@@ -314,12 +316,12 @@ Deno.serve(async (req) => {
             try {
                 // Quick heartbeat update
                 try {
-                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2, 200);
+                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
                     if (connections.length > 0) {
                         await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
                             connection_status: 'CONNECTED',
                             last_sync: new Date().toISOString()
-                        }), 2, 200);
+                        }), 3);
                         updateHealth(true, Date.now() - startTime);
                         }
                         } catch (heartbeatErr) {

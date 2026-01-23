@@ -71,8 +71,8 @@ export default function Layout({ children }) {
     const now = new Date().getTime();
     const timeSinceSync = now - lastSync;
 
-    // EA syncs every 5s - allow 20s buffer for tolerance (4 missed syncs + network recovery time)
-    const isStale = timeSinceSync > 20000;
+    // EA syncs every 5s - allow 30s buffer for tolerance (6 missed syncs + network recovery time)
+    const isStale = timeSinceSync > 30000;
 
     // Connection is healthy if:
     // 1. Last sync is recent (not stale) - PRIMARY check
