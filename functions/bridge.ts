@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
             
             const { trades, account } = body;
             console.log(`[POST] Received ${trades?.length || 0} trades, ${account ? 'account data' : 'no account'}`);
+            if (account) {
+                console.log(`[POST] Account data: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}`);
 
             // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
             let heartbeatSuccess = false;
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
                     heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms`);
+                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Updated balance: ${updateData.balance}, equity: ${updateData.equity}`);
                 } else if (account) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
                         platform: account.platform || 'MT4',
