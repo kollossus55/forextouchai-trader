@@ -101,9 +101,10 @@ Deno.serve(async (req) => {
             }
             
             const { trades, account } = body;
-            console.log(`[POST] Received ${trades?.length || 0} trades, ${account ? 'account data' : 'no account'}`);
+            const timestamp = new Date().toISOString();
+            console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
             if (account) {
-                console.log(`[POST] Account data RECEIVED: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}`);
+                console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}`);
 
             // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
             let heartbeatSuccess = false;
@@ -350,9 +351,11 @@ Deno.serve(async (req) => {
 
                 // Fetch signal
                 const signals = await withRetry(() => base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, 'created_date', 1), 2, 200);
+                console.log(`[GET ${new Date().toISOString()}] 🔍 EA CHECKING SIGNALS - Found ${signals?.length || 0} PENDING`);
 
                 if (signals && signals.length > 0) {
                     const signal = signals[0];
+                    console.log(`[GET] 📊 SIGNAL FOUND: ${signal.pair} ${signal.type} | Bot: ${signal.bot_id || 'MANUAL'} | Entry: ${signal.entry_price}`);
                     
                     // CRITICAL: For CLOSE signals, verify the ticket still exists in database as OPEN
                     if (signal.type === 'CLOSE' || signal.action === 'CLOSE_TRADE') {
@@ -392,15 +395,26 @@ Deno.serve(async (req) => {
                         try {
                             const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list(), 2);
                             const matchingBot = allBots.find(b => b.id === signal.bot_id);
+                            console.log(`[GET] 🤖 BOT CHECK: Found bot=${matchingBot?.name || 'NOT FOUND'} | Status=${matchingBot?.status || 'N/A'}`);
 
-                            if (matchingBot && matchingBot.status !== 'RUNNING') {
-                                console.log(`[GET] Bot ${matchingBot.name} not running, skipping signal`);
+                            if (!matchingBot) {
+                                console.log(`[GET] ❌ Bot ID ${signal.bot_id} not found in database, skipping signal`);
+                                await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
+                                    status: 'SKIPPED',
+                                    result_pnl: 0 
+                                }), 2);
+                                return Response.json({ status: "NO_SIGNAL", reason: "BOT_NOT_FOUND" });
+                            }
+
+                            if (matchingBot.status !== 'RUNNING') {
+                                console.log(`[GET] ❌ Bot ${matchingBot.name} is ${matchingBot.status}, not RUNNING - skipping signal`);
                                 await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
                                     status: 'SKIPPED',
                                     result_pnl: 0 
                                 }), 2);
                                 return Response.json({ status: "NO_SIGNAL", reason: "BOT_NOT_RUNNING" });
                             }
+                            console.log(`[GET] ✓ Bot ${matchingBot.name} is RUNNING, proceeding...`);
 
                             if (matchingBot?.max_open_trades) {
                                 const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
@@ -442,13 +456,16 @@ Deno.serve(async (req) => {
                         }
                     }
 
-                    console.log(`[GET] ✓ Returning signal ${signal.id} (${signal.pair}) Comment: ${botComment}`);
+                    console.log(`[GET] ✅ SENDING SIGNAL TO MT4: ${signal.id} | ${signal.pair} ${signal.type} @ ${signal.entry_price} | Lot: ${signal.lot_size} | Comment: ${botComment}`);
                     return Response.json({
                         ...signal,
+                        status: "PENDING",
+                        id: signal.id,
                         magic: signal.bot_id || 0,
                         comment: botComment
                     });
                 }
+                console.log(`[GET] ℹ️ No pending signals available`);
                 return Response.json({ status: "NO_SIGNAL", id: "" });
 
             } catch (err) {
