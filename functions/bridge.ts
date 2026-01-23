@@ -141,16 +141,22 @@ Deno.serve(async (req) => {
 
             // Process trades asynchronously (don't block response)
             if (trades && Array.isArray(trades) && trades.length > 0) {
-                // Fire and forget - process trades in background with timeout
+                // Fire and forget - process trades in background with timeout and error isolation
                 Promise.race([
                     (async () => {
                         try {
-                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1);
+                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1).catch(e => {
+                                console.error('[POST] Connection list failed:', e.message);
+                                return [];
+                            });
                             const ownerEmail = connections[0]?.created_by || null;
-                            
-                            const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 1);
+
+                            const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 1).catch(e => {
+                                console.error('[POST] Trade filter failed:', e.message);
+                                return [];
+                            });
                             const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
-                            
+
                             const tradesToCreate = [];
                             const incomingTickets = new Set();
 
@@ -212,14 +218,16 @@ Deno.serve(async (req) => {
 
                             if (tradesToCreate.length > 0) {
                                 console.log(`[POST] Creating ${tradesToCreate.length} trades`);
-                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1);
+                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1).catch(e => {
+                                    console.error(`[POST] Bulk create failed:`, e.message);
+                                });
                                 console.log(`[POST] ✓ Created ${tradesToCreate.length} trades`);
                             }
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
                             if (closedTrades.length > 0) {
                                 console.log(`[POST] Marking ${closedTrades.length} trades as CLOSED: ${closedTrades.map(t => t.ticket).join(', ')}`);
-                                await Promise.all(closedTrades.slice(0, 20).map(t =>
+                                await Promise.allSettled(closedTrades.slice(0, 20).map(t =>
                                     withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
                                         status: 'CLOSED',
                                         updated_date: new Date().toISOString()
@@ -227,13 +235,16 @@ Deno.serve(async (req) => {
                                 ));
                             }
                             console.log(`[POST] ✓ Trade sync complete`);
-                        } catch (err) {
-                            console.error("[POST ERROR] Trade sync:", err.message);
-                        }
-                    })(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
-                ]).catch(e => console.error("[POST] Trade sync timeout:", e.message));
-            }
+                            } catch (err) {
+                            console.error("[POST ERROR] Trade sync fatal:", err.message, err.stack?.slice(0, 200));
+                            }
+                            })(),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+                            ]).catch(e => {
+                            // Silent fail - don't let background process crash the function
+                            console.error("[POST] Trade sync error (isolated):", e.message);
+                            });
+                            }
 
             // Return immediately to prevent EA timeout
             const duration = Date.now() - startTime;
@@ -464,9 +475,11 @@ Deno.serve(async (req) => {
     } catch (error) {
         console.error(`[${method} FATAL ERROR]:`, error.message);
         console.error("Stack:", error.stack?.slice(0, 300));
+
+        // Return minimal error to prevent leaking internals
         return Response.json({ 
-            error: error.message,
-            method: method,
+            status: "ERROR",
+            message: "Bridge error",
             timestamp: new Date().toISOString()
         }, { status: 500 });
     }
