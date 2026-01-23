@@ -108,6 +108,9 @@ export default function Settings() {
 
           // IMMEDIATE alert on disconnection (only if ALL connections lost)
           if (newStatus === 'DISCONNECTED' && wasConnected) {
+            const oldestConn = connections[connections.length - 1];
+            const lastSyncTime = oldestConn?.last_sync ? new Date(oldestConn.last_sync) : null;
+            
             toast.error("MT4/MT5 Connection Lost", {
               description: "Platform has disconnected. Check your EA and internet connection.",
               duration: 10000
@@ -117,13 +120,13 @@ export default function Settings() {
             const lastEmailAlert = sessionStorage.getItem('lastEmailAlert');
             const shouldSendEmail = !lastEmailAlert;
 
-            if (shouldSendEmail) {
+            if (shouldSendEmail && user?.email) {
               sessionStorage.setItem('lastEmailAlert', Date.now().toString());
               try {
                 await base44.integrations.Core.SendEmail({
-                  to: user?.email || 'trader@example.com',
+                  to: user.email,
                   subject: 'ALERT: MT4/MT5 Platform Disconnected',
-                  body: `Your trading platform has lost connection. Last sync: ${new Date(lastSync).toLocaleString()}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
+                  body: `Your trading platform has lost connection. Last sync: ${lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
                 });
 
                 // Create in-app alert
@@ -157,13 +160,16 @@ export default function Settings() {
                 });
 
                 // Send email reminder every 5 minutes
-                if (shouldSendEmail) {
+                if (shouldSendEmail && user?.email) {
                   sessionStorage.setItem('lastEmailAlert', Date.now().toString());
+                  const oldestConn = connections[connections.length - 1];
+                  const lastSyncTime = oldestConn?.last_sync ? new Date(oldestConn.last_sync) : null;
+                  
                   try {
                     await base44.integrations.Core.SendEmail({
-                      to: user?.email || 'trader@example.com',
+                      to: user.email,
                       subject: 'REMINDER: MT4/MT5 Still Disconnected',
-                      body: `Your trading platform has been offline for ${minutesDisconnected} minutes.\n\nLast sync: ${new Date(lastSync).toLocaleString()}`
+                      body: `Your trading platform has been offline for ${minutesDisconnected} minutes.\n\nLast sync: ${lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'}`
                     });
                   } catch (e) {
                     console.error("Failed to send reminder:", e);
@@ -182,7 +188,7 @@ export default function Settings() {
     };
 
     fetchConnection();
-    const interval = setInterval(fetchConnection, 2000); // Faster polling: every 2 seconds
+    const interval = setInterval(fetchConnection, 5000); // Poll every 5 seconds (reduced rate)
     return () => clearInterval(interval);
   }, [connectionId, user, connectionStatus]);
 

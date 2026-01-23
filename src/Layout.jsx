@@ -52,10 +52,10 @@ export default function Layout({ children }) {
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    refetchInterval: 2000, // Faster polling: every 2 seconds
+    refetchInterval: 5000, // Poll every 5 seconds (reduced to avoid rate limits)
     refetchIntervalInBackground: true, // Keep polling even when tab is inactive
-    staleTime: 1000, // Consider data stale after 1s
-    retry: 3, // Retry failed requests
+    staleTime: 2000, // Consider data stale after 2s
+    retry: 2, // Retry failed requests (reduced from 3)
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
     initialData: []
   });
