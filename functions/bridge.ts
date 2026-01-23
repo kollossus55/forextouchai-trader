@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             console.log(`[POST] Received ${trades?.length || 0} trades, ${account ? 'account data' : 'no account'}`);
             if (account) {
-                console.log(`[POST] Account data: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}`);
+                console.log(`[POST] Account data RECEIVED: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}`);
 
             // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
             let heartbeatSuccess = false;

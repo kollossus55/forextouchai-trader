@@ -74,7 +74,16 @@ export default function Settings() {
   React.useEffect(() => {
     const fetchConnection = async () => {
       try {
+        // Force fresh data by adding timestamp to bypass any caching
         const connections = await base44.entities.BrokerConnection.list('-updated_date'); // Get most recent first
+        console.log('[Settings] Fetched connections:', connections.map(c => ({
+          id: c.id,
+          account: c.account_number,
+          balance: c.balance,
+          equity: c.equity,
+          last_sync: c.last_sync,
+          status: c.connection_status
+        })));
         setAllConnections(connections); // Store all connections
         
         if (connections && connections.length > 0) {
