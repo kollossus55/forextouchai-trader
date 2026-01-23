@@ -67,11 +67,16 @@ export default function Settings() {
     fetchUser();
   }, []);
 
+  // Connection list state
+  const [allConnections, setAllConnections] = React.useState([]);
+
   // Enhanced connection monitoring with improved staleness detection
   React.useEffect(() => {
     const fetchConnection = async () => {
       try {
         const connections = await base44.entities.BrokerConnection.list();
+        setAllConnections(connections); // Store all connections
+        
         if (connections && connections.length > 0) {
           const conn = connections[0];
           setConnectionId(conn.id);
@@ -967,14 +972,72 @@ export default function Settings() {
         <TabsContent value="trading" className="mt-6 space-y-6">
           <ConnectionDiagnostics />
           
+          {/* All Active Connections Display */}
+          {allConnections.length > 0 && (
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-400" /> Active MT4/MT5 Connections ({allConnections.length})
+                </CardTitle>
+                <CardDescription className="text-slate-400">All connected broker accounts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {allConnections.map((conn, idx) => {
+                    const lastSync = new Date(conn.last_sync).getTime();
+                    const now = new Date().getTime();
+                    const timeSinceSync = now - lastSync;
+                    const isStale = timeSinceSync > 30000;
+                    const isConnected = !isStale && conn.connection_status === 'CONNECTED';
+                    
+                    return (
+                      <div key={conn.id} className={`p-4 rounded-lg border ${isConnected ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-slate-950/50 border-slate-800'}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                              <div>
+                                <p className="text-sm font-medium text-white">{conn.platform || 'MT4'} - {conn.account_number}</p>
+                                <p className="text-xs text-slate-500">{conn.server_name}</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3 ml-5">
+                              <div>
+                                <p className="text-[10px] text-slate-500">Balance</p>
+                                <p className="text-sm font-medium text-slate-200">${conn.balance?.toFixed(2) || '0.00'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500">Equity</p>
+                                <p className="text-sm font-medium text-slate-200">${conn.equity?.toFixed(2) || '0.00'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500">Last Sync</p>
+                                <p className="text-xs text-slate-400">{Math.floor(timeSinceSync / 1000)}s ago</p>
+                              </div>
+                              <div>
+                                <Badge variant="outline" className={`text-xs ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400'}`}>
+                                  {isConnected ? 'ONLINE' : 'OFFLINE'}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <div className="flex justify-between items-start">
                   <div>
                       <CardTitle className="text-white flex items-center gap-2">
-                      <Globe className="w-5 h-5 text-emerald-400" /> MT4/MT5 Connection
+                      <Globe className="w-5 h-5 text-emerald-400" /> Add MT4/MT5 Connection
                       </CardTitle>
-                      <CardDescription className="text-slate-400">Connect your broker account securely</CardDescription>
+                      <CardDescription className="text-slate-400">Connect a new broker account</CardDescription>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-2 ${
                       connectionStatus === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
@@ -1085,7 +1148,7 @@ export default function Settings() {
                   disabled={isSaving}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all"
                   >
-                  {isSaving ? 'Processing...' : (connectionStatus === 'CONNECTED' ? 'Update Settings For Latest Broker' : 'Connect Account')}
+                  {isSaving ? 'Processing...' : 'Add New Connection'}
               </Button>
 
               {errorMessage && (

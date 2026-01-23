@@ -60,31 +60,39 @@ export default function Layout({ children }) {
     initialData: []
   });
 
-  const activeConnection = connections?.[0];
-
-  // Enhanced connection status with multiple health checks
+  // Check if ANY connection is active
   const isConnected = React.useMemo(() => {
-    if (!activeConnection) return false;
-    if (!activeConnection.last_sync) return false;
-
-    const lastSync = new Date(activeConnection.last_sync).getTime();
+    if (!connections || connections.length === 0) return false;
+    
     const now = new Date().getTime();
-    const timeSinceSync = now - lastSync;
-
-    // EA syncs every 5s - allow 30s buffer for tolerance (6 missed syncs + network recovery time)
-    const isStale = timeSinceSync > 30000;
-
-    // Connection is healthy if:
-    // 1. Last sync is recent (not stale) - PRIMARY check
-    // 2. Status is CONNECTED (explicit)
-    // 3. No query errors
-    // TOLERANCE: Allow brief status errors if sync is very recent (< 8s)
-    const veryRecentSync = timeSinceSync < 8000;
-    const statusOk = activeConnection.connection_status === 'CONNECTED' || 
-                     (veryRecentSync && activeConnection.connection_status !== 'ERROR');
-
-    return !isStale && statusOk && !connectionError;
-  }, [activeConnection, connectionError]);
+    
+    // Check if at least one connection is healthy
+    return connections.some(conn => {
+      if (!conn.last_sync) return false;
+      
+      const lastSync = new Date(conn.last_sync).getTime();
+      const timeSinceSync = now - lastSync;
+      const isStale = timeSinceSync > 30000;
+      
+      const veryRecentSync = timeSinceSync < 8000;
+      const statusOk = conn.connection_status === 'CONNECTED' || 
+                       (veryRecentSync && conn.connection_status !== 'ERROR');
+      
+      return !isStale && statusOk;
+    });
+  }, [connections, connectionError]);
+  
+  // Count active connections
+  const activeConnectionCount = React.useMemo(() => {
+    if (!connections) return 0;
+    const now = new Date().getTime();
+    return connections.filter(conn => {
+      if (!conn.last_sync) return false;
+      const lastSync = new Date(conn.last_sync).getTime();
+      const timeSinceSync = now - lastSync;
+      return timeSinceSync <= 30000 && conn.connection_status === 'CONNECTED';
+    }).length;
+  }, [connections]);
   
   // Monitor connection status globally with reconnection feedback
   const [lastConnectionState, setLastConnectionState] = React.useState(null);
@@ -279,7 +287,9 @@ export default function Layout({ children }) {
           <div className="hidden md:flex items-center space-x-6 text-sm text-slate-400">
             <div className="flex items-center">
               <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-              <span>MT4 Status: <span className={`font-medium ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>{isConnected ? 'Connected' : 'Disconnected'}</span></span>
+              <span>MT4/MT5: <span className={`font-medium ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isConnected ? `${activeConnectionCount} Connected` : 'Disconnected'}
+              </span></span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2"></div>
