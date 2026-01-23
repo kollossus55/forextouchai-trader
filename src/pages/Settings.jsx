@@ -74,45 +74,39 @@ export default function Settings() {
   React.useEffect(() => {
     const fetchConnection = async () => {
       try {
-        const connections = await base44.entities.BrokerConnection.list();
+        const connections = await base44.entities.BrokerConnection.list('-updated_date'); // Get most recent first
         setAllConnections(connections); // Store all connections
         
         if (connections && connections.length > 0) {
-          const conn = connections[0];
-          setConnectionId(conn.id);
+          // Check if ANY connection is active
+          const now = new Date().getTime();
+          const hasActiveConnection = connections.some(conn => {
+            if (!conn.last_sync) return false;
+            const lastSync = new Date(conn.last_sync).getTime();
+            const timeSinceSync = now - lastSync;
+            return timeSinceSync <= 30000 && conn.connection_status === 'CONNECTED';
+          });
+          
+          setConnectionStatus(hasActiveConnection ? 'CONNECTED' : 'DISCONNECTED');
+          
+          // Use the most recently updated connection for the form
+          const mostRecent = connections[0];
+          setConnectionId(mostRecent.id);
           
           // Only update form config if it's the first load to avoid overwriting user input while typing
           if (!connectionId) {
               setMt4Config(prev => ({
                 ...prev,
-                platform: conn.platform || 'MT4',
-                server: conn.server_name || '',
-                login: conn.account_number || '',
-                // Don't overwrite password/key if they are empty in DB but user might be typing
+                platform: mostRecent.platform || 'MT4',
+                server: mostRecent.server_name || '',
+                login: mostRecent.account_number || '',
               }));
           }
 
-          // Enhanced staleness check: EA syncs every 5s, allow 12s buffer (2 missed syncs)
-          const lastSync = new Date(conn.last_sync).getTime();
-          const now = new Date().getTime();
-          const timeSinceSync = now - lastSync;
-          const isStale = timeSinceSync > 12000;
-
           const wasConnected = connectionStatus === 'CONNECTED';
-          
-          // Determine new status with ERROR state handling
-          let newStatus;
-          if (conn.connection_status === 'ERROR' || isStale) {
-            newStatus = 'DISCONNECTED';
-          } else if (conn.connection_status === 'DISCONNECTED') {
-            newStatus = 'DISCONNECTED';
-          } else {
-            newStatus = 'CONNECTED';
-          }
-          
-          setConnectionStatus(newStatus);
+          const newStatus = hasActiveConnection ? 'CONNECTED' : 'DISCONNECTED';
 
-          // IMMEDIATE alert on disconnection
+          // IMMEDIATE alert on disconnection (only if ALL connections lost)
           if (newStatus === 'DISCONNECTED' && wasConnected) {
             toast.error("MT4/MT5 Connection Lost", {
               description: "Platform has disconnected. Check your EA and internet connection.",
@@ -145,9 +139,10 @@ export default function Settings() {
             }
           }
 
-          // Continue alerting every 5 minutes while disconnected
-          if (newStatus === 'DISCONNECTED') {
-            const minutesDisconnected = Math.floor((now - lastSync) / 60000);
+          // Continue alerting every 5 minutes while ALL connections disconnected
+          if (newStatus === 'DISCONNECTED' && connections.length > 0) {
+            const oldestSync = Math.min(...connections.map(c => new Date(c.last_sync || 0).getTime()));
+            const minutesDisconnected = Math.floor((now - oldestSync) / 60000);
             if (minutesDisconnected > 0 && minutesDisconnected % 5 === 0) {
               const lastAlertKey = `toast_${minutesDisconnected}`;
               const lastEmailAlert = sessionStorage.getItem('lastEmailAlert');
