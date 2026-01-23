@@ -1037,6 +1037,24 @@ export default function Settings() {
                               </div>
                             </details>
                           </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!window.confirm(`Delete connection ${conn.account_number}?`)) return;
+                              try {
+                                await base44.entities.BrokerConnection.delete(conn.id);
+                                toast.success("Connection deleted");
+                                const updated = await base44.entities.BrokerConnection.list('-updated_date');
+                                setAllConnections(updated);
+                              } catch (e) {
+                                toast.error("Failed to delete: " + e.message);
+                              }
+                            }}
+                            className="bg-rose-600 hover:bg-rose-700"
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </div>
                     );
