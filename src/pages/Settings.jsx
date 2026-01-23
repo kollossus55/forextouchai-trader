@@ -1005,52 +1005,52 @@ export default function Settings() {
                 
                 return (
                   <Card key={conn.id} className={`bg-slate-900/50 border-2 ${isConnected ? 'border-emerald-500/40' : 'border-rose-500/40'}`}>
-                    <CardHeader>
+                    <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
                           <div>
-                            <CardTitle className="text-white text-lg">
+                            <CardTitle className="text-white text-base">
                               {conn.platform || 'MT4'} - Account {conn.account_number}
                             </CardTitle>
-                            <CardDescription className="text-slate-400">{conn.server_name}</CardDescription>
+                            <CardDescription className="text-xs text-slate-400">{conn.server_name}</CardDescription>
                           </div>
                         </div>
-                        <Badge variant="outline" className={`text-sm px-3 py-1 ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'}`}>
+                        <Badge variant="outline" className={`text-xs px-2 py-0.5 ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'}`}>
                           {isConnected ? '✓ ONLINE' : isStale ? '✕ STALE' : '✕ OFFLINE'}
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div className="text-center">
-                          <p className="text-xs text-slate-500 mb-1">Balance</p>
-                          <p className="text-2xl font-bold text-white">${conn.balance?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-slate-500 mb-0.5">Balance</p>
+                          <p className="text-lg font-bold text-white">${conn.balance?.toFixed(2) || '0.00'}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs text-slate-500 mb-1">Equity</p>
-                          <p className="text-2xl font-bold text-emerald-400">${conn.equity?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-slate-500 mb-0.5">Equity</p>
+                          <p className="text-lg font-bold text-emerald-400">${conn.equity?.toFixed(2) || '0.00'}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs text-slate-500 mb-1">Margin</p>
-                          <p className="text-lg font-semibold text-slate-300">${conn.margin?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-slate-500 mb-0.5">Margin</p>
+                          <p className="text-sm font-semibold text-slate-300">${conn.margin?.toFixed(2) || '0.00'}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs text-slate-500 mb-1">Free Margin</p>
-                          <p className="text-lg font-semibold text-slate-300">${conn.free_margin?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-slate-500 mb-0.5">Free Margin</p>
+                          <p className="text-sm font-semibold text-slate-300">${conn.free_margin?.toFixed(2) || '0.00'}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs text-slate-500 mb-1">Last Sync</p>
-                          <p className={`text-sm font-mono ${timeSinceSync > 30000 ? 'text-rose-400' : timeSinceSync > 15000 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          <p className="text-[10px] text-slate-500 mb-0.5">Last Sync</p>
+                          <p className={`text-xs font-mono ${timeSinceSync > 30000 ? 'text-rose-400' : timeSinceSync > 15000 ? 'text-amber-400' : 'text-emerald-400'}`}>
                             {lastSync > 0 ? `${Math.floor(timeSinceSync / 1000)}s ago` : 'Never'}
                           </p>
                         </div>
                       </div>
                       
                       {/* Debug Info */}
-                      <details className="mt-2">
-                        <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400">Connection Diagnostics</summary>
-                        <div className="mt-3 p-3 bg-slate-950 rounded border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
+                      <details>
+                        <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-400">Connection Diagnostics</summary>
+                        <div className="mt-2 p-2 bg-slate-950 rounded border border-slate-800 text-[10px] font-mono text-slate-400 space-y-0.5">
                           <div>Connection ID: {conn.id}</div>
                           <div>Status: {conn.connection_status}</div>
                           <div>Last Sync: {conn.last_sync || 'NULL'}</div>
@@ -1061,10 +1061,11 @@ export default function Settings() {
                         </div>
                       </details>
                     </CardContent>
-                    <CardFooter className="flex justify-end pt-0">
+                    <CardFooter className="flex justify-end pt-0 pb-3">
                       <Button
                         variant="destructive"
                         size="sm"
+                        className="h-7 text-xs"
                         onClick={async () => {
                           if (!window.confirm(`Delete connection for account ${conn.account_number}?`)) return;
                           try {
