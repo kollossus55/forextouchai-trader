@@ -974,19 +974,19 @@ export default function Settings() {
                 <CardTitle className="text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-400" /> Active MT4/MT5 Connections ({allConnections.length})
                 </CardTitle>
-                <CardDescription className="text-slate-400">All connected broker accounts</CardDescription>
+                <CardDescription className="text-slate-400">All connected broker accounts - Real-time monitoring</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {allConnections.map((conn, idx) => {
-                    const lastSync = new Date(conn.last_sync).getTime();
+                    const lastSync = conn.last_sync ? new Date(conn.last_sync).getTime() : 0;
                     const now = new Date().getTime();
-                    const timeSinceSync = now - lastSync;
+                    const timeSinceSync = lastSync > 0 ? now - lastSync : 999999999;
                     const isStale = timeSinceSync > 30000;
                     const isConnected = !isStale && conn.connection_status === 'CONNECTED';
                     
                     return (
-                      <div key={conn.id} className={`p-4 rounded-lg border ${isConnected ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-slate-950/50 border-slate-800'}`}>
+                      <div key={conn.id} className={`p-4 rounded-lg border ${isConnected ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-rose-500/5 border-rose-500/30'}`}>
                         <div className="flex items-start justify-between">
                           <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-3">
@@ -996,7 +996,7 @@ export default function Settings() {
                                 <p className="text-xs text-slate-500">{conn.server_name}</p>
                               </div>
                             </div>
-                            <div className="grid grid-cols-4 gap-3 ml-5">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 ml-5">
                               <div>
                                 <p className="text-[10px] text-slate-500">Balance</p>
                                 <p className="text-sm font-medium text-slate-200">${conn.balance?.toFixed(2) || '0.00'}</p>
@@ -1006,15 +1006,36 @@ export default function Settings() {
                                 <p className="text-sm font-medium text-slate-200">${conn.equity?.toFixed(2) || '0.00'}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-slate-500">Last Sync</p>
-                                <p className="text-xs text-slate-400">{Math.floor(timeSinceSync / 1000)}s ago</p>
+                                <p className="text-[10px] text-slate-500">DB Status</p>
+                                <p className="text-xs font-mono text-slate-300">{conn.connection_status}</p>
                               </div>
                               <div>
-                                <Badge variant="outline" className={`text-xs ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400'}`}>
-                                  {isConnected ? 'ONLINE' : 'OFFLINE'}
+                                <p className="text-[10px] text-slate-500">Last Sync</p>
+                                <p className={`text-xs font-mono ${timeSinceSync > 30000 ? 'text-rose-400' : timeSinceSync > 15000 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {lastSync > 0 ? `${Math.floor(timeSinceSync / 1000)}s ago` : 'Never'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500">Health</p>
+                                <Badge variant="outline" className={`text-xs ${isConnected ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'}`}>
+                                  {isConnected ? '✓ ONLINE' : isStale ? '✕ STALE' : '✕ OFFLINE'}
                                 </Badge>
                               </div>
                             </div>
+                            
+                            {/* Debug Info */}
+                            <details className="ml-5 mt-2">
+                              <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-400">Debug Info</summary>
+                              <div className="mt-2 p-2 bg-slate-950 rounded border border-slate-800 text-[10px] font-mono text-slate-400 space-y-1">
+                                <div>Connection ID: {conn.id}</div>
+                                <div>Last Sync Raw: {conn.last_sync || 'NULL'}</div>
+                                <div>Time Since Sync: {Math.floor(timeSinceSync / 1000)}s ({timeSinceSync}ms)</div>
+                                <div>Is Stale: {isStale ? 'YES (>30s)' : 'NO'}</div>
+                                <div>Status Flag: {conn.connection_status}</div>
+                                <div>Created: {new Date(conn.created_date).toLocaleString()}</div>
+                                <div>Updated: {new Date(conn.updated_date).toLocaleString()}</div>
+                              </div>
+                            </details>
                           </div>
                         </div>
                       </div>
