@@ -316,7 +316,7 @@ export default function Layout({ children }) {
                 <p className="text-xs text-slate-500">{user?.role || 'Pro Plan'}</p>
               </div>
               <Avatar className="w-9 h-9 border border-slate-700 cursor-pointer hover:border-emerald-500/50 transition-colors">
-                <AvatarImage src="" />
+                <AvatarImage src={user?.profile_picture || ""} />
                 <AvatarFallback className="bg-emerald-900 text-emerald-200">
                   {user?.full_name?.[0] || 'T'}
                 </AvatarFallback>
