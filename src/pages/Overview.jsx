@@ -658,13 +658,20 @@ export default function Overview() {
                   onClick={async () => {
                     const toastId = toast.loading('Syncing with MT4...');
                     try {
+                      // Force invalidate all queries to get fresh data
                       await queryClient.invalidateQueries(['trades-home']);
+                      await queryClient.invalidateQueries(['broker-connections']);
+                      
+                      // Wait a moment for bridge to sync
+                      await new Promise(resolve => setTimeout(resolve, 1500));
+                      
+                      // Fetch fresh data
                       const result = await refetchTrades();
                       const count = result.data?.length || 0;
-                      toast.success(`Synced - ${count} open trades`, { id: toastId });
+                      toast.success(`Refreshed - ${count} open trade${count !== 1 ? 's' : ''}`, { id: toastId });
                     } catch (e) {
                       console.error('Sync error:', e);
-                      toast.error('Sync failed: ' + e.message, { id: toastId });
+                      toast.error('Refresh failed: ' + e.message, { id: toastId });
                     }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
