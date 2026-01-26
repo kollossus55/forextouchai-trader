@@ -656,8 +656,11 @@ export default function Overview() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    const toastId = toast.loading('Syncing with MT4...');
+                    const toastId = toast.loading('Waiting for MT4 sync...');
                     try {
+                      // Wait 6 seconds for EA to push latest data to bridge
+                      await new Promise(resolve => setTimeout(resolve, 6000));
+                      
                       // Force complete cache clear
                       queryClient.removeQueries(['trades-home']);
                       
@@ -683,6 +686,11 @@ export default function Overview() {
                 <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/10">
                   {trades.length} Open
                 </Badge>
+                {activeConnection?.last_sync && (
+                  <span className="text-[10px] text-slate-500">
+                    EA: {Math.floor((Date.now() - new Date(activeConnection.last_sync).getTime()) / 1000)}s ago
+                  </span>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
