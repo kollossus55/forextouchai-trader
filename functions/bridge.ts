@@ -103,6 +103,17 @@ Deno.serve(async (req) => {
             const { trades, account } = body;
             const timestamp = new Date().toISOString();
             console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
+            
+            // LOG EVERY SINGLE TRADE RECEIVED FROM MT4
+            if (trades && Array.isArray(trades) && trades.length > 0) {
+                console.log(`[POST] 🔥 MT4 SENT ${trades.length} TRADES:`);
+                trades.forEach((t, idx) => {
+                    console.log(`  [${idx + 1}] Ticket:${t.ticket} ${t.symbol} ${t.type} Lots:${t.lots} PnL:${t.pnl} Price:${t.current_price}`);
+                });
+            } else {
+                console.log(`[POST] ⚠️ MT4 SENT EMPTY TRADES ARRAY OR NO TRADES`);
+            }
+            
             if (account) {
                 console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}, account_number=${account.account_number}`);
             }
@@ -239,11 +250,16 @@ Deno.serve(async (req) => {
                             }
 
                             if (tradesToCreate.length > 0) {
-                                console.log(`[POST] Creating ${tradesToCreate.length} trades`);
-                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1).catch(e => {
-                                    console.error(`[POST] Bulk create failed:`, e.message);
+                                console.log(`[POST] 🚀 CREATING ${tradesToCreate.length} NEW TRADES IN DATABASE:`);
+                                tradesToCreate.forEach((t, idx) => {
+                                    console.log(`  [${idx + 1}] Creating: Ticket:${t.ticket} ${t.pair} ${t.type} Lots:${t.lot_size} PnL:${t.pnl}`);
                                 });
-                                console.log(`[POST] ✓ Created ${tradesToCreate.length} trades`);
+                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1).catch(e => {
+                                    console.error(`[POST] ❌ Bulk create failed:`, e.message);
+                                });
+                                console.log(`[POST] ✅ SUCCESSFULLY CREATED ${tradesToCreate.length} trades in database`);
+                            } else {
+                                console.log(`[POST] ℹ️ No new trades to create (all exist in DB already)`);
                             }
 
                             const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
