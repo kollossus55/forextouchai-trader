@@ -108,7 +108,9 @@ export default function Overview() {
       console.log('[Overview] Fetched trades:', openTrades.length, openTrades);
       return openTrades;
     },
-    refetchInterval: 10000, // Refresh every 10s
+    refetchInterval: 10000,
+    staleTime: 0,
+    cacheTime: 0,
     initialData: []
   });
 
