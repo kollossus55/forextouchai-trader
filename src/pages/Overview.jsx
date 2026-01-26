@@ -658,20 +658,21 @@ export default function Overview() {
                   onClick={async () => {
                     const toastId = toast.loading('Syncing with MT4...');
                     try {
-                      // Force invalidate all queries to get fresh data
-                      await queryClient.invalidateQueries(['trades-home']);
-                      await queryClient.invalidateQueries(['broker-connections']);
+                      // Force complete cache clear
+                      queryClient.removeQueries(['trades-home']);
                       
-                      // Wait a moment for bridge to sync
-                      await new Promise(resolve => setTimeout(resolve, 1500));
+                      // Fetch completely fresh data directly from database
+                      const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
+                      console.log('[REFRESH] Fresh trades from DB:', freshTrades.length, freshTrades);
                       
-                      // Fetch fresh data
-                      const result = await refetchTrades();
-                      const count = result.data?.length || 0;
-                      toast.success(`Refreshed - ${count} open trade${count !== 1 ? 's' : ''}`, { id: toastId });
+                      // Update cache with fresh data
+                      queryClient.setQueryData(['trades-home'], freshTrades);
+                      
+                      const count = freshTrades.length;
+                      toast.success(`Synced - ${count} open trade${count !== 1 ? 's' : ''}`, { id: toastId });
                     } catch (e) {
                       console.error('Sync error:', e);
-                      toast.error('Refresh failed: ' + e.message, { id: toastId });
+                      toast.error('Sync failed: ' + e.message, { id: toastId });
                     }
                   }}
                   className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
