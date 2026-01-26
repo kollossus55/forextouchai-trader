@@ -656,6 +656,7 @@ export default function Overview() {
                   onClick={async () => {
                     const toastId = toast.loading('Syncing with MT4...');
                     try {
+                      await queryClient.invalidateQueries(['trades-home']);
                       const result = await refetchTrades();
                       const count = result.data?.length || 0;
                       toast.success(`Synced - ${count} open trades`, { id: toastId });
