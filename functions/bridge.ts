@@ -63,8 +63,16 @@ Deno.serve(async (req) => {
     const method = req.method;
     
     try {
-        const base44 = createClientFromRequest(req);
-        console.log(`[${method}] Bridge request started`);
+        // Add request timeout to prevent hanging
+        const timeoutMs = 8000; // 8 second max
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+        );
+        
+        return await Promise.race([
+            (async () => {
+                const base44 = createClientFromRequest(req);
+                console.log(`[${method}] Bridge request started`);
         
         // ---------------------------------------------------------
         // POST: Sync Trades & Account (Fast Acknowledgement) OR Initial Connection Test
@@ -525,16 +533,22 @@ Deno.serve(async (req) => {
         }
 
         return Response.json({ error: "Method not allowed" }, { status: 405 });
+            })(),
+            timeoutPromise
+        ]);
 
     } catch (error) {
-        console.error(`[${method} FATAL ERROR]:`, error.message);
-        console.error("Stack:", error.stack?.slice(0, 300));
+        const isTimeout = error.message === 'Request timeout';
+        console.error(`[${method} ${isTimeout ? 'TIMEOUT' : 'FATAL ERROR'}]:`, error.message);
+        if (!isTimeout) {
+            console.error("Stack:", error.stack?.slice(0, 300));
+        }
 
-        // Return minimal error to prevent leaking internals
+        // Return appropriate status for timeouts vs errors
         return Response.json({ 
-            status: "ERROR",
-            message: "Bridge error",
+            status: isTimeout ? "TIMEOUT" : "ERROR",
+            message: isTimeout ? "Request timeout - check database performance" : "Bridge error",
             timestamp: new Date().toISOString()
-        }, { status: 500 });
+        }, { status: isTimeout ? 504 : 500 });
     }
 });
