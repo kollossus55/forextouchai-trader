@@ -180,117 +180,75 @@ Deno.serve(async (req) => {
                 heartbeatSuccess = false;
             }
 
-            // Process trades asynchronously (don't block response)
+            // Process trades asynchronously (don't block response) - SIMPLIFIED
             if (trades && Array.isArray(trades) && trades.length > 0) {
-                // Fire and forget - process trades in background with timeout and error isolation
-                Promise.race([
-                    (async () => {
-                        try {
-                            const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 1).catch(e => {
-                                console.error('[POST] Connection list failed:', e.message);
-                                return [];
-                            });
-                            const ownerEmail = connections[0]?.created_by || null;
+                // Fire and forget with 2s timeout
+                setTimeout(async () => {
+                    try {
+                        const connections = await base44.asServiceRole.entities.BrokerConnection.list(1).catch(() => []);
+                        const ownerEmail = connections[0]?.created_by || null;
 
-                            const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 1).catch(e => {
-                                console.error('[POST] Trade filter failed:', e.message);
-                                return [];
-                            });
-                            const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
+                        const openDbTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }).catch(() => []);
+                        const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
 
-                            const tradesToCreate = [];
-                            const incomingTickets = new Set();
+                        const tradesToCreate = [];
+                        const incomingTickets = new Set();
 
-                            for (const t of trades) {
-                                if (!t.ticket) continue;
-                                const ticket = Number(t.ticket);
-                                incomingTickets.add(ticket);
-                                
-                                const existing = dbTradesMap.get(ticket);
+                        for (const t of trades) {
+                            if (!t.ticket) continue;
+                            const ticket = Number(t.ticket);
+                            incomingTickets.add(ticket);
+                            
+                            const existing = dbTradesMap.get(ticket);
 
-                                if (existing) {
-                                    existing._needsUpdate = {
-                                        pnl: Number(t.pnl),
-                                        close_price: Number(t.current_price || 0),
-                                        updated_date: new Date().toISOString()
-                                    };
-                                } else {
-                                    // Extract bot_id from magic number OR comment
-                                    let botId = null;
-                                    
-                                    // Method 1: From magic number (if it's a UUID/bot ID)
-                                    if (t.magic && String(t.magic).length > 5) {
-                                        botId = String(t.magic);
-                                    }
-                                    
-                                    // Method 2: Parse from comment (ForexTouchAI format)
-                                    if (!botId && t.comment) {
-                                        const comment = String(t.comment);
-                                        // Look for ForexTouchAI_ prefix and extract bot ID if present
-                                        const idMatch = comment.match(/Bot:([a-f0-9\-]{36})/i);
-                                        if (idMatch) {
-                                            botId = idMatch[1];
-                                        }
-                                    }
-
-                                    tradesToCreate.push({
-                                        pair: String(t.symbol || "UNKNOWN"),
-                                        type: String(t.type || "BUY"),
-                                        lot_size: Number(t.lots) || 0.01,
-                                        open_price: Number(t.open_price) || 0,
-                                        close_price: Number(t.current_price || 0),
-                                        pnl: Number(t.pnl) || 0,
-                                        ticket: ticket,
-                                        status: 'OPEN',
-                                        is_auto: Boolean(t.magic !== 0),
-                                        bot_id: botId,
-                                        owner_email: ownerEmail
-                                    });
-                                }
-                            }
-
-                            const tradesToUpdate = openDbTrades.filter(t => t._needsUpdate);
-                            if (tradesToUpdate.length > 0) {
-                                await Promise.all(tradesToUpdate.slice(0, 20).map(t => 
-                                    withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, t._needsUpdate), 1)
-                                        .catch(e => console.error(`Update ${t.ticket}:`, e.message))
-                                ));
-                            }
-
-                            if (tradesToCreate.length > 0) {
-                                console.log(`[POST] 🚀 CREATING ${tradesToCreate.length} NEW TRADES IN DATABASE:`);
-                                tradesToCreate.forEach((t, idx) => {
-                                    console.log(`  [${idx + 1}] Creating: Ticket:${t.ticket} ${t.pair} ${t.type} Lots:${t.lot_size} PnL:${t.pnl}`);
-                                });
-                                await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 1).catch(e => {
-                                    console.error(`[POST] ❌ Bulk create failed:`, e.message);
-                                });
-                                console.log(`[POST] ✅ SUCCESSFULLY CREATED ${tradesToCreate.length} trades in database`);
+                            if (existing) {
+                                await base44.asServiceRole.entities.Trade.update(existing.id, {
+                                    pnl: Number(t.pnl),
+                                    close_price: Number(t.current_price || 0)
+                                }).catch(() => {});
                             } else {
-                                console.log(`[POST] ℹ️ No new trades to create (all exist in DB already)`);
-                            }
+                                let botId = null;
+                                if (t.magic && String(t.magic).length > 5) botId = String(t.magic);
+                                else if (t.comment) {
+                                    const idMatch = String(t.comment).match(/Bot:([a-f0-9\-]{36})/i);
+                                    if (idMatch) botId = idMatch[1];
+                                }
 
-                            const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
-                            if (closedTrades.length > 0) {
-                                console.log(`[POST] Marking ${closedTrades.length} trades as CLOSED: ${closedTrades.map(t => t.ticket).join(', ')}`);
-                                await Promise.allSettled(closedTrades.slice(0, 20).map(t =>
-                                    withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, {
-                                        status: 'CLOSED',
-                                        updated_date: new Date().toISOString()
-                                    }), 1).catch(e => console.error(`Close ticket ${t.ticket} failed:`, e.message))
-                                ));
+                                tradesToCreate.push({
+                                    pair: String(t.symbol || "UNKNOWN"),
+                                    type: String(t.type || "BUY"),
+                                    lot_size: Number(t.lots) || 0.01,
+                                    open_price: Number(t.open_price) || 0,
+                                    close_price: Number(t.current_price || 0),
+                                    pnl: Number(t.pnl) || 0,
+                                    ticket: ticket,
+                                    status: 'OPEN',
+                                    is_auto: Boolean(t.magic !== 0),
+                                    bot_id: botId,
+                                    owner_email: ownerEmail
+                                });
                             }
-                            console.log(`[POST] ✓ Trade sync complete`);
-                            } catch (err) {
-                            console.error("[POST ERROR] Trade sync fatal:", err.message, err.stack?.slice(0, 200));
+                        }
+
+                        if (tradesToCreate.length > 0) {
+                            console.log(`[POST] 🚀 Creating ${tradesToCreate.length} trades`);
+                            await base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate).catch(e => 
+                                console.error(`[POST] ❌ Bulk create failed:`, e.message)
+                            );
+                        }
+
+                        const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
+                        if (closedTrades.length > 0) {
+                            console.log(`[POST] Closing ${closedTrades.length} trades`);
+                            for (const t of closedTrades.slice(0, 10)) {
+                                await base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' }).catch(() => {});
                             }
-                            })(),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
-                            ]).catch(e => {
-                            // Silent fail - don't let background process crash the function
-                            console.error("[POST] Trade sync error (isolated):", e.message);
-                            });
-                            }
+                        }
+                    } catch (err) {
+                        console.error("[POST] Trade sync error:", err.message);
+                    }
+                }, 0);
+            }
 
             // Return immediately to prevent EA timeout
             const duration = Date.now() - startTime;
