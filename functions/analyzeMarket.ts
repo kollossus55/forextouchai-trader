@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai';
-import { RSI, MACD, BollingerBands, EMA, Stochastic } from 'npm:technicalindicators';
+import { RSI, MACD, BollingerBands, EMA, Stochastic, ATR } from 'npm:technicalindicators';
 
 // Helper to generate synthetic historical price data with timeframe-specific characteristics
 const generateHistoricalData = (currentPrice, periods = 100, timeframeMultiplier = 1) => {
@@ -155,6 +155,21 @@ const calculateIndicators = (priceData) => {
         indicators.stochHistory = [];
     }
     
+    // ATR (14) for dynamic SL/TP calculation
+    try {
+        const atrValues = ATR.calculate({
+            high: highs,
+            low: lows,
+            close: closes,
+            period: 14
+        });
+        indicators.atr = atrValues[atrValues.length - 1] || 0;
+        indicators.atrHistory = atrValues;
+    } catch (e) {
+        indicators.atr = 0;
+        indicators.atrHistory = [];
+    }
+    
     return indicators;
 };
 
@@ -167,7 +182,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { pairs, marketData, minConfidence = 80, indicators = [], timeframe = 'H1', riskLevel = 'MEDIUM', signalSensitivity = 'BALANCED' } = await req.json();
+        const { pairs, marketData, minConfidence = 80, indicators = [], timeframe = 'H1', riskLevel = 'MEDIUM', signalSensitivity = 'BALANCED', botId = null } = await req.json();
 
         if (!Deno.env.get("OPENAI_API_KEY")) {
             return Response.json({ error: "OpenAI API Key not set" }, { status: 500 });
@@ -403,26 +418,54 @@ Deno.serve(async (req) => {
             }));
         }
         
-        // Sanity Check & Normalization with Risk-Adjusted Parameters
-        if (signal.pair && signal.entry_price) {
+        // Fetch bot config if botId provided to use ATR settings
+        let botConfig = null;
+        if (botId) {
+            try {
+                const bots = await base44.asServiceRole.entities.BotConfig.filter({ id: botId });
+                botConfig = bots[0] || null;
+            } catch (e) {
+                console.error('Failed to fetch bot config:', e);
+            }
+        }
+
+        // Calculate SL/TP using ATR or Fixed method
+        if (signal.pair && signal.entry_price && selectedPairData) {
             const isJpy = signal.pair.includes('JPY');
             const pip = isJpy ? 0.01 : 0.0001;
-            const minDist = riskConfig.minPips * pip; // Risk-adjusted minimum distance
+            const atrValue = selectedPairData.indicators.atr || 0;
+            
+            // Determine if using ATR mode
+            const useATR = botConfig?.sl_tp_mode === 'ATR' && atrValue > 0;
+            
+            let slDistance, tpDistance;
+            
+            if (useATR) {
+                // ATR-based calculation
+                const atrPeriod = botConfig?.atr_period || 14;
+                const atrMultiplierSL = botConfig?.atr_multiplier_sl || 1.5;
+                const atrMultiplierTP = botConfig?.atr_multiplier_tp || 3.0;
+                
+                slDistance = atrValue * atrMultiplierSL;
+                tpDistance = atrValue * atrMultiplierTP;
+                
+                console.log(`ATR Mode: ATR(${atrPeriod})=${atrValue.toFixed(5)}, SL=${atrMultiplierSL}x, TP=${atrMultiplierTP}x`);
+            } else {
+                // Fixed pip calculation (default)
+                const slPips = botConfig?.stop_loss_pips || riskConfig.minPips;
+                const tpPips = botConfig?.take_profit_pips || (slPips * riskConfig.targetMultiplier);
+                
+                slDistance = slPips * pip;
+                tpDistance = tpPips * pip;
+            }
 
+            // Apply SL/TP based on trade direction
             if (signal.type === 'BUY') {
-                if (signal.stop_loss >= signal.entry_price - minDist) {
-                    signal.stop_loss = signal.entry_price - minDist;
-                }
-                if (signal.take_profit <= signal.entry_price + minDist) {
-                    signal.take_profit = signal.entry_price + (minDist * riskConfig.targetMultiplier);
-                }
+                signal.stop_loss = signal.entry_price - slDistance;
+                signal.take_profit = signal.entry_price + tpDistance;
             } else if (signal.type === 'SELL') {
-                if (signal.stop_loss <= signal.entry_price + minDist) {
-                    signal.stop_loss = signal.entry_price + minDist;
-                }
-                if (signal.take_profit >= signal.entry_price - minDist) {
-                    signal.take_profit = signal.entry_price - (minDist * riskConfig.targetMultiplier);
-                }
+                signal.stop_loss = signal.entry_price + slDistance;
+                signal.take_profit = signal.entry_price - tpDistance;
             }
 
             // Rounding to standard forex precision
@@ -430,6 +473,13 @@ Deno.serve(async (req) => {
             signal.entry_price = Number(signal.entry_price.toFixed(digits));
             signal.stop_loss = Number(signal.stop_loss.toFixed(digits));
             signal.take_profit = Number(signal.take_profit.toFixed(digits));
+            
+            // Add ATR metadata to signal
+            if (useATR) {
+                signal.atr_value = Number(atrValue.toFixed(digits));
+                signal.atr_sl_multiplier = botConfig.atr_multiplier_sl;
+                signal.atr_tp_multiplier = botConfig.atr_multiplier_tp;
+            }
         }
 
         return Response.json(signal);
