@@ -45,6 +45,18 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     pairs: ['EUR/USD']
   });
 
+  // Strategy-to-Timeframe mapping
+  const strategyTimeframes = {
+    'SCALPING': 'M5',
+    'SWING': 'H4',
+    'DAY_TRADING': 'H1',
+    'AI_PREDICTIVE': 'H1',
+    'PRICE_ACTION': 'H1',
+    'PATTERN_TRADING': 'H4',
+    'CANDLESTICK': 'M30',
+    'HYBRID_ALL': 'H1'
+  };
+
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -165,7 +177,10 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                   <Label>Strategy Engine</Label>
                   <Select 
                     value={formData.strategy_type} 
-                    onValueChange={v => setFormData({...formData, strategy_type: v})}
+                    onValueChange={v => {
+                      const newTimeframe = strategyTimeframes[v] || 'H1';
+                      setFormData({...formData, strategy_type: v, timeframe: newTimeframe});
+                    }}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800">
                       <SelectValue />
@@ -183,7 +198,10 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Trading Timeframe</Label>
+                  <Label className="flex items-center justify-between">
+                    Trading Timeframe
+                    <span className="text-[10px] text-emerald-400 font-normal">Auto-set: {strategyTimeframes[formData.strategy_type]}</span>
+                  </Label>
                   <Select 
                     value={formData.timeframe} 
                     onValueChange={v => setFormData({...formData, timeframe: v})}

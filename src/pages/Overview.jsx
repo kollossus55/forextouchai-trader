@@ -194,7 +194,8 @@ export default function Overview() {
           riskLevel: scanSettings.riskLevel,
           signalSensitivity: scanSettings.signalSensitivity,
           indicators: activeIndicators,
-          timeframe: 'H1' // Default to H1 for Overview page signals
+          timeframe: 'H1', // Default to H1 for Overview page signals
+          botId: null // Manual scan from Overview - no bot association
       });
 
       console.log("AI Analysis Response:", response);
