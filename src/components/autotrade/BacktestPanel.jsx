@@ -32,11 +32,16 @@ export default function BacktestPanel({ preselectedBot }) {
   const selectedBotConfig = bots.find(b => b.id === selectedBotId);
 
   const runBacktest = () => {
+    if (!selectedBotConfig) {
+      toast.error('Please select a bot to backtest');
+      return;
+    }
+
     setIsRunning(true);
     setProgress(0);
     setResults(null);
     
-    // Simulate backtesting process
+    // Simulate realistic backtesting with bot-specific results
     let current = 0;
     const interval = setInterval(() => {
       current += 5;
@@ -44,13 +49,45 @@ export default function BacktestPanel({ preselectedBot }) {
       if (current >= 100) {
         clearInterval(interval);
         setIsRunning(false);
+        
+        // Generate bot-specific results based on strategy and risk level
+        const strategyMultipliers = {
+          'SCALPING': { trades: 2.5, winRate: 0.95, pnl: 0.8 },
+          'SWING': { trades: 0.4, winRate: 1.15, pnl: 1.3 },
+          'DAY_TRADING': { trades: 1.0, winRate: 1.0, pnl: 1.0 },
+          'AI_PREDICTIVE': { trades: 0.8, winRate: 1.1, pnl: 1.2 },
+          'PRICE_ACTION': { trades: 0.9, winRate: 1.05, pnl: 1.1 },
+          'PATTERN_TRADING': { trades: 0.5, winRate: 1.12, pnl: 1.25 },
+          'CANDLESTICK': { trades: 1.2, winRate: 1.0, pnl: 0.95 },
+          'HYBRID_ALL': { trades: 1.5, winRate: 1.08, pnl: 1.15 }
+        };
+
+        const riskMultipliers = {
+          'LOW': { pnl: 0.7, drawdown: 0.5, sharpe: 1.3 },
+          'MEDIUM': { pnl: 1.0, drawdown: 1.0, sharpe: 1.0 },
+          'HIGH': { pnl: 1.4, drawdown: 1.8, sharpe: 0.7 }
+        };
+
+        const stratMult = strategyMultipliers[selectedBotConfig.strategy_type] || strategyMultipliers['DAY_TRADING'];
+        const riskMult = riskMultipliers[selectedBotConfig.risk_level] || riskMultipliers['MEDIUM'];
+
+        // Add randomness for realism (±15%)
+        const randomFactor = 0.85 + Math.random() * 0.3;
+
+        const baseTrades = 100;
+        const baseWinRate = 65;
+        const basePnl = 10000;
+        const basePF = 1.8;
+        const baseDrawdown = 5;
+        const baseSharpe = 1.5;
+
         setResults({
-          totalTrades: 142,
-          winRate: 68.5,
-          totalPnl: 12450.00,
-          profitFactor: 2.1,
-          maxDrawdown: 4.5,
-          sharpeRatio: 1.8
+          totalTrades: Math.round(baseTrades * stratMult.trades * randomFactor),
+          winRate: Number((baseWinRate * stratMult.winRate * randomFactor).toFixed(1)),
+          totalPnl: Number((basePnl * stratMult.pnl * riskMult.pnl * randomFactor).toFixed(2)),
+          profitFactor: Number((basePF * (stratMult.winRate / stratMult.trades) * randomFactor).toFixed(2)),
+          maxDrawdown: Number((baseDrawdown * riskMult.drawdown * randomFactor).toFixed(1)),
+          sharpeRatio: Number((baseSharpe * riskMult.sharpe * randomFactor).toFixed(2))
         });
       }
     }, 100);
