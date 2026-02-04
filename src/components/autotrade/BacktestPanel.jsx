@@ -16,6 +16,9 @@ export default function BacktestPanel({ preselectedBot }) {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState(null);
   const [selectedBotId, setSelectedBotId] = useState(preselectedBot?.id || '');
+  const [selectedSymbol, setSelectedSymbol] = useState('EURUSD');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('H1');
+  const [initialBalance, setInitialBalance] = useState(10000);
 
   const { data: bots } = useQuery({
     queryKey: ['bots-list'],
