@@ -37,17 +37,6 @@ export default function Overview() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const isAuth = await base44.auth.isAuthenticated();
-      if (!isAuth) {
-        base44.auth.redirectToLogin(window.location.origin + window.location.pathname);
-      }
-    };
-    checkAuth();
-  }, []);
-  
   // Scan Settings State with localStorage persistence
   const [scanSettings, setScanSettings] = useState(() => {
     try {
