@@ -143,13 +143,18 @@ export default function Pairs() {
             // Get Stable Signal for current timeframe
             const { signal, confidence } = getTimeframeSignal(pair, timeframe);
 
+            // Track when signal last changed
+            const signalChanged = current.ai_signal !== signal;
+            const signalTimestamp = signalChanged ? Date.now() : (current.signal_timestamp || Date.now());
+
             next[pair.id] = {
                 ...current,
                 current_price: realPrice,
                 change_24h: pair.change_24h, 
                 history: newHistory,
                 ai_confidence: confidence,
-                ai_signal: signal
+                ai_signal: signal,
+                signal_timestamp: signalTimestamp
             };
         });
 
@@ -289,16 +294,15 @@ export default function Pairs() {
     // pair now includes live data (merged)
     const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 70;
     
-    // Calculate signal age
+    // Calculate signal age based on when it last changed
     const [signalAge, setSignalAge] = React.useState('');
     
     React.useEffect(() => {
-      if (!pair.created_date) return;
+      if (!pair.signal_timestamp) return;
       
       const updateAge = () => {
         const now = Date.now();
-        const created = new Date(pair.created_date).getTime();
-        const ageSeconds = Math.floor((now - created) / 1000);
+        const ageSeconds = Math.floor((now - pair.signal_timestamp) / 1000);
         
         if (ageSeconds < 60) {
           setSignalAge(`${ageSeconds}s`);
@@ -314,7 +318,7 @@ export default function Pairs() {
       updateAge();
       const interval = setInterval(updateAge, 1000);
       return () => clearInterval(interval);
-    }, [pair.created_date]);
+    }, [pair.signal_timestamp]);
     
     return (
       <Card className={`bg-slate-900/50 backdrop-blur-sm transition-all group overflow-hidden ${
