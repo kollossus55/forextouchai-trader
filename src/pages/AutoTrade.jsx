@@ -118,6 +118,17 @@ export default function AutoTrade() {
                 const pairs = bot.pairs && bot.pairs.length > 0 ? bot.pairs : ['EUR/USD'];
                 const pair = pairs[Math.floor(Math.random() * pairs.length)];
                 
+                // Check bot's current open trades vs limit
+                const botOpenTrades = allTrades.filter(t => t.bot_id === bot.id && t.status === 'OPEN' && t.is_auto === true);
+                const maxTrades = bot.max_open_trades || 5;
+                
+                if (botOpenTrades.length >= maxTrades) {
+                    if (Math.random() > 0.95) {
+                        addLog(bot.name, `Trade limit reached (${botOpenTrades.length}/${maxTrades}) - skipping signal`, 'info');
+                    }
+                    return;
+                }
+                
                 // Get Real Market Price
                 const realPrice = MarketDataService.getPrice(pair);
                 
