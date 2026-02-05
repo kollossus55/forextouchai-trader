@@ -15,7 +15,9 @@ import {
   BrainCircuit,
   Zap,
   ExternalLink,
-  SlidersHorizontal
+  SlidersHorizontal,
+  TrendingUp,
+  TrendingDown
   } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -305,21 +307,26 @@ export default function Overview() {
             <DollarSign className="w-20 h-20 text-emerald-500" />
           </div>
           <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <div className="p-1.5 bg-emerald-500/20 rounded-lg">
-                <DollarSign className="w-4 h-4 text-emerald-400" />
-              </div>
-              Balance
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-500/20 rounded-lg">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                </div>
+                Balance
+              </CardTitle>
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+            </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-br from-white to-emerald-100 bg-clip-text text-transparent mb-2">
-              ${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            <div className="text-4xl font-bold bg-gradient-to-br from-white to-emerald-100 bg-clip-text text-transparent mb-3 tracking-tight">
+              ${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex justify-between items-center">
-              <span>Broker: <span className="text-slate-300 font-medium">{mt4Account.broker}</span></span>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                <span className="text-slate-300 font-medium">{mt4Account.broker}</span>
+              </p>
               {activeConnection && <span className="text-emerald-400 text-[10px] border border-emerald-500/30 px-2 py-0.5 rounded-full bg-emerald-500/10 font-semibold">Live</span>}
-            </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -329,19 +336,32 @@ export default function Overview() {
             <Activity className="w-20 h-20 text-cyan-500" />
           </div>
           <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <div className="p-1.5 bg-cyan-500/20 rounded-lg">
-                <Activity className="w-4 h-4 text-cyan-400" />
-              </div>
-              Equity
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+                <div className="p-1.5 bg-cyan-500/20 rounded-lg">
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                </div>
+                Equity
+              </CardTitle>
+              {mt4Account.profit >= 0 ? (
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <TrendingDown className="w-5 h-5 text-rose-400" />
+              )}
+            </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-br from-white to-cyan-100 bg-clip-text text-transparent mb-2">
-              ${mt4Account.equity.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            <div className="text-4xl font-bold bg-gradient-to-br from-white to-cyan-100 bg-clip-text text-transparent mb-3 tracking-tight">
+              ${mt4Account.equity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
             </div>
-            <div className={`flex items-center text-xs mt-1 font-semibold ${mt4Account.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {mt4Account.profit >= 0 ? '+' : ''}${mt4Account.profit.toFixed(2)} floating
+            <div className={`flex items-center gap-1.5 text-sm font-bold ${mt4Account.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {mt4Account.profit >= 0 ? (
+                <TrendingUp className="w-4 h-4" />
+              ) : (
+                <TrendingDown className="w-4 h-4" />
+              )}
+              <span>{mt4Account.profit >= 0 ? '+' : ''}${Math.abs(mt4Account.profit).toFixed(2)}</span>
+              <span className="text-xs text-slate-500 font-normal">floating</span>
             </div>
           </CardContent>
         </Card>
@@ -352,19 +372,26 @@ export default function Overview() {
             <PieChart className="w-20 h-20 text-purple-500" />
           </div>
           <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <div className="p-1.5 bg-purple-500/20 rounded-lg">
-                <PieChart className="w-4 h-4 text-purple-400" />
-              </div>
-              Margin Level
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+                <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                  <PieChart className="w-4 h-4 text-purple-400" />
+                </div>
+                Margin Level
+              </CardTitle>
+              {mt4Account.marginLevel >= 100 ? (
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <TrendingDown className="w-5 h-5 text-rose-400" />
+              )}
+            </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-br from-white to-purple-100 bg-clip-text text-transparent mb-2">
-              {mt4Account.marginLevel.toFixed(2)}%
+            <div className={`text-4xl font-bold mb-3 tracking-tight ${mt4Account.marginLevel >= 100 ? 'bg-gradient-to-br from-white to-purple-100' : 'bg-gradient-to-br from-rose-100 to-rose-300'} bg-clip-text text-transparent`}>
+              {mt4Account.marginLevel.toFixed(0)}%
             </div>
-            <Progress value={Math.min(100, mt4Account.marginLevel/50)} className="h-2 mt-2 bg-slate-800/50 rounded-full" indicatorClassName="bg-gradient-to-r from-purple-500 to-purple-400 rounded-full" />
-            <p className="text-xs text-slate-500 mt-2">Leverage: <span className="text-slate-300 font-medium">{mt4Account.leverage}</span></p>
+            <Progress value={Math.min(100, mt4Account.marginLevel/50)} className="h-2.5 mt-2 bg-slate-800/50 rounded-full shadow-inner" indicatorClassName={`rounded-full ${mt4Account.marginLevel >= 100 ? 'bg-gradient-to-r from-purple-500 to-purple-400' : 'bg-gradient-to-r from-rose-500 to-rose-400'}`} />
+            <p className="text-xs text-slate-500 mt-2.5">Leverage: <span className="text-slate-300 font-medium">{mt4Account.leverage}</span></p>
           </CardContent>
         </Card>
 
@@ -374,19 +401,22 @@ export default function Overview() {
             <BarChart3 className="w-20 h-20 text-amber-500" />
           </div>
           <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <div className="p-1.5 bg-amber-500/20 rounded-lg">
-                <BarChart3 className="w-4 h-4 text-amber-400" />
-              </div>
-              Free Margin
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+                <div className="p-1.5 bg-amber-500/20 rounded-lg">
+                  <BarChart3 className="w-4 h-4 text-amber-400" />
+                </div>
+                Free Margin
+              </CardTitle>
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+            </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-br from-white to-amber-100 bg-clip-text text-transparent mb-2">
-              ${mt4Account.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2})}
+            <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-100 bg-clip-text text-transparent mb-3 tracking-tight">
+              ${mt4Account.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Used: <span className="text-slate-300 font-medium">${mt4Account.margin.toLocaleString()}</span>
+            <p className="text-xs text-slate-500">
+              Used: <span className="text-slate-300 font-semibold">${mt4Account.margin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </p>
           </CardContent>
         </Card>
