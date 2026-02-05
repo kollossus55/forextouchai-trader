@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BotConfigDialog from '@/components/autotrade/BotConfigDialog';
 import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
+import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function AutoTrade() {
