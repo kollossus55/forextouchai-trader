@@ -10,7 +10,8 @@ import {
   ArrowRightLeft,
   BrainCircuit,
   CheckCircle2,
-  Activity
+  Activity,
+  Clock
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -288,6 +289,33 @@ export default function Pairs() {
     // pair now includes live data (merged)
     const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 70;
     
+    // Calculate signal age
+    const [signalAge, setSignalAge] = React.useState('');
+    
+    React.useEffect(() => {
+      if (!pair.created_date) return;
+      
+      const updateAge = () => {
+        const now = Date.now();
+        const created = new Date(pair.created_date).getTime();
+        const ageSeconds = Math.floor((now - created) / 1000);
+        
+        if (ageSeconds < 60) {
+          setSignalAge(`${ageSeconds}s`);
+        } else if (ageSeconds < 3600) {
+          setSignalAge(`${Math.floor(ageSeconds / 60)}m`);
+        } else if (ageSeconds < 86400) {
+          setSignalAge(`${Math.floor(ageSeconds / 3600)}h`);
+        } else {
+          setSignalAge(`${Math.floor(ageSeconds / 86400)}d`);
+        }
+      };
+      
+      updateAge();
+      const interval = setInterval(updateAge, 1000);
+      return () => clearInterval(interval);
+    }, [pair.created_date]);
+    
     return (
       <Card className={`bg-slate-900/50 backdrop-blur-sm transition-all group overflow-hidden ${
           isTopPick 
@@ -353,13 +381,21 @@ export default function Pairs() {
                 <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
                 <span className="text-xs font-semibold text-slate-300">AI Analysis</span>
               </div>
-              <Badge className={`text-[10px] h-5 px-2 ${
-                pair.ai_signal === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 
-                pair.ai_signal === 'SELL' ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 
-                'bg-slate-700/20 text-slate-400'
-              }`}>
-                {pair.ai_signal || 'NEUTRAL'}
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                {signalAge && (
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                    <Clock className="w-3 h-3" />
+                    <span>{signalAge}</span>
+                  </div>
+                )}
+                <Badge className={`text-[10px] h-5 px-2 ${
+                  pair.ai_signal === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 
+                  pair.ai_signal === 'SELL' ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 
+                  'bg-slate-700/20 text-slate-400'
+                }`}>
+                  {pair.ai_signal || 'NEUTRAL'}
+                </Badge>
+              </div>
             </div>
             
             <div className="space-y-1.5">
