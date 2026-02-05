@@ -289,6 +289,9 @@ export default function AutoTrade() {
           <TabsTrigger value="bots" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
             Active Bots
           </TabsTrigger>
+          <TabsTrigger value="risk" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
+            Risk Management
+          </TabsTrigger>
           <TabsTrigger value="builder" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
             Strategy Builder
           </TabsTrigger>
@@ -449,6 +452,10 @@ export default function AutoTrade() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="risk" className="mt-0">
+          <RiskManagementPanel />
         </TabsContent>
 
         <TabsContent value="builder" className="mt-0">
