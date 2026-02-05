@@ -324,9 +324,9 @@ export default function AutoTrade() {
                     <Button 
                       variant="outline" 
                       size="icon"
-                      className={`rounded-full w-10 h-10 border-2 ${
+                      className={`rounded-full w-10 h-10 border-2 transition-all ${
                         bot.status === 'RUNNING' 
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300' 
+                        ? 'border-emerald-500 bg-emerald-500/30 text-emerald-300 hover:bg-emerald-500/40 hover:text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.5)]' 
                         : 'border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300'
                       }`}
                       onClick={() => toggleBot.mutate(bot)}
