@@ -424,6 +424,25 @@ Deno.serve(async (req) => {
             try {
                 const bots = await base44.asServiceRole.entities.BotConfig.filter({ id: botId });
                 botConfig = bots[0] || null;
+                
+                // Check if bot is within trading hours
+                if (botConfig) {
+                    const now = new Date();
+                    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+                    const startTime = botConfig.trading_start_time || "00:00";
+                    const endTime = botConfig.trading_end_time || "23:59";
+                    
+                    console.log(`[Schedule Check] Bot ${botConfig.name}: Current=${currentTime}, Schedule=${startTime}-${endTime}`);
+                    
+                    // Check if current time is outside trading hours
+                    if (currentTime < startTime || currentTime > endTime) {
+                        console.log(`[Schedule Check] BLOCKED: Outside trading hours (${startTime} - ${endTime})`);
+                        return Response.json({ 
+                            error: `Trading blocked - Outside schedule (${startTime} - ${endTime})`,
+                            outsideSchedule: true
+                        }, { status: 400 });
+                    }
+                }
             } catch (e) {
                 console.error('Failed to fetch bot config:', e);
             }
