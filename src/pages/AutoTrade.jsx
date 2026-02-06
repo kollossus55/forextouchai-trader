@@ -187,7 +187,7 @@ export default function AutoTrade() {
     }, 3000); // Check every 3 seconds
 
     return () => clearInterval(interval);
-  }, [bots]);
+  }, [bots, allTrades]);
 
   const addLog = (botName, message, type) => {
     const timestamp = new Date().toLocaleTimeString();
