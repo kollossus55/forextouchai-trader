@@ -67,7 +67,9 @@ export default function AutoTrade() {
   const { data: allTrades } = useQuery({
     queryKey: ['all-trades'],
     queryFn: () => base44.entities.Trade.list(),
-    initialData: []
+    initialData: [],
+    refetchInterval: 2000, // Refetch every 2 seconds
+    refetchIntervalInBackground: true
   });
 
   // Calculate performance for each bot
