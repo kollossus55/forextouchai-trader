@@ -92,6 +92,20 @@ export default function AutoTrade() {
     MarketDataService.initialize();
   }, []);
 
+  // Auto-execute pending signals
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        await base44.functions.invoke('executeSignals');
+        queryClient.invalidateQueries(['all-trades']);
+      } catch (error) {
+        console.error('Signal execution error:', error);
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   // AI Trading Engine Simulation
   useEffect(() => {
     const runningBots = bots.filter(b => b.status === 'RUNNING');
