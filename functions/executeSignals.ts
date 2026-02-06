@@ -19,7 +19,36 @@ Deno.serve(async (req) => {
         
         for (const signal of pendingSignals) {
             try {
-                // Create trade from signal
+                // Check for existing open trades on same pair from same bot
+                const existingTrades = await base44.entities.Trade.filter({
+                    pair: signal.pair,
+                    bot_id: signal.bot_id,
+                    status: 'OPEN'
+                });
+
+                let closedTrades = [];
+                
+                // Close opposite direction trades
+                for (const existingTrade of existingTrades) {
+                    if (existingTrade.type !== signal.type) {
+                        // Opposite direction - close it
+                        const currentPrice = signal.entry_price;
+                        const priceDiff = existingTrade.type === 'BUY' 
+                            ? currentPrice - existingTrade.open_price
+                            : existingTrade.open_price - currentPrice;
+                        const pnl = priceDiff * existingTrade.lot_size * 100000;
+
+                        await base44.entities.Trade.update(existingTrade.id, {
+                            status: 'CLOSED',
+                            close_price: currentPrice,
+                            pnl: pnl
+                        });
+
+                        closedTrades.push(existingTrade.id);
+                    }
+                }
+
+                // Create new trade from signal
                 const trade = await base44.entities.Trade.create({
                     pair: signal.pair,
                     type: signal.type,
@@ -41,6 +70,7 @@ Deno.serve(async (req) => {
                     trade_id: trade.id,
                     pair: signal.pair,
                     type: signal.type,
+                    closed_opposite_trades: closedTrades,
                     success: true
                 });
             } catch (error) {
