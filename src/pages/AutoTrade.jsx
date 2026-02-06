@@ -147,7 +147,12 @@ export default function AutoTrade() {
                 
                 // Get Real Market Price
                 const realPrice = MarketDataService.getPrice(pair);
-                
+
+                // Skip if price not available yet
+                if (!realPrice || realPrice === null) {
+                    return;
+                }
+
                 // Determine action based on simple trend simulation (random for demo, but uses real price)
                 const action = Math.random() > 0.5 ? 'BUY' : 'SELL';
                 const confidence = Math.floor(Math.random() * (99 - 70) + 70); // 70-99%
