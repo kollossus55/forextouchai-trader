@@ -4,8 +4,8 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
-        // Get all pending signals
-        const pendingSignals = await base44.entities.Signal.filter({ status: 'PENDING' });
+        // Get all pending signals using service role to avoid rate limits
+        const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
         
         if (pendingSignals.length === 0) {
             return Response.json({ 
