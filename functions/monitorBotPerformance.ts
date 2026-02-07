@@ -70,13 +70,22 @@ Deno.serve(async (req) => {
                 const alertTitle = `⚠️ Bot Performance Alert: ${bot.name}`;
                 const alertMessage = `${issues.join(' | ')} over the last ${MONITORING_PERIOD_HOURS} hours. Consider reviewing strategy or pausing the bot.`;
                 
-                // Create in-app alert
-                await base44.asServiceRole.entities.Alert.create({
-                    title: alertTitle,
-                    message: alertMessage,
-                    type: 'WARNING',
-                    is_read: false
-                });
+                // Create in-app alert for bot owner
+                const botOwnerEmail = bot.owner_email || bot.created_by;
+                if (botOwnerEmail) {
+                    // Get bot owner's user record to set created_by
+                    const ownerUsers = await base44.asServiceRole.entities.User.filter({ email: botOwnerEmail });
+                    if (ownerUsers.length > 0) {
+                        // Create alert with proper ownership
+                        await base44.asServiceRole.entities.Alert.create({
+                            title: alertTitle,
+                            message: alertMessage,
+                            type: 'WARNING',
+                            is_read: false,
+                            created_by: botOwnerEmail
+                        });
+                    }
+                }
 
                 // Send email notification
                 try {
