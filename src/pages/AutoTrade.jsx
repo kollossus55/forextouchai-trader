@@ -53,7 +53,9 @@ export default function AutoTrade() {
   const { data: allBots } = useQuery({
     queryKey: ['bots'],
     queryFn: () => base44.entities.BotConfig.list(),
-    initialData: []
+    initialData: [],
+    refetchInterval: 60000, // Refetch every minute
+    staleTime: 30000
   });
 
   // Filter bots based on user role
