@@ -203,7 +203,7 @@ export default function AutoTrade() {
                 addLog(bot.name, `Analyzing ${bot.pairs?.join(', ')} market structure...`, 'default');
             }
         });
-    }, 3000); // Check every 3 seconds
+    }, 8000); // Check every 8 seconds (reduced to avoid rate limits)
 
     return () => clearInterval(interval);
   }, [bots, allTrades]);
