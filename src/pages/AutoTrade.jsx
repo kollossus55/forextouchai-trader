@@ -99,9 +99,12 @@ export default function AutoTrade() {
         await base44.functions.invoke('executeSignals');
         queryClient.invalidateQueries(['all-trades']);
       } catch (error) {
-        console.error('Signal execution error:', error);
+        // Silently handle errors to avoid console spam
+        if (error?.response?.status !== 429) {
+          console.error('Signal execution error:', error);
+        }
       }
-    }, 10000); // Check every 10 seconds (reduced from 2s to avoid rate limits)
+    }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
