@@ -15,16 +15,19 @@ Deno.serve(async (req) => {
             });
         }
 
+        // Fetch all open trades at once to reduce API calls
+        const allOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+        
         const results = [];
         
         for (const signal of pendingSignals) {
             try {
-                // Check for existing open trades on same pair from same bot
-                const existingTrades = await base44.entities.Trade.filter({
-                    pair: signal.pair,
-                    bot_id: signal.bot_id,
-                    status: 'OPEN'
-                });
+                // Find existing open trades on same pair from same bot
+                const existingTrades = allOpenTrades.filter(t => 
+                    t.pair === signal.pair && 
+                    t.bot_id === signal.bot_id && 
+                    t.status === 'OPEN'
+                );
 
                 let closedTrades = [];
                 
@@ -38,7 +41,7 @@ Deno.serve(async (req) => {
                             : existingTrade.open_price - currentPrice;
                         const pnl = priceDiff * existingTrade.lot_size * 100000;
 
-                        await base44.entities.Trade.update(existingTrade.id, {
+                        await base44.asServiceRole.entities.Trade.update(existingTrade.id, {
                             status: 'CLOSED',
                             close_price: currentPrice,
                             pnl: pnl
@@ -49,7 +52,7 @@ Deno.serve(async (req) => {
                 }
 
                 // Create new trade from signal
-                const trade = await base44.entities.Trade.create({
+                const trade = await base44.asServiceRole.entities.Trade.create({
                     pair: signal.pair,
                     type: signal.type,
                     lot_size: signal.lot_size || 0.01,
@@ -61,7 +64,7 @@ Deno.serve(async (req) => {
                 });
 
                 // Update signal status to ACTIVE
-                await base44.entities.Signal.update(signal.id, {
+                await base44.asServiceRole.entities.Signal.update(signal.id, {
                     status: 'ACTIVE'
                 });
 
