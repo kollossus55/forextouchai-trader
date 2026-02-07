@@ -117,8 +117,12 @@ export default function AutoTrade() {
     if (runningBots.length === 0) return;
 
     const interval = setInterval(async () => {
-        // Update market data periodically in background
-        await MarketDataService.fetchAll();
+        // Update market data periodically in background (with error handling)
+        try {
+          await MarketDataService.fetchAll();
+        } catch (err) {
+          // Silently handle market data errors
+        }
 
         runningBots.forEach(bot => {
             // Check Schedule
