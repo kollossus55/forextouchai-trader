@@ -56,7 +56,7 @@ export default function Layout({ children }) {
       console.log('[Layout] Fresh connection data:', data);
       return data;
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     refetchIntervalInBackground: true,
     staleTime: 0,
     cacheTime: 0,
