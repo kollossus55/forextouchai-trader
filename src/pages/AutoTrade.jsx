@@ -101,7 +101,7 @@ export default function AutoTrade() {
       } catch (error) {
         console.error('Signal execution error:', error);
       }
-    }, 2000); // Check every 2 seconds
+    }, 10000); // Check every 10 seconds (reduced from 2s to avoid rate limits)
 
     return () => clearInterval(interval);
   }, []);
