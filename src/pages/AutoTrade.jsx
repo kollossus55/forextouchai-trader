@@ -87,9 +87,11 @@ export default function AutoTrade() {
     return performance;
   }, [bots, allTrades]);
 
-  // Initialize Market Data Service
+  // Initialize Market Data Service (with error handling)
   useEffect(() => {
-    MarketDataService.initialize();
+    MarketDataService.initialize().catch(err => {
+      console.log('Market data initialization failed, using fallback prices');
+    });
   }, []);
 
   // Auto-execute pending signals
