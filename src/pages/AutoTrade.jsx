@@ -68,7 +68,7 @@ export default function AutoTrade() {
     queryKey: ['all-trades'],
     queryFn: () => base44.entities.Trade.list(),
     initialData: [],
-    refetchInterval: 2000, // Refetch every 2 seconds
+    refetchInterval: 30000, // Refetch every 30 seconds
     refetchIntervalInBackground: true
   });
 
