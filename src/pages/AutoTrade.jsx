@@ -68,14 +68,27 @@ export default function AutoTrade() {
 
   // Filter bots based on user role
   const bots = React.useMemo(() => {
-    if (!user) return [];
-    if (user.role === 'admin') return allBots; // Admins see all bots
+    if (!user) {
+      console.log('[AutoTrade] No user yet, returning empty bots');
+      return [];
+    }
+    
+    console.log('[AutoTrade] Filtering bots for user:', user.email, 'role:', user.role);
+    
+    if (user.role === 'admin') {
+      console.log('[AutoTrade] Admin user - showing all bots:', allBots.length);
+      return allBots;
+    }
+    
     // Traders see bots they own or created (backward compatibility for bots without owner_email)
-    return allBots.filter(bot => 
+    const filtered = allBots.filter(bot => 
       bot.owner_email === user.email || 
       bot.created_by === user.email ||
       (!bot.owner_email && bot.created_by === user.email) // Fallback for old bots
     );
+    
+    console.log('[AutoTrade] Filtered bots for trader:', filtered.length, 'out of', allBots.length);
+    return filtered;
   }, [allBots, user]);
 
   // Fetch all trades to calculate bot performance
