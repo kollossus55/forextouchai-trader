@@ -65,7 +65,12 @@ export default function AutoTrade() {
   const bots = React.useMemo(() => {
     if (!user) return [];
     if (user.role === 'admin') return allBots; // Admins see all bots
-    return allBots.filter(bot => bot.owner_email === user.email || bot.created_by === user.email); // Traders see only their bots
+    // Traders see bots they own or created (backward compatibility for bots without owner_email)
+    return allBots.filter(bot => 
+      bot.owner_email === user.email || 
+      bot.created_by === user.email ||
+      (!bot.owner_email && bot.created_by === user.email) // Fallback for old bots
+    );
   }, [allBots, user]);
 
   // Fetch all trades to calculate bot performance
