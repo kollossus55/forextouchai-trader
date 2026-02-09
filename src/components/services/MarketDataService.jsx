@@ -52,7 +52,7 @@ export const MarketDataService = {
                 });
             }
         } catch (e) {
-            console.error("Crypto fetch error", e);
+            // Silently handle crypto fetch errors (not critical for forex trading)
         }
     },
 
