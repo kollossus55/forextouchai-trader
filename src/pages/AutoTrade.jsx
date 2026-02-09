@@ -44,6 +44,7 @@ export default function AutoTrade() {
     const fetchUser = async () => {
       try {
         const userData = await base44.auth.me();
+        console.log('[AutoTrade] Current user:', userData);
         setUser(userData);
       } catch (e) {
         console.error("Failed to fetch user", e);
