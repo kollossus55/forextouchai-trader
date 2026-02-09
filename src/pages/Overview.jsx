@@ -740,8 +740,8 @@ export default function Overview() {
                           </span>
                         </TableCell>
                         <TableCell className="text-slate-300 text-sm">{trade.open_price}</TableCell>
-                        <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                        <TableCell className={`text-right font-medium ${(trade.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {(trade.pnl || 0) >= 0 ? '+' : ''}{(trade.pnl || 0).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
