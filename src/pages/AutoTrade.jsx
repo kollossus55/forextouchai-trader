@@ -56,7 +56,11 @@ export default function AutoTrade() {
   // Fetch bots with role-based filtering
   const { data: allBots } = useQuery({
     queryKey: ['bots'],
-    queryFn: () => base44.entities.BotConfig.list(),
+    queryFn: async () => {
+      const bots = await base44.entities.BotConfig.list();
+      console.log('[AutoTrade] Fetched bots:', bots.length, bots.map(b => ({name: b.name, owner: b.owner_email, creator: b.created_by})));
+      return bots;
+    },
     initialData: [],
     refetchInterval: 60000, // Refetch every minute
     staleTime: 30000
