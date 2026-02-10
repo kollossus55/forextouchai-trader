@@ -62,8 +62,9 @@ export default function AutoTrade() {
       return bots;
     },
     initialData: [],
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000
+    refetchInterval: 10000, // Refetch every 10 seconds for reliability
+    staleTime: 0, // Always check for fresh data
+    enabled: !!user // Only fetch when user is loaded
   });
 
   // Filter bots based on user role
@@ -142,7 +143,11 @@ export default function AutoTrade() {
   // AI Trading Engine Simulation
   useEffect(() => {
     const runningBots = bots.filter(b => b.status === 'RUNNING');
-    if (runningBots.length === 0) return;
+    if (runningBots.length === 0) {
+      console.log('[AutoTrade] No running bots, engine idle');
+      return;
+    }
+    console.log('[AutoTrade] 🚀 AI Engine started with', runningBots.length, 'running bot(s):', runningBots.map(b => b.name));
 
     const interval = setInterval(async () => {
         // Update market data periodically in background (with error handling)
