@@ -171,8 +171,8 @@ export default function AutoTrade() {
                  return;
             }
 
-            // Real Technical Analysis (5% chance per tick to avoid overload)
-            if (Math.random() > 0.95) {
+            // Real Technical Analysis (increased frequency for active trading)
+            if (Math.random() > 0.7) { // 30% chance per tick
                 const pairs = bot.pairs && bot.pairs.length > 0 ? bot.pairs : ['EUR/USD'];
                 const pair = pairs[Math.floor(Math.random() * pairs.length)];
 
