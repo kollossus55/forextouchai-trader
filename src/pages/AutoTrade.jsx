@@ -148,8 +148,11 @@ export default function AutoTrade() {
       return;
     }
     console.log('[AutoTrade] 🚀 AI Engine started with', runningBots.length, 'running bot(s):', runningBots.map(b => b.name));
+    addLog('System', `🚀 AI Engine initialized with ${runningBots.length} bot(s)`, 'success');
 
     const interval = setInterval(async () => {
+        console.log('[AutoTrade] 🔄 AI Engine tick - checking', runningBots.length, 'bots');
+
         // Update market data periodically in background (with error handling)
         try {
           await MarketDataService.fetchAll();
