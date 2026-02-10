@@ -137,11 +137,19 @@ export default function Overview() {
   });
 
   const executeSignalMutation = useMutation({
-    mutationFn: (signal) => base44.entities.Signal.update(signal.id, { 
+    mutationFn: async (signal) => {
+      // Get current user to set owner_email for manual trades
+      const user = await base44.auth.me();
+      const connections = await base44.entities.BrokerConnection.list('-updated_date', 1);
+      const ownerEmail = connections[0]?.created_by || user?.email || null;
+      
+      return base44.entities.Signal.update(signal.id, { 
         status: 'PENDING',
         lot_size: signal.lot_size || 0.01,
-        bot_id: signal.bot_id || null
-    }),
+        bot_id: signal.bot_id || null,
+        strategy: signal.strategy || 'MANUAL_EXECUTION'
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['ai-signals']);
       toast.success("Signal sent to MT4", { description: "Waiting for execution..." });
