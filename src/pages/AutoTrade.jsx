@@ -265,8 +265,12 @@ export default function AutoTrade() {
                             status: 'PENDING',
                             calculated_indicators: technicalSignal?.indicators
                         }).then(() => {
-                            addLog(bot.name, `✅ ${finalSignal} Signal: ${pair} @ ${realPrice.toFixed(5)} (${Math.round(finalConfidence)}% - ${analysisSource})`, 'success');
+                            addLog(bot.name, `✅ ${finalSignal} Signal Generated: ${pair} @ ${realPrice.toFixed(5)} (${Math.round(finalConfidence)}% - ${analysisSource})`, 'success');
+                            console.log(`[AutoTrade] 📡 Signal created for bot ${bot.name}: ${finalSignal} ${pair} @ ${realPrice.toFixed(5)}`);
                             queryClient.invalidateQueries(['ai-signals']);
+                        }).catch(err => {
+                            console.error('[AutoTrade] Failed to create signal:', err);
+                            addLog(bot.name, `❌ Failed to generate signal: ${err.message}`, 'info');
                         });
                     } else if (technicalSignal) {
                         addLog(bot.name, `⚠️ ${pair}: ${technicalSignal.signal} signal but confidence ${Math.round(technicalSignal.confidence)}% < threshold`, 'info');
