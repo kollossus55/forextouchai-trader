@@ -65,21 +65,21 @@ export default function Layout({ children }) {
     initialData: []
   });
 
-  // Check if ANY connection is active
+  // Check if ANY connection is active (increased tolerance to 90 seconds)
   const isConnected = React.useMemo(() => {
     if (!connections || connections.length === 0) return false;
     
     const now = new Date().getTime();
     
-    // Check if at least one connection is healthy
+    // Check if at least one connection is healthy (90 second grace period)
     return connections.some(conn => {
       if (!conn.last_sync) return false;
       
       const lastSync = new Date(conn.last_sync).getTime();
       const timeSinceSync = now - lastSync;
-      const isStale = timeSinceSync > 30000;
+      const isStale = timeSinceSync > 90000; // 90 seconds instead of 30
       
-      const veryRecentSync = timeSinceSync < 8000;
+      const veryRecentSync = timeSinceSync < 15000; // 15 seconds instead of 8
       const statusOk = conn.connection_status === 'CONNECTED' || 
                        (veryRecentSync && conn.connection_status !== 'ERROR');
       
@@ -87,7 +87,7 @@ export default function Layout({ children }) {
     });
   }, [connections, connectionError]);
   
-  // Count active connections
+  // Count active connections (90 second tolerance)
   const activeConnectionCount = React.useMemo(() => {
     if (!connections) return 0;
     const now = new Date().getTime();
@@ -95,14 +95,15 @@ export default function Layout({ children }) {
       if (!conn.last_sync) return false;
       const lastSync = new Date(conn.last_sync).getTime();
       const timeSinceSync = now - lastSync;
-      return timeSinceSync <= 30000 && conn.connection_status === 'CONNECTED';
+      return timeSinceSync <= 90000 && conn.connection_status === 'CONNECTED';
     }).length;
   }, [connections]);
   
-  // Monitor connection status globally with reconnection feedback
+  // Monitor connection status globally with reconnection feedback (debounced to prevent flapping)
   const [lastConnectionState, setLastConnectionState] = React.useState(null);
   const [disconnectTime, setDisconnectTime] = React.useState(null);
   const [hasShownReconnection, setHasShownReconnection] = React.useState(false);
+  const [connectionChangeTimeout, setConnectionChangeTimeout] = React.useState(null);
   
   React.useEffect(() => {
     console.log('[Connection Monitor] isConnected:', isConnected, 'lastConnectionState:', lastConnectionState);
@@ -111,79 +112,83 @@ export default function Layout({ children }) {
     if (lastConnectionState === null) {
       console.log('[Connection Monitor] First render - initializing to:', isConnected);
       setLastConnectionState(isConnected);
-      // If connected on first load, assume this might be a reconnection
+      // If connected on first load, only show toast if truly stable
       if (isConnected && !hasShownReconnection) {
-        console.log('[Connection Monitor] Connected on page load - showing reconnection toast');
-        toast.success("MT4/MT5 Connected! ✓", {
-          description: "Trading platform is online and syncing",
+        console.log('[Connection Monitor] Connected on page load');
+        setHasShownReconnection(true);
+      }
+      return;
+    }
+    
+    // Clear any pending timeout
+    if (connectionChangeTimeout) {
+      clearTimeout(connectionChangeTimeout);
+    }
+    
+    // Debounce connection changes by 10 seconds to prevent flapping alerts
+    const newTimeout = setTimeout(() => {
+      // Alert on disconnection (only after stable disconnect)
+      if (lastConnectionState === true && isConnected === false) {
+        console.log('[Connection Monitor] DISCONNECTION CONFIRMED after debounce - Showing alert');
+        setDisconnectTime(Date.now());
+        setHasShownReconnection(false);
+        toast.error("MT4/MT5 Connection Lost", {
+          description: "Trading platform disconnected for 10+ seconds. Check your EA.",
+          duration: 10000,
+          cancel: {
+            label: "✕",
+            onClick: () => {}
+          },
+          action: {
+            label: "Settings",
+            onClick: () => window.location.href = createPageUrl('Settings')
+          }
+        });
+        setLastConnectionState(false);
+      }
+      
+      // Alert on reconnection (only after stable reconnect)
+      if (lastConnectionState === false && isConnected === true) {
+        console.log('[Connection Monitor] RECONNECTION CONFIRMED after debounce - Showing alert');
+        const downSeconds = disconnectTime ? Math.floor((Date.now() - disconnectTime) / 1000) : 0;
+        const downMinutes = Math.floor(downSeconds / 60);
+
+        toast.success("MT4/MT5 Reconnected! ✓", {
+          description: downSeconds > 0 ? `Connection restored after ${downMinutes > 0 ? downMinutes + ' minute(s)' : downSeconds + ' second(s)'}` : "Connection restored",
           duration: 5000,
           cancel: {
             label: "✕",
             onClick: () => {}
           }
         });
-        setHasShownReconnection(true);
-      }
-      return;
-    }
-    
-    // Alert on disconnection
-    if (lastConnectionState === true && isConnected === false) {
-      console.log('[Connection Monitor] DISCONNECTION DETECTED - Showing alert');
-      setDisconnectTime(Date.now());
-      setHasShownReconnection(false);
-      toast.error("MT4/MT5 Connection Lost", {
-        description: "Trading platform disconnected. Check your EA.",
-        duration: 10000,
-        cancel: {
-          label: "✕",
-          onClick: () => {}
-        },
-        action: {
-          label: "Settings",
-          onClick: () => window.location.href = createPageUrl('Settings')
-        }
-      });
-    }
-    
-    // Alert on reconnection
-    if (lastConnectionState === false && isConnected === true) {
-      console.log('[Connection Monitor] RECONNECTION DETECTED - Showing alert');
-      const downSeconds = disconnectTime ? Math.floor((Date.now() - disconnectTime) / 1000) : 0;
-      const downMinutes = Math.floor(downSeconds / 60);
-
-      toast.success("MT4/MT5 Reconnected! ✓", {
-        description: downSeconds > 0 ? `Connection restored after ${downSeconds}s offline` : "Connection restored",
-        duration: 5000,
-        cancel: {
-          label: "✕",
-          onClick: () => {}
-        }
-      });
-      
-      // ALWAYS send reconnection email when connection is restored
-      if (user?.email) {
-        const emailBody = downSeconds > 0 
-          ? `Your MT4/MT5 trading platform has successfully reconnected after being offline for ${downMinutes > 0 ? downMinutes + ' minute(s)' : downSeconds + ' second(s)'}.\n\nConnection Status: ONLINE\nReconnected At: ${new Date().toLocaleString()}\n\nYour trading bots can now resume operations.`
-          : `Your MT4/MT5 trading platform connection has been successfully established.\n\nConnection Status: ONLINE\nConnected At: ${new Date().toLocaleString()}`;
         
-        console.log('[Connection Monitor] Sending reconnection email to:', user.email);
-        base44.integrations.Core.SendEmail({
-          to: user.email,
-          subject: '✅ ForexTouchAI - MT4/MT5 Connection Restored',
-          body: emailBody
-        }).then(() => {
-          console.log('[Connection Monitor] Reconnection email sent successfully');
-        }).catch(e => {
-          console.error("[Connection Monitor] Failed to send reconnection email:", e);
-        });
+        // Only send email if downtime was significant (> 2 minutes)
+        if (user?.email && downSeconds > 120) {
+          const emailBody = `Your MT4/MT5 trading platform has successfully reconnected after being offline for ${downMinutes} minute(s).\n\nConnection Status: ONLINE\nReconnected At: ${new Date().toLocaleString()}\n\nYour trading bots can now resume operations.`;
+          
+          console.log('[Connection Monitor] Sending reconnection email to:', user.email);
+          base44.integrations.Core.SendEmail({
+            to: user.email,
+            subject: '✅ ForexTouchAI - MT4/MT5 Connection Restored',
+            body: emailBody
+          }).then(() => {
+            console.log('[Connection Monitor] Reconnection email sent successfully');
+          }).catch(e => {
+            console.error("[Connection Monitor] Failed to send reconnection email:", e);
+          });
+        }
+        
+        setDisconnectTime(null);
+        setHasShownReconnection(true);
+        setLastConnectionState(true);
       }
-      
-      setDisconnectTime(null);
-      setHasShownReconnection(true);
-    }
+    }, 10000); // 10 second debounce to prevent alert flapping
     
-    setLastConnectionState(isConnected);
+    setConnectionChangeTimeout(newTimeout);
+    
+    return () => {
+      if (newTimeout) clearTimeout(newTimeout);
+    };
   }, [isConnected]);
 
   const navItems = [
