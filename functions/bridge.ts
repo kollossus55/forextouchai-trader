@@ -371,16 +371,16 @@ Deno.serve(async (req) => {
                         }
                     }
                     
-                    // Skip duplicate check for MANUAL trades (allow multiple manual positions)
-                    if ((signal.type === 'BUY' || signal.type === 'SELL') && signal.strategy !== 'MANUAL_EXECUTION') {
-                        const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', pair: signal.pair }), 1);
+                    // Skip duplicate check - ALLOW manual trades through, only check bot trades
+                    if ((signal.type === 'BUY' || signal.type === 'SELL') && signal.bot_id) {
+                        const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', pair: signal.pair, bot_id: signal.bot_id }), 1);
                         if (openTrades && openTrades.length > 0) {
-                            console.log(`[GET] Signal ${signal.id} skipped - ${signal.pair} has ${openTrades.length} open`);
+                            console.log(`[GET] Signal ${signal.id} skipped - Bot ${signal.bot_id} already has ${openTrades.length} open on ${signal.pair}`);
                             await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
                                 status: 'SKIPPED',
                                 result_pnl: 0 
                             }), 1);
-                            return Response.json({ status: "NO_SIGNAL", reason: "PAIR_ALREADY_OPEN" });
+                            return Response.json({ status: "NO_SIGNAL", reason: "BOT_PAIR_ALREADY_OPEN" });
                         }
                     }
 
