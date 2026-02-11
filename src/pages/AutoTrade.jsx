@@ -170,12 +170,17 @@ export default function AutoTrade() {
             const endTime = endH * 60 + endM;
 
             if (currentTime < startTime || currentTime > endTime) {
-                 if (Math.random() > 0.98) addLog(bot.name, `Sleeping (Outside Schedule: ${bot.trading_start_time}-${bot.trading_end_time})`, 'default');
+                 if (Math.random() > 0.9) addLog(bot.name, `⏰ Outside trading hours (${bot.trading_start_time}-${bot.trading_end_time})`, 'default');
                  return;
             }
 
+            // Log active monitoring
+            if (Math.random() > 0.95) {
+                addLog(bot.name, `🔍 Actively monitoring ${bot.pairs?.length || 1} pair(s)...`, 'default');
+            }
+
             // Real Technical Analysis (increased frequency for active trading)
-            if (Math.random() > 0.7) { // 30% chance per tick
+            if (Math.random() > 0.5) { // 50% chance per tick
                 const pairs = bot.pairs && bot.pairs.length > 0 ? bot.pairs : ['EUR/USD'];
                 const pair = pairs[Math.floor(Math.random() * pairs.length)];
 
@@ -184,20 +189,25 @@ export default function AutoTrade() {
                 const maxTrades = bot.max_open_trades || 5;
 
                 if (botOpenTrades.length >= maxTrades) {
-                    if (Math.random() > 0.95) {
-                        addLog(bot.name, `Trade limit reached (${botOpenTrades.length}/${maxTrades})`, 'info');
+                    if (Math.random() > 0.9) {
+                        addLog(bot.name, `⚠️ Max trades reached (${botOpenTrades.length}/${maxTrades})`, 'info');
                     }
                     return;
                 }
 
+                addLog(bot.name, `📊 ${pair}: Open trades ${botOpenTrades.length}/${maxTrades}`, 'default');
+
                 try {
                     // Fetch historical data for analysis
-                    addLog(bot.name, `Analyzing ${pair} with ${bot.strategy_type} strategy...`, 'default');
+                    addLog(bot.name, `🔬 Analyzing ${pair} (${bot.timeframe}) with ${bot.strategy_type}...`, 'default');
 
                     const historicalData = await technicalAnalysisService.fetchHistoricalData(pair, bot.timeframe);
                     if (!historicalData || historicalData.length < 50) {
+                        addLog(bot.name, `❌ ${pair}: Insufficient data (${historicalData?.length || 0} candles)`, 'info');
                         return;
                     }
+
+                    addLog(bot.name, `✅ ${pair}: Loaded ${historicalData.length} candles for analysis`, 'default');
 
                     const realPrice = historicalData[historicalData.length - 1].close;
 
@@ -276,14 +286,17 @@ export default function AutoTrade() {
                             addLog(bot.name, `❌ Failed to generate signal: ${err.message}`, 'info');
                         });
                     } else if (technicalSignal) {
-                        addLog(bot.name, `⚠️ ${pair}: ${technicalSignal.signal} signal but confidence ${Math.round(technicalSignal.confidence)}% < threshold`, 'info');
+                        addLog(bot.name, `⚠️ ${pair}: ${technicalSignal.signal} signal but confidence ${Math.round(technicalSignal.confidence)}% < ${bot.min_confidence}% threshold`, 'info');
+                    } else {
+                        addLog(bot.name, `ℹ️ ${pair}: No clear signal detected`, 'default');
                     }
-                } catch (error) {
-                    console.error('Analysis error:', error);
-                }
+                    } catch (error) {
+                    console.error('[AutoTrade] Analysis error:', error);
+                    addLog(bot.name, `❌ ${pair}: Analysis failed - ${error.message}`, 'info');
+                    }
             }
         });
-    }, 20000); // Check every 20 seconds
+    }, 15000); // Check every 15 seconds for more frequent analysis
 
     return () => clearInterval(interval);
   }, [bots, allTrades]);
