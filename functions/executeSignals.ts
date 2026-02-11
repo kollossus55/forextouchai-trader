@@ -5,7 +5,9 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         
         // Get all pending signals using service role to avoid rate limits
-        const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
+        // EXCLUDE manual trades - they must go through MT4 bridge only
+        const allPendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
+        const pendingSignals = allPendingSignals.filter(s => s.strategy !== 'MANUAL_EXECUTION');
         
         if (pendingSignals.length === 0) {
             return Response.json({ 
