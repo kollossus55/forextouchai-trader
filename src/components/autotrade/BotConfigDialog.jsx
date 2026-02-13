@@ -42,7 +42,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     stop_loss_pips: 30,
     take_profit_pips: 60,
     max_open_trades: 3,
-    pairs: ['EUR/USD']
+    pairs: ['EUR/USD'],
+    auto_execution: false,
+    use_ai_risk: false
   });
 
   // Strategy-to-Timeframe mapping
@@ -89,7 +91,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         atr_multiplier_sl: 1.5,
         atr_multiplier_tp: 3.0,
         money_management: 'FIXED',
-        martingale_multiplier: 2.0
+        martingale_multiplier: 2.0,
+        auto_execution: false,
+        use_ai_risk: false
       });
     }
   }, [initialData, open]);
