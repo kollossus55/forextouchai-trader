@@ -40,11 +40,18 @@ export default function BotStatusCard({ bot, onToggle, onConfigure, trades = [] 
           </div>
           
           <div className="flex items-center gap-2">
-            <Switch 
-              checked={isRunning}
-              onCheckedChange={() => onToggle(bot)}
-              className="data-[state=checked]:bg-emerald-600"
-            />
+            <div className="relative">
+              <div className={`w-3 h-3 rounded-full absolute -left-5 top-1/2 -translate-y-1/2 ${
+                isRunning ? 'bg-emerald-500 shadow-[0_0_12px_3px_rgba(16,185,129,0.6)] animate-pulse' :
+                isPaused ? 'bg-amber-500 shadow-[0_0_12px_3px_rgba(251,191,36,0.6)]' :
+                'bg-rose-500 shadow-[0_0_8px_2px_rgba(244,63,94,0.4)]'
+              }`} />
+              <Switch 
+                checked={isRunning}
+                onCheckedChange={() => onToggle(bot)}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
             <Button 
               variant="ghost" 
               size="icon"
