@@ -42,6 +42,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     stop_loss_pips: 30,
     take_profit_pips: 60,
     max_open_trades: 3,
+    max_daily_trades: 0,
     pairs: ['EUR/USD'],
     auto_execution: false,
     use_ai_risk: false
