@@ -44,6 +44,8 @@ export default function Pairs() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [tradeType, setTradeType] = useState('BUY');
   const [volume, setVolume] = useState('0.10');
+  const [stopLossPips, setStopLossPips] = useState('30');
+  const [takeProfitPips, setTakeProfitPips] = useState('60');
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   const [showAdvancedChart, setShowAdvancedChart] = useState(false);
   
