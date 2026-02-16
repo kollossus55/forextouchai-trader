@@ -189,7 +189,9 @@ Deno.serve(async (req) => {
             }
 
             // Process trades asynchronously (don't block response) - SIMPLIFIED
-            if (trades && Array.isArray(trades) && trades.length > 0) {
+            try {
+                const { trades } = body;
+                if (trades && Array.isArray(trades) && trades.length > 0) {
                 // Fire and forget with 2s timeout
                 setTimeout(async () => {
                     try {
