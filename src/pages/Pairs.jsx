@@ -238,17 +238,39 @@ export default function Pairs() {
     
     // Use the simulated live price for execution accuracy
     const executionPrice = liveData[selectedPair.id]?.current_price || selectedPair.current_price;
+    
+    // Calculate SL/TP prices based on pips
+    const slPips = parseFloat(stopLossPips) || 0;
+    const tpPips = parseFloat(takeProfitPips) || 0;
+    
+    // Determine pip size (0.0001 for most pairs, 0.01 for JPY pairs)
+    const pipSize = selectedPair.symbol.includes('JPY') ? 0.01 : 0.0001;
+    
+    let stopLossPrice = 0;
+    let takeProfitPrice = 0;
+    
+    if (slPips > 0) {
+      stopLossPrice = tradeType === 'BUY' 
+        ? executionPrice - (slPips * pipSize)
+        : executionPrice + (slPips * pipSize);
+    }
+    
+    if (tpPips > 0) {
+      takeProfitPrice = tradeType === 'BUY'
+        ? executionPrice + (tpPips * pipSize)
+        : executionPrice - (tpPips * pipSize);
+    }
 
     sendSignal.mutate({
       pair: selectedPair.symbol,
       type: tradeType,
       entry_price: executionPrice,
       lot_size: parseFloat(volume),
-      stop_loss: 0, // 0 implies no SL for market order (or handled by EA default)
-      take_profit: 0,
+      stop_loss: stopLossPrice,
+      take_profit: takeProfitPrice,
       confidence: 100,
       strategy: 'MANUAL_EXECUTION',
-      status: 'PENDING', // Bridge picks up PENDING signals
+      status: 'PENDING',
       result_pnl: 0
     });
   };
