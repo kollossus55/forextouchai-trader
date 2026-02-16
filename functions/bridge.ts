@@ -108,76 +108,84 @@ Deno.serve(async (req) => {
                 });
             }
             
-            const { trades, account } = body;
-            const timestamp = new Date().toISOString();
-            console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
-            
-            // LOG EVERY SINGLE TRADE RECEIVED FROM MT4
-            if (trades && Array.isArray(trades) && trades.length > 0) {
-                console.log(`[POST] 🔥 MT4 SENT ${trades.length} TRADES:`);
-                trades.forEach((t, idx) => {
-                    console.log(`  [${idx + 1}] Ticket:${t.ticket} ${t.symbol} ${t.type} Lots:${t.lots} PnL:${t.pnl} Price:${t.current_price}`);
-                });
-            } else {
-                console.log(`[POST] ⚠️ MT4 SENT EMPTY TRADES ARRAY OR NO TRADES`);
-            }
-            
-            if (account) {
-                console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}, account_number=${account.account_number}`);
-            }
-
-            // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
+            // Wrap entire POST logic in try-catch to prevent 500 errors
             let heartbeatSuccess = false;
+            let tradesProcessed = false;
+            
             try {
-                // Find connection by account_number if provided, otherwise fallback to first
-                const accountNumber = account?.account_number ? String(account.account_number) : null;
-
-                let connections;
-                if (accountNumber) {
-                    connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ 
-                        account_number: accountNumber 
-                    }), 3);
+                const { trades, account } = body;
+                const timestamp = new Date().toISOString();
+                console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
+                
+                // LOG EVERY SINGLE TRADE RECEIVED FROM MT4
+                if (trades && Array.isArray(trades) && trades.length > 0) {
+                    console.log(`[POST] 🔥 MT4 SENT ${trades.length} TRADES:`);
+                    trades.forEach((t, idx) => {
+                        console.log(`  [${idx + 1}] Ticket:${t.ticket} ${t.symbol} ${t.type} Lots:${t.lots} PnL:${t.pnl} Price:${t.current_price}`);
+                    });
                 } else {
-                    connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
+                    console.log(`[POST] ⚠️ MT4 SENT EMPTY TRADES ARRAY OR NO TRADES`);
                 }
                 
-                // Build update object - ONLY update fields that are present in account data
-                const updateData = {
-                    connection_status: 'CONNECTED',
-                    last_sync: new Date().toISOString()
-                };
-                
-                // Add account fields if present
                 if (account) {
-                    if (account.balance !== undefined) updateData.balance = Number(account.balance) || 0;
-                    if (account.equity !== undefined) updateData.equity = Number(account.equity) || 0;
-                    if (account.margin !== undefined) updateData.margin = Number(account.margin) || 0;
-                    if (account.free_margin !== undefined) updateData.free_margin = Number(account.free_margin) || 0;
-                    if (account.margin_level !== undefined) updateData.margin_level = Number(account.margin_level) || 0;
+                    console.log(`[POST] 💰 ACCOUNT: balance=${account.balance}, equity=${account.equity}, margin=${account.margin}, free_margin=${account.free_margin}, margin_level=${account.margin_level}, account_number=${account.account_number}`);
                 }
-                
-                if (connections.length > 0) {
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
-                    heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Account ${accountNumber} - Updated: balance=${updateData.balance}, equity=${updateData.equity}, margin=${updateData.margin}`);
-                } else if (account && accountNumber) {
-                    // Create new connection for this account
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
-                        platform: account.platform || 'MT4',
-                        server_name: account.server_name || 'MT4 Server',
-                        account_number: accountNumber,
-                        ...updateData
-                    }), 3);
-                    heartbeatSuccess = true;
-                    console.log(`[POST] ✓ Connection created for account ${accountNumber}`);
+
+                // CRITICAL: Update heartbeat IMMEDIATELY with extra retries
+                try {
+                    // Find connection by account_number if provided, otherwise fallback to first
+                    const accountNumber = account?.account_number ? String(account.account_number) : null;
+
+                    let connections;
+                    if (accountNumber) {
+                        connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ 
+                            account_number: accountNumber 
+                        }), 3);
+                    } else {
+                        connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
+                    }
+                    
+                    // Build update object - ONLY update fields that are present in account data
+                    const updateData = {
+                        connection_status: 'CONNECTED',
+                        last_sync: new Date().toISOString()
+                    };
+                    
+                    // Add account fields if present
+                    if (account) {
+                        if (account.balance !== undefined) updateData.balance = Number(account.balance) || 0;
+                        if (account.equity !== undefined) updateData.equity = Number(account.equity) || 0;
+                        if (account.margin !== undefined) updateData.margin = Number(account.margin) || 0;
+                        if (account.free_margin !== undefined) updateData.free_margin = Number(account.free_margin) || 0;
+                        if (account.margin_level !== undefined) updateData.margin_level = Number(account.margin_level) || 0;
+                    }
+                    
+                    if (connections.length > 0) {
+                        await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData), 3);
+                        heartbeatSuccess = true;
+                        console.log(`[POST] ✓ Heartbeat ${Date.now() - startTime}ms - Account ${accountNumber} - Updated: balance=${updateData.balance}, equity=${updateData.equity}, margin=${updateData.margin}`);
+                    } else if (account && accountNumber) {
+                        // Create new connection for this account
+                        await withRetry(() => base44.asServiceRole.entities.BrokerConnection.create({
+                            platform: account.platform || 'MT4',
+                            server_name: account.server_name || 'MT4 Server',
+                            account_number: accountNumber,
+                            ...updateData
+                        }), 3);
+                        heartbeatSuccess = true;
+                        console.log(`[POST] ✓ Connection created for account ${accountNumber}`);
+                    }
+                    
+                    updateHealth(true);
+                    
+                } catch (err) {
+                    updateHealth(false);
+                    console.error(`[POST ERROR] Heartbeat: ${err.message}`);
+                    heartbeatSuccess = false;
                 }
-                
-                updateHealth(true);
-                
-            } catch (err) {
-                updateHealth(false);
-                console.error(`[POST ERROR] Heartbeat: ${err.message}`);
-                heartbeatSuccess = false;
+            } catch (parseErr) {
+                console.error(`[POST ERROR] Body parsing: ${parseErr.message}`);
+                // Continue to process trades if available
             }
 
             // Process trades asynchronously (don't block response) - SIMPLIFIED
