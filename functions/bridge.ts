@@ -258,9 +258,13 @@ Deno.serve(async (req) => {
                         console.error("[POST] Trade sync error:", err.message);
                     }
                 }, 0);
+                    tradesProcessed = true;
+                }
+            } catch (tradesErr) {
+                console.error(`[POST ERROR] Trade processing init: ${tradesErr.message}`);
             }
 
-            // Return immediately to prevent EA timeout
+            // Return immediately to prevent EA timeout (ALWAYS respond, even if errors occurred)
             const duration = Date.now() - startTime;
             console.log(`[POST] Response sent (${duration}ms, heartbeat: ${heartbeatSuccess ? 'OK' : 'FAIL'})`);
             return Response.json({ 
