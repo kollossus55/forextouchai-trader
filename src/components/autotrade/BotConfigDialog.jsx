@@ -493,6 +493,22 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                   className="bg-slate-950 border-slate-800"
                 />
               </div>
+
+              <div className="space-y-2 pt-2">
+                <Label className="flex items-center justify-between">
+                  Max Daily Trades
+                  <span className="text-[10px] text-emerald-400 font-normal">0 = Unlimited</span>
+                </Label>
+                <Input 
+                  type="number"
+                  min="0"
+                  value={formData.max_daily_trades || 0}
+                  onChange={e => setFormData({...formData, max_daily_trades: parseInt(e.target.value)})}
+                  className="bg-slate-950 border-slate-800"
+                  placeholder="0 for unlimited"
+                />
+                <p className="text-xs text-slate-500">Maximum trades per day (0 = unlimited). Prevents overtrading.</p>
+              </div>
             </TabsContent>
 
             {/* AI Assistant Tab */}
