@@ -567,6 +567,34 @@ export default function Pairs() {
                 {selectedPair && (liveData[selectedPair.id]?.current_price || selectedPair.current_price).toFixed(5)}
               </div>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-slate-400">Stop Loss</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Input 
+                  value={stopLossPips}
+                  onChange={(e) => setStopLossPips(e.target.value)}
+                  className="bg-slate-950 border-slate-800" 
+                  type="number"
+                  step="1"
+                  placeholder="0 = none"
+                />
+                <span className="text-xs text-slate-500 whitespace-nowrap">pips</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-slate-400">Take Profit</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Input 
+                  value={takeProfitPips}
+                  onChange={(e) => setTakeProfitPips(e.target.value)}
+                  className="bg-slate-950 border-slate-800" 
+                  type="number"
+                  step="1"
+                  placeholder="0 = none"
+                />
+                <span className="text-xs text-slate-500 whitespace-nowrap">pips</span>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTradeModalOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
