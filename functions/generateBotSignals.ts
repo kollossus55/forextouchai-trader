@@ -60,14 +60,30 @@ Deno.serve(async (req) => {
 
                 for (const pair of pairsToCheck) {
                     try {
+                        // Get market data service for the pair
+                        const priceResponse = await fetch(`https://api.polygon.io/v2/last/trade/C:${pair.replace('/', '')}?apiKey=BqiP1PAFeOUvDcMBRLhf29OOlJWs9kCt`);
+                        
+                        if (!priceResponse.ok) {
+                            console.error(`Failed to fetch price for ${pair}`);
+                            continue;
+                        }
+
+                        const priceData = await priceResponse.json();
+                        const currentPrice = priceData?.results?.p || 1.0;
+
                         // Call the analyzeMarket function which has full technical analysis
                         const analysisResult = await base44.asServiceRole.functions.invoke('analyzeMarket', {
-                            pair,
-                            strategy: bot.strategy_type,
-                            timeframe: bot.timeframe
+                            pairs: [pair],
+                            marketData: { [pair]: currentPrice },
+                            minConfidence: bot.min_confidence || 75,
+                            indicators: ['RSI', 'MACD', 'Bollinger Bands', 'EMA', 'Stochastic'],
+                            timeframe: bot.timeframe,
+                            riskLevel: bot.risk_level || 'MEDIUM',
+                            signalSensitivity: 'BALANCED',
+                            botId: bot.id
                         });
 
-                        if (!analysisResult.data || !analysisResult.data.signal) {
+                        if (!analysisResult.data || !analysisResult.data.pair) {
                             continue;
                         }
 
@@ -93,19 +109,19 @@ Deno.serve(async (req) => {
                             if (isJpy) pipMultiplier = 0.01;
                             if (isGold) pipMultiplier = 0.1;
 
-                            const realPrice = analysis.price;
-                            const sl = analysis.signal === 'BUY' 
+                            const realPrice = analysis.entry_price || currentPrice;
+                            const sl = analysis.stop_loss || (analysis.type === 'BUY' 
                                 ? realPrice - (bot.stop_loss_pips * pipMultiplier) 
-                                : realPrice + (bot.stop_loss_pips * pipMultiplier);
+                                : realPrice + (bot.stop_loss_pips * pipMultiplier));
 
-                            const tp = analysis.signal === 'BUY' 
+                            const tp = analysis.take_profit || (analysis.type === 'BUY' 
                                 ? realPrice + (bot.take_profit_pips * pipMultiplier) 
-                                : realPrice - (bot.take_profit_pips * pipMultiplier);
+                                : realPrice - (bot.take_profit_pips * pipMultiplier));
 
                             // Create signal
                             await base44.asServiceRole.entities.Signal.create({
-                                pair,
-                                type: analysis.signal,
+                                pair: analysis.pair,
+                                type: analysis.type,
                                 entry_price: parseFloat(realPrice.toFixed(5)),
                                 stop_loss: parseFloat(sl.toFixed(5)),
                                 take_profit: parseFloat(tp.toFixed(5)),
@@ -114,7 +130,7 @@ Deno.serve(async (req) => {
                                 strategy: bot.strategy_type,
                                 bot_id: bot.id,
                                 status: 'PENDING',
-                                calculated_indicators: analysis.indicators || {}
+                                calculated_indicators: analysis.calculated_indicators || analysis.indicators || {}
                             });
 
                             signalsGenerated++;
