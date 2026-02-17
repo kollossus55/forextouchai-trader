@@ -60,54 +60,32 @@ Deno.serve(async (req) => {
 
                 for (const pair of pairsToCheck) {
                     try {
-                        // Fetch market data from external API
-                        const timeframeMap = {
-                            'M1': 1, 'M5': 5, 'M15': 15, 'M30': 30,
-                            'H1': 60, 'H4': 240, 'D1': 1440, 'W1': 10080
-                        };
-                        const minutes = timeframeMap[bot.timeframe] || 60;
-                        
-                        const response = await fetch(
-                            `https://api.polygon.io/v2/aggs/ticker/C:${pair.replace('/', '')}/range/${minutes}/minute/${Date.now() - 7*24*60*60*1000}/${Date.now()}?adjusted=true&sort=asc&limit=200&apiKey=BqiP1PAFeOUvDcMBRLhf29OOlJWs9kCt`
-                        );
-                        
-                        if (!response.ok) {
+                        // Call the analyzeMarket function which has full technical analysis
+                        const analysisResult = await base44.asServiceRole.functions.invoke('analyzeMarket', {
+                            pair,
+                            strategy: bot.strategy_type,
+                            timeframe: bot.timeframe
+                        });
+
+                        if (!analysisResult.data || !analysisResult.data.signal) {
                             continue;
                         }
 
-                        const data = await response.json();
-                        
-                        if (!data.results || data.results.length < 50) {
-                            continue;
-                        }
+                        const analysis = analysisResult.data;
+                        const confidence = analysis.confidence || 0;
 
-                        const historicalData = data.results.map(candle => ({
-                            timestamp: candle.t,
-                            open: candle.o,
-                            high: candle.h,
-                            low: candle.l,
-                            close: candle.c,
-                            volume: candle.v
-                        }));
+                        if (confidence >= (bot.min_confidence || 75)) {
+                            // Check if signal already exists for this pair/bot in last 5 minutes
+                            const recentSignals = await base44.asServiceRole.entities.Signal.filter({
+                                pair,
+                                bot_id: bot.id,
+                                created_date: { $gte: new Date(Date.now() - 5 * 60 * 1000).toISOString() }
+                            });
 
-                        const realPrice = historicalData[historicalData.length - 1].close;
+                            if (recentSignals.length > 0) {
+                                continue; // Skip duplicate signal
+                            }
 
-                        // Simple RSI-based signal generation
-                        const closes = historicalData.map(d => d.close);
-                        const rsi = calculateRSI(closes, 14);
-                        
-                        let signal = null;
-                        let confidence = 0;
-
-                        if (rsi < 30) {
-                            signal = 'BUY';
-                            confidence = 70 + (30 - rsi);
-                        } else if (rsi > 70) {
-                            signal = 'SELL';
-                            confidence = 70 + (rsi - 70);
-                        }
-
-                        if (signal && confidence >= (bot.min_confidence || 75)) {
                             // Calculate SL/TP
                             const isJpy = pair.includes('JPY');
                             const isGold = pair.includes('XAU');
@@ -115,18 +93,19 @@ Deno.serve(async (req) => {
                             if (isJpy) pipMultiplier = 0.01;
                             if (isGold) pipMultiplier = 0.1;
 
-                            const sl = signal === 'BUY' 
+                            const realPrice = analysis.price;
+                            const sl = analysis.signal === 'BUY' 
                                 ? realPrice - (bot.stop_loss_pips * pipMultiplier) 
                                 : realPrice + (bot.stop_loss_pips * pipMultiplier);
 
-                            const tp = signal === 'BUY' 
+                            const tp = analysis.signal === 'BUY' 
                                 ? realPrice + (bot.take_profit_pips * pipMultiplier) 
                                 : realPrice - (bot.take_profit_pips * pipMultiplier);
 
                             // Create signal
                             await base44.asServiceRole.entities.Signal.create({
                                 pair,
-                                type: signal,
+                                type: analysis.signal,
                                 entry_price: parseFloat(realPrice.toFixed(5)),
                                 stop_loss: parseFloat(sl.toFixed(5)),
                                 take_profit: parseFloat(tp.toFixed(5)),
@@ -135,13 +114,13 @@ Deno.serve(async (req) => {
                                 strategy: bot.strategy_type,
                                 bot_id: bot.id,
                                 status: 'PENDING',
-                                calculated_indicators: { rsi }
+                                calculated_indicators: analysis.indicators || {}
                             });
 
                             signalsGenerated++;
                         }
                     } catch (pairError) {
-                        console.error(`Error analyzing ${pair}:`, pairError);
+                        console.error(`Error analyzing ${pair}:`, pairError.message);
                     }
                 }
 
@@ -174,27 +153,3 @@ Deno.serve(async (req) => {
         }, { status: 500 });
     }
 });
-
-// Simple RSI calculation
-function calculateRSI(prices, period = 14) {
-    if (prices.length < period + 1) return 50;
-    
-    let gains = 0;
-    let losses = 0;
-    
-    for (let i = prices.length - period; i < prices.length; i++) {
-        const change = prices[i] - prices[i - 1];
-        if (change > 0) gains += change;
-        else losses -= change;
-    }
-    
-    const avgGain = gains / period;
-    const avgLoss = losses / period;
-    
-    if (avgLoss === 0) return 100;
-    
-    const rs = avgGain / avgLoss;
-    const rsi = 100 - (100 / (1 + rs));
-    
-    return rsi;
-}
