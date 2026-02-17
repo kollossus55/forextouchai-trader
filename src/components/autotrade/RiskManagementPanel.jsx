@@ -240,7 +240,7 @@ export default function RiskManagementPanel() {
                   step="0.5"
                   value={formData.max_daily_loss_percent}
                   onChange={(e) => handleChange('max_daily_loss_percent', parseFloat(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Stop trading if daily loss exceeds this percentage</p>
               </div>
@@ -254,7 +254,7 @@ export default function RiskManagementPanel() {
                   step="0.5"
                   value={formData.max_drawdown_percent}
                   onChange={(e) => handleChange('max_drawdown_percent', parseFloat(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Maximum allowed equity drawdown from peak</p>
               </div>
@@ -268,7 +268,7 @@ export default function RiskManagementPanel() {
                   step="0.1"
                   value={formData.risk_per_trade_percent}
                   onChange={(e) => handleChange('risk_per_trade_percent', parseFloat(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Maximum risk per individual trade</p>
               </div>
@@ -289,7 +289,7 @@ export default function RiskManagementPanel() {
                   step="1"
                   value={formData.max_position_size_percent}
                   onChange={(e) => handleChange('max_position_size_percent', parseFloat(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Maximum position size as % of account balance</p>
               </div>
@@ -303,7 +303,7 @@ export default function RiskManagementPanel() {
                   step="1"
                   value={formData.max_concurrent_trades}
                   onChange={(e) => handleChange('max_concurrent_trades', parseInt(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Maximum number of open trades across all bots</p>
               </div>
@@ -317,7 +317,7 @@ export default function RiskManagementPanel() {
                   step="5"
                   value={formData.alert_threshold_percent}
                   onChange={(e) => handleChange('alert_threshold_percent', parseInt(e.target.value))}
-                  className="bg-slate-950 border-slate-700 text-white text-base h-11"
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Alert when risk reaches this % of limit</p>
               </div>
