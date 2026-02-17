@@ -17,13 +17,80 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Fetch all open trades at once to reduce API calls
+        // Fetch all open trades and bots at once to reduce API calls
         const allOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+        const allBots = await base44.asServiceRole.entities.BotConfig.list();
+        
+        // Fetch global risk settings
+        const riskSettings = await base44.asServiceRole.entities.RiskManagementSettings.list();
+        const globalRisk = riskSettings?.[0] || { max_concurrent_trades: 100, is_trading_paused: false };
+        
+        // Check if trading is paused globally
+        if (globalRisk.is_trading_paused) {
+            return Response.json({
+                success: true,
+                message: 'Trading paused due to global risk limits',
+                executed: 0,
+                skipped: pendingSignals.length
+            });
+        }
+        
+        // Check global max concurrent trades
+        if (allOpenTrades.length >= globalRisk.max_concurrent_trades) {
+            return Response.json({
+                success: true,
+                message: `Global trade limit reached (${globalRisk.max_concurrent_trades})`,
+                executed: 0,
+                skipped: pendingSignals.length
+            });
+        }
         
         const results = [];
         
         for (const signal of pendingSignals) {
             try {
+                // Check global trade limit before executing each signal
+                const currentOpenCount = allOpenTrades.filter(t => t.status === 'OPEN').length;
+                if (currentOpenCount >= globalRisk.max_concurrent_trades) {
+                    results.push({
+                        signal_id: signal.id,
+                        pair: signal.pair,
+                        success: false,
+                        skipped: true,
+                        reason: 'Global trade limit reached'
+                    });
+                    continue;
+                }
+                
+                // Find the bot and check its individual limits
+                const bot = allBots.find(b => b.id === signal.bot_id);
+                if (!bot) {
+                    results.push({
+                        signal_id: signal.id,
+                        pair: signal.pair,
+                        success: false,
+                        error: 'Bot not found'
+                    });
+                    continue;
+                }
+                
+                // Check bot's max open trades limit
+                const botOpenTrades = allOpenTrades.filter(t => 
+                    t.bot_id === signal.bot_id && 
+                    t.status === 'OPEN'
+                );
+                
+                if (botOpenTrades.length >= (bot.max_open_trades || 5)) {
+                    results.push({
+                        signal_id: signal.id,
+                        pair: signal.pair,
+                        success: false,
+                        skipped: true,
+                        reason: `Bot ${bot.name} at max trades (${bot.max_open_trades || 5})`
+                    });
+                    continue;
+                }
+                
                 // Find existing open trades on same pair from same bot
                 const existingTrades = allOpenTrades.filter(t => 
                     t.pair === signal.pair && 
@@ -64,6 +131,9 @@ Deno.serve(async (req) => {
                     bot_id: signal.bot_id,
                     owner_email: signal.created_by
                 });
+                
+                // Add to allOpenTrades to track count in real-time
+                allOpenTrades.push(trade);
 
                 // Update signal status to ACTIVE
                 await base44.asServiceRole.entities.Signal.update(signal.id, {
@@ -91,7 +161,8 @@ Deno.serve(async (req) => {
         return Response.json({
             success: true,
             executed: results.filter(r => r.success).length,
-            failed: results.filter(r => !r.success).length,
+            skipped: results.filter(r => r.skipped).length,
+            failed: results.filter(r => !r.success && !r.skipped).length,
             results
         });
 
