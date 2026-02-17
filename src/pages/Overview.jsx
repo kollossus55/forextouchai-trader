@@ -99,9 +99,9 @@ export default function Overview() {
       console.log('[Overview] Fetched trades:', openTrades.length, openTrades);
       return openTrades;
     },
-    refetchInterval: 5000, // Faster refresh - every 5 seconds
-    staleTime: 0,
-    cacheTime: 0,
+    refetchInterval: 3000, // Poll every 3 seconds
+    staleTime: 0, // Always consider stale
+    gcTime: 0, // Don't cache at all (new React Query v5 syntax)
     initialData: []
   });
 
