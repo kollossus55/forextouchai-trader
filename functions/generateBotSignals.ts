@@ -60,8 +60,11 @@ Deno.serve(async (req) => {
 
                 for (const pair of pairsToCheck) {
                     try {
-                        // Get market data service for the pair
-                        const priceResponse = await fetch(`https://api.polygon.io/v2/last/trade/C:${pair.replace('/', '')}?apiKey=BqiP1PAFeOUvDcMBRLhf29OOlJWs9kCt`);
+                        // Use Exchange Rate API for reliable forex prices
+                        const baseCurrency = pair.split('/')[0];
+                        const quoteCurrency = pair.split('/')[1];
+                        
+                        const priceResponse = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
                         
                         if (!priceResponse.ok) {
                             console.error(`Failed to fetch price for ${pair}`);
@@ -69,7 +72,7 @@ Deno.serve(async (req) => {
                         }
 
                         const priceData = await priceResponse.json();
-                        const currentPrice = priceData?.results?.p || 1.0;
+                        const currentPrice = priceData?.rates?.[quoteCurrency] || 1.0;
 
                         // Call the analyzeMarket function which has full technical analysis
                         const analysisResult = await base44.asServiceRole.functions.invoke('analyzeMarket', {
