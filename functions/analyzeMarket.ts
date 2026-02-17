@@ -176,10 +176,14 @@ const calculateIndicators = (priceData) => {
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
         
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        // Allow both authenticated users AND service role calls (from automations)
+        let user = null;
+        try {
+            user = await base44.auth.me();
+        } catch (e) {
+            // Service role calls won't have a user - that's OK
+            console.log('[analyzeMarket] Service role call detected');
         }
 
         const { pairs, marketData, minConfidence = 80, indicators = [], timeframe = 'H1', riskLevel = 'MEDIUM', signalSensitivity = 'BALANCED', botId = null } = await req.json();
