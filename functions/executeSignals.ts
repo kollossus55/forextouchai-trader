@@ -49,16 +49,18 @@ Deno.serve(async (req) => {
         
         for (const signal of pendingSignals) {
             try {
-                // Check global trade limit before executing each signal
-                const currentOpenCount = allOpenTrades.filter(t => t.status === 'OPEN').length;
-                if (currentOpenCount >= globalRisk.max_concurrent_trades) {
+                // RE-FETCH current open trades count to get real-time accurate count
+                const currentOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+                if (currentOpenTrades.length >= globalRisk.max_concurrent_trades) {
                     results.push({
                         signal_id: signal.id,
                         pair: signal.pair,
                         success: false,
                         skipped: true,
-                        reason: 'Global trade limit reached'
+                        reason: `Global limit reached (${currentOpenTrades.length}/${globalRisk.max_concurrent_trades})`
                     });
+                    // Mark signal as skipped
+                    await base44.asServiceRole.entities.Signal.update(signal.id, { status: 'SKIPPED' });
                     continue;
                 }
                 
