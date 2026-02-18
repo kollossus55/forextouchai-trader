@@ -249,8 +249,9 @@ Deno.serve(async (req) => {
 
                         const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
                         if (closedTrades.length > 0) {
-                            console.log(`[POST] Closing ${closedTrades.length} trades`);
-                            for (const t of closedTrades.slice(0, 10)) {
+                            console.log(`[POST] 🔴 Closing ${closedTrades.length} trades that MT4 no longer has`);
+                            // Close ALL trades that MT4 no longer reports as open
+                            for (const t of closedTrades) {
                                 await base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' }).catch(() => {});
                             }
                         }
