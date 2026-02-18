@@ -122,24 +122,11 @@ Deno.serve(async (req) => {
                     }
                 }
 
-                // Create new trade from signal
-                const trade = await base44.asServiceRole.entities.Trade.create({
-                    pair: signal.pair,
-                    type: signal.type,
-                    lot_size: signal.lot_size || 0.01,
-                    open_price: signal.entry_price,
-                    status: 'OPEN',
-                    is_auto: true,
-                    bot_id: signal.bot_id,
-                    owner_email: signal.created_by
-                });
-                
-                // Add to allOpenTrades to track count in real-time
-                allOpenTrades.push(trade);
-
-                // Update signal status to ACTIVE
+                // DON'T create trade directly - let MT4 EA pick up the signal
+                // The signal will be executed by MT4, and MT4 will report back the trade
+                // Update signal status to PENDING (ready for MT4 pickup)
                 await base44.asServiceRole.entities.Signal.update(signal.id, {
-                    status: 'ACTIVE'
+                    status: 'PENDING'
                 });
 
                 results.push({
