@@ -4,6 +4,31 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
+        // Fetch global risk settings first
+        const riskSettings = await base44.asServiceRole.entities.RiskManagementSettings.list();
+        const globalRisk = riskSettings?.[0] || { max_concurrent_trades: 100, is_trading_paused: false };
+        
+        // Check if trading is paused globally
+        if (globalRisk.is_trading_paused) {
+            return Response.json({
+                success: true,
+                message: 'Trading paused due to global risk limits',
+                signals_generated: 0
+            });
+        }
+        
+        // Fetch all open trades once
+        const allTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+        
+        // Check global max concurrent trades BEFORE generating any signals
+        if (allTrades.length >= globalRisk.max_concurrent_trades) {
+            return Response.json({
+                success: true,
+                message: `Global trade limit reached (${allTrades.length}/${globalRisk.max_concurrent_trades})`,
+                signals_generated: 0
+            });
+        }
+        
         // Fetch all RUNNING bots using service role
         const runningBots = await base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' });
         
@@ -14,9 +39,6 @@ Deno.serve(async (req) => {
                 signals_generated: 0 
             });
         }
-
-        // Fetch all open trades once
-        const allTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
         
         const results = [];
         
@@ -35,6 +57,13 @@ Deno.serve(async (req) => {
                     continue;
                 }
 
+                // Check global limit again before processing this bot
+                const currentTotalTrades = allTrades.filter(t => t.status === 'OPEN').length;
+                if (currentTotalTrades >= globalRisk.max_concurrent_trades) {
+                    results.push({ bot: bot.name, status: 'global_limit_reached', signals: 0 });
+                    continue;
+                }
+                
                 // Check bot's current open trades vs limit
                 const botOpenTrades = allTrades.filter(t => t.bot_id === bot.id && t.status === 'OPEN' && t.is_auto === true);
                 const maxTrades = bot.max_open_trades || 5;
