@@ -131,7 +131,6 @@ Deno.serve(async (req) => {
 
                 results.push({
                     signal_id: signal.id,
-                    trade_id: trade.id,
                     pair: signal.pair,
                     type: signal.type,
                     closed_opposite_trades: closedTrades,
