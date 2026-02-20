@@ -205,8 +205,17 @@ Deno.serve(async (req) => {
                     const incomingTickets = new Set();
 
                     for (const t of trades) {
-                        if (!t.ticket) continue;
+                        if (!t.ticket) {
+                            console.log(`[POST] ⚠️ SKIPPED - Missing ticket`);
+                            continue;
+                        }
                         const ticket = Number(t.ticket);
+                        
+                        // LOG EACH TRADE WITH VALIDATION
+                        const openPrice = Number(t.open_price);
+                        const hasValidOpen = openPrice && openPrice !== 0;
+                        console.log(`[POST] Trade ${ticket}: ${hasValidOpen ? '✓' : '❌'} ${t.symbol} ${t.type} Open:${t.open_price} Current:${t.current_price} PnL:${t.pnl}`);
+                        
                         incomingTickets.add(ticket);
                         
                         const existing = dbTradesMap.get(ticket);
@@ -218,6 +227,12 @@ Deno.serve(async (req) => {
                                 close_price: Number(t.current_price || 0)
                             });
                         } else {
+                            // VALIDATION: Reject trades with missing or zero open_price
+                            if (!hasValidOpen) {
+                                console.log(`[POST] ❌ REJECTED ${ticket} - Invalid open_price: ${t.open_price}`);
+                                continue;
+                            }
+                            
                             let botId = null;
                             if (t.magic && String(t.magic).length > 5) botId = String(t.magic);
                             else if (t.comment) {
@@ -229,7 +244,7 @@ Deno.serve(async (req) => {
                                 pair: String(t.symbol || "UNKNOWN"),
                                 type: String(t.type || "BUY"),
                                 lot_size: Number(t.lots) || 0.01,
-                                open_price: Number(t.open_price) || 0,
+                                open_price: openPrice,
                                 close_price: Number(t.current_price || 0),
                                 pnl: Number(t.pnl) || 0,
                                 ticket: ticket,
