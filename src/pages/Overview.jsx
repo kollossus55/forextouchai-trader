@@ -95,9 +95,10 @@ export default function Overview() {
   const { data: trades, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home'],
     queryFn: async () => {
-      const openTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
-      console.log('[Overview] Fetched trades:', openTrades.length, openTrades);
-      return openTrades;
+      // Use function to bypass RLS and show ALL trades from MT4
+      const result = await base44.functions.invoke('getAllTrades', {});
+      console.log('[Overview] Fetched trades:', result.data.length, result.data);
+      return result.data;
     },
     refetchInterval: 3000, // Poll every 3 seconds
     staleTime: 0, // Always consider stale
