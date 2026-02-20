@@ -265,9 +265,16 @@ export default function Overview() {
     profit: currentEquity - baseBalance
   };
 
-  const refreshConnection = () => {
-    queryClient.invalidateQueries(['broker-connections']);
-    setLastUpdated(new Date());
+  const refreshConnection = async () => {
+    try {
+      await base44.functions.invoke('forceSync', {});
+      queryClient.invalidateQueries(['broker-connections']);
+      queryClient.invalidateQueries(['trades-home']);
+      setLastUpdated(new Date());
+      toast.success('Sync Complete', { description: 'Trade data synchronized with MT4' });
+    } catch (e) {
+      toast.error('Sync Failed', { description: e.message });
+    }
   };
 
   return (
