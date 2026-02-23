@@ -122,12 +122,9 @@ Deno.serve(async (req) => {
                     }
                 }
 
-                // DON'T create trade directly - let MT4 EA pick up the signal
-                // The signal will be executed by MT4, and MT4 will report back the trade
-                // Update signal status to PENDING (ready for MT4 pickup)
-                await base44.asServiceRole.entities.Signal.update(signal.id, {
-                    status: 'PENDING'
-                });
+                // DON'T create trade entity here - signal stays PENDING for MT4 to pick up
+                // MT4 will execute the trade and report it back with a ticket number
+                // Signal remains PENDING until MT4 processes it
 
                 results.push({
                     signal_id: signal.id,
