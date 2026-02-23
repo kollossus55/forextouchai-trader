@@ -317,30 +317,30 @@ Deno.serve(async (req) => {
                         }
                     }
 
-                    // Batch update existing trades
+                    // Batch update existing trades (non-blocking)
                     if (tradesToUpdate.length > 0) {
                         console.log(`[POST] 🔄 Updating ${tradesToUpdate.length} trades`);
-                        await Promise.all(tradesToUpdate.map(t => 
+                        Promise.all(tradesToUpdate.map(t => 
                             withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, { pnl: t.pnl, close_price: t.close_price }), 1)
                                 .catch(e => console.error(`[POST] ⚠️ Update failed for ${t.id}:`, e.message))
-                        ));
+                        )).catch(() => {}); // Fire and forget
                     }
 
-                    // Create new trades
+                    // Create new trades (non-blocking)
                     if (tradesToCreate.length > 0) {
                         console.log(`[POST] 🚀 Creating ${tradesToCreate.length} NEW trades`);
-                        await withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2)
+                        withRetry(() => base44.asServiceRole.entities.Trade.bulkCreate(tradesToCreate), 2)
                             .catch(e => console.error(`[POST] ❌ Bulk create failed:`, e.message));
                     }
 
-                    // Close trades no longer in MT4
+                    // Close trades no longer in MT4 (non-blocking)
                     const closedTrades = openDbTrades.filter(t => !incomingTickets.has(Number(t.ticket)));
                     if (closedTrades.length > 0) {
                         console.log(`[POST] 🔴 Closing ${closedTrades.length} trades no longer in MT4`);
-                        await Promise.all(closedTrades.map(t => 
+                        Promise.all(closedTrades.map(t => 
                             withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' }), 1)
                                 .catch(e => console.error(`[POST] ⚠️ Close failed for ${t.ticket}:`, e.message))
-                        ));
+                        )).catch(() => {}); // Fire and forget
                     }
 
                     console.log(`[POST] ✅ Sync complete: ${tradesToUpdate.length} updated, ${tradesToCreate.length} created, ${closedTrades.length} closed`);
