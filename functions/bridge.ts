@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     
     try {
         // Add request timeout to prevent hanging
-        const timeoutMs = 8000; // 8 second max
+        const timeoutMs = 15000; // 15 second max (increased for slow connections)
         const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
         );
