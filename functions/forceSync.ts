@@ -9,7 +9,35 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        console.log('[FORCE SYNC] Starting full reconciliation...');
+        console.log('[FORCE SYNC] Checking MT4 connection status...');
+
+        // CRITICAL: Check if MT4 is actually connected before "syncing"
+        const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
+        
+        if (connections.length === 0) {
+            return Response.json({ 
+                error: 'No MT4/MT5 connection found',
+                success: false 
+            }, { status: 400 });
+        }
+
+        const connection = connections[0];
+        const now = Date.now();
+        const lastSync = connection.last_sync ? new Date(connection.last_sync).getTime() : 0;
+        const timeSinceSync = now - lastSync;
+
+        // If last sync was more than 60 seconds ago, MT4 is likely disconnected
+        if (timeSinceSync > 60000 || connection.connection_status !== 'CONNECTED') {
+            return Response.json({ 
+                error: 'MT4/MT5 is disconnected. Cannot sync - no live data available.',
+                connection_status: connection.connection_status,
+                last_sync: connection.last_sync,
+                seconds_since_sync: Math.floor(timeSinceSync / 1000),
+                success: false 
+            }, { status: 400 });
+        }
+
+        console.log('[FORCE SYNC] MT4 connected - starting cleanup...');
 
         // Get all OPEN trades from database
         const openDbTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
