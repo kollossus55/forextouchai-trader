@@ -224,12 +224,31 @@ Deno.serve(async (req) => {
 
             // Process trades SYNCHRONOUSLY with aggressive error recovery
             try {
-                const { trades } = body;
+                const { trades, account } = body;
+                
+                // CRITICAL: Log raw data received
+                console.log(`[POST] 🔍 RAW DATA: trades=${trades ? `array[${trades.length}]` : 'null'}, account=${account ? JSON.stringify(account) : 'null'}`);
+                
                 if (trades && Array.isArray(trades) && trades.length > 0) {
                     console.log(`[POST] 📊 Processing ${trades.length} trades from MT4...`);
                     
-                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2);
-                    const ownerEmail = connections[0]?.created_by || null;
+                    // Get owner email from account if provided, fallback to first connection
+                    const accountNumber = account?.account_number ? String(account.account_number) : null;
+                    let ownerEmail = null;
+                    
+                    if (accountNumber) {
+                        const accountConnections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ 
+                            account_number: accountNumber 
+                        }), 2);
+                        ownerEmail = accountConnections[0]?.created_by || null;
+                        console.log(`[POST] Owner for account ${accountNumber}: ${ownerEmail}`);
+                    }
+                    
+                    if (!ownerEmail) {
+                        const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2);
+                        ownerEmail = connections[0]?.created_by || null;
+                        console.log(`[POST] Fallback owner: ${ownerEmail}`);
+                    }
 
                     const openDbTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
                     const dbTradesMap = new Map(openDbTrades.map(t => [Number(t.ticket), t]));
@@ -240,15 +259,19 @@ Deno.serve(async (req) => {
 
                     for (const t of trades) {
                         if (!t.ticket) {
-                            console.log(`[POST] ⚠️ SKIPPED - Missing ticket`);
+                            console.log(`[POST] ⚠️ SKIPPED - Missing ticket in trade: ${JSON.stringify(t)}`);
                             continue;
                         }
                         const ticket = Number(t.ticket);
                         
-                        // LOG EACH TRADE WITH VALIDATION
+                        // LOG EACH TRADE WITH FULL DATA
+                        console.log(`[POST] 🔍 Trade ${ticket} RAW: ${JSON.stringify(t)}`);
+                        
                         const openPrice = Number(t.open_price);
-                        const hasValidOpen = openPrice && openPrice !== 0;
-                        console.log(`[POST] Trade ${ticket}: ${hasValidOpen ? '✓' : '❌'} ${t.symbol} ${t.type} Open:${t.open_price} Current:${t.current_price} PnL:${t.pnl}`);
+                        const currentPrice = Number(t.current_price || t.price || 0);
+                        const hasValidOpen = openPrice && !isNaN(openPrice) && openPrice > 0;
+                        
+                        console.log(`[POST] Trade ${ticket}: ${hasValidOpen ? '✓ VALID' : '❌ INVALID'} ${t.symbol} ${t.type} Open:${openPrice} Current:${currentPrice} PnL:${t.pnl} Lots:${t.lots}`);
                         
                         incomingTickets.add(ticket);
                         
@@ -257,13 +280,13 @@ Deno.serve(async (req) => {
                         if (existing) {
                             tradesToUpdate.push({
                                 id: existing.id,
-                                pnl: Number(t.pnl),
-                                close_price: Number(t.current_price || 0)
+                                pnl: Number(t.pnl) || 0,
+                                close_price: currentPrice
                             });
                         } else {
-                            // VALIDATION: Reject trades with missing or zero open_price
+                            // More lenient validation - accept if open_price exists and is a number
                             if (!hasValidOpen) {
-                                console.log(`[POST] ❌ REJECTED ${ticket} - Invalid open_price: ${t.open_price}`);
+                                console.log(`[POST] ❌ REJECTED ${ticket} - Invalid open_price: ${t.open_price} (type: ${typeof t.open_price})`);
                                 continue;
                             }
                             
@@ -274,19 +297,22 @@ Deno.serve(async (req) => {
                                 if (idMatch) botId = idMatch[1];
                             }
 
-                            tradesToCreate.push({
+                            const tradeData = {
                                 pair: String(t.symbol || "UNKNOWN"),
                                 type: String(t.type || "BUY"),
                                 lot_size: Number(t.lots) || 0.01,
                                 open_price: openPrice,
-                                close_price: Number(t.current_price || 0),
+                                close_price: currentPrice,
                                 pnl: Number(t.pnl) || 0,
                                 ticket: ticket,
                                 status: 'OPEN',
                                 is_auto: Boolean(t.magic !== 0),
                                 bot_id: botId,
                                 owner_email: ownerEmail
-                            });
+                            };
+                            
+                            console.log(`[POST] ✅ Will CREATE trade ${ticket}: ${JSON.stringify(tradeData)}`);
+                            tradesToCreate.push(tradeData);
                         }
                     }
 
