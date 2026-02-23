@@ -304,19 +304,38 @@ Deno.serve(async (req) => {
         }
 
         // ---------------------------------------------------------
-        // HEAD: Heartbeat/Ping (Fastest - No Signal Check)
+        // HEAD: Heartbeat/Ping (Fastest - No Signal Check) + Auto-cleanup stale trades
         // ---------------------------------------------------------
         if (req.method === 'HEAD') {
             try {
                 const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
-                
+
                 if (connections.length > 0) {
                     await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
                         connection_status: 'CONNECTED',
                         last_sync: new Date().toISOString()
                     }), 3);
                     updateHealth(true, Date.now() - startTime);
-                    } else {
+
+                    // AUTO-CLEANUP: Close trades not updated in 2 minutes (MT4 likely closed them)
+                    try {
+                        const twoMinutesAgo = new Date(Date.now() - 120000).toISOString();
+                        const staleTrades = await base44.asServiceRole.entities.Trade.filter({ 
+                            status: 'OPEN',
+                            updated_date: { $lt: twoMinutesAgo }
+                        });
+
+                        if (staleTrades.length > 0) {
+                            console.log(`[HEAD CLEANUP] Closing ${staleTrades.length} stale trades (not updated in 2+ min)`);
+                            await Promise.all(staleTrades.map(t => 
+                                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' })
+                                    .catch(e => console.error(`Failed to close ${t.ticket}:`, e.message))
+                            ));
+                        }
+                    } catch (cleanupErr) {
+                        console.error("[HEAD CLEANUP ERROR]:", cleanupErr.message);
+                    }
+                } else {
                     console.warn("[HEAD] No connection found");
                     updateHealth(false);
                     }
