@@ -116,7 +116,23 @@ Deno.serve(async (req) => {
                 const { trades, account } = body;
                 const timestamp = new Date().toISOString();
                 console.log(`[POST ${timestamp}] ✓ EA HEARTBEAT - Received ${trades?.length || 0} trades, ${account ? 'WITH ACCOUNT DATA' : 'NO ACCOUNT DATA'}`);
-                
+
+                // CRITICAL: Check if this is a reconnection after disconnect
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 2);
+                const wasDisconnected = connections.length > 0 && connections[0].connection_status === 'DISCONNECTED';
+
+                if (wasDisconnected) {
+                    console.log(`[POST] 🔄 RECONNECTION DETECTED - Closing all stale trades before sync`);
+                    const allOpenTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
+                    if (allOpenTrades.length > 0) {
+                        console.log(`[POST] Closing ${allOpenTrades.length} zombie trades from disconnect period`);
+                        await Promise.all(allOpenTrades.map(t => 
+                            withRetry(() => base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' }), 1)
+                                .catch(e => console.error(`Failed to close ${t.ticket}:`, e.message))
+                        ));
+                    }
+                }
+
                 // LOG EVERY SINGLE TRADE RECEIVED FROM MT4
                 if (trades && Array.isArray(trades) && trades.length > 0) {
                     console.log(`[POST] 🔥 MT4 SENT ${trades.length} TRADES:`);
