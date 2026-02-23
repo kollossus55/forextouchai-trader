@@ -281,14 +281,15 @@ Deno.serve(async (req) => {
                             tradesToUpdate.push({
                                 id: existing.id,
                                 pnl: Number(t.pnl) || 0,
-                                close_price: currentPrice
+                                close_price: currentPrice || existing.close_price
                             });
                         } else {
-                            // More lenient validation - accept if open_price exists and is a number
-                            if (!hasValidOpen) {
-                                console.log(`[POST] ❌ REJECTED ${ticket} - Invalid open_price: ${t.open_price} (type: ${typeof t.open_price})`);
-                                continue;
-                            }
+                            // LENIENT MODE: Accept trades even with missing data - MT4 EA bug workaround
+                            // Use placeholder values if critical fields are missing
+                            const fallbackOpenPrice = openPrice > 0 ? openPrice : (currentPrice > 0 ? currentPrice : 1.0);
+                            const fallbackLots = Number(t.lots) || 0.01;
+                            
+                            console.log(`[POST] ⚠️ Trade ${ticket} missing fields - using fallbacks: open=${fallbackOpenPrice}, lots=${fallbackLots}`);
                             
                             let botId = null;
                             if (t.magic && String(t.magic).length > 5) botId = String(t.magic);
@@ -300,9 +301,9 @@ Deno.serve(async (req) => {
                             const tradeData = {
                                 pair: String(t.symbol || "UNKNOWN"),
                                 type: String(t.type || "BUY"),
-                                lot_size: Number(t.lots) || 0.01,
-                                open_price: openPrice,
-                                close_price: currentPrice,
+                                lot_size: fallbackLots,
+                                open_price: fallbackOpenPrice,
+                                close_price: currentPrice || fallbackOpenPrice,
                                 pnl: Number(t.pnl) || 0,
                                 ticket: ticket,
                                 status: 'OPEN',
