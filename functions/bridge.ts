@@ -133,6 +133,24 @@ Deno.serve(async (req) => {
                     }
                 }
 
+                // CLEANUP: Delete all invalid trades with ticket=null (zombie trades not from MT4)
+                try {
+                    const zombieTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ 
+                        status: 'OPEN',
+                        ticket: null 
+                    }), 2);
+
+                    if (zombieTrades.length > 0) {
+                        console.log(`[POST CLEANUP] Found ${zombieTrades.length} zombie trades (ticket=null) - DELETING`);
+                        await Promise.all(zombieTrades.map(t => 
+                            withRetry(() => base44.asServiceRole.entities.Trade.delete(t.id), 1)
+                                .catch(e => console.error(`Failed to delete zombie ${t.id}:`, e.message))
+                        ));
+                    }
+                } catch (cleanupErr) {
+                    console.error("[POST CLEANUP ERROR]:", cleanupErr.message);
+                }
+
                 // LOG EVERY SINGLE TRADE RECEIVED FROM MT4
                 if (trades && Array.isArray(trades) && trades.length > 0) {
                     console.log(`[POST] 🔥 MT4 SENT ${trades.length} TRADES:`);
