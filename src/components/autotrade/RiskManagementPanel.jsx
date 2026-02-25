@@ -331,6 +331,7 @@ export default function RiskManagementPanel() {
               <Switch
                 checked={formData.stop_trading_on_limit}
                 onCheckedChange={(checked) => handleChange('stop_trading_on_limit', checked)}
+                className={formData.stop_trading_on_limit ? 'data-[state=checked]:bg-emerald-500' : 'data-[state=unchecked]:bg-rose-500'}
               />
               <Label className="text-sm text-slate-300">
                 Auto-stop trading when limits breached
