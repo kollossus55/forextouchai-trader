@@ -812,13 +812,23 @@ export default function Settings() {
               string comment = "ForexTouchAI_Manual";
               if(StringLen(botId) > 0) {
                  comment = "Bot:" + botId;  // Max 28 chars (fits in 31 limit)
-                 Print("Bot ID found: ", botId, " Comment: ", comment);
+                 Print("Bot ID found: ", botId);
+                 Print("Comment to send: [", comment, "] Length: ", StringLen(comment));
               } else {
                  Print("Warning: No bot_id in signal (manual trade)");
               }
 
               // Execute
+              Print("OrderSend params: pair=", pair, " cmd=", cmd, " lots=", finalLot, " comment=[", comment, "]");
               int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, comment, 0, 0, clrGreen);
+              
+              if(ticket > 0) {
+                 // Verify what comment was actually stored
+                 if(OrderSelect(ticket, SELECT_BY_TICKET)) {
+                    string storedComment = OrderComment();
+                    Print("Trade opened with ticket: ", ticket, " Stored comment: [", storedComment, "]");
+                 }
+              }
 
               if(ticket > 0) {
                  Print("Trade Executed! Ticket: ", ticket);
