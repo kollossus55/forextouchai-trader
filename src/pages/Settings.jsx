@@ -809,14 +809,18 @@ export default function Settings() {
               double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
               Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
 
-              // Build comment with bot ID for tracking (MT4 has 31 char limit)
-              string comment = "ForexTouchAI_Manual";
-              if(StringLen(botId) > 0) {
-                 comment = "Bot:" + botId;  // Max 28 chars (fits in 31 limit)
-                 Print("Bot ID found: ", botId);
-                 Print("Comment to send: [", comment, "] Length: ", StringLen(comment));
+              // Build comment with bot name (MT4 has 31 char limit)
+              string comment = "Manual";
+              if(StringLen(botName) > 0) {
+                 // Truncate bot name if too long (MT4 31 char limit)
+                 if(StringLen(botName) > 30) {
+                    comment = StringSubstr(botName, 0, 30);
+                 } else {
+                    comment = botName;
+                 }
+                 Print("Bot found: ", botName, " Comment: [", comment, "]");
               } else {
-                 Print("Warning: No bot_id in signal (manual trade)");
+                 Print("Manual trade (no bot)");
               }
 
               // Execute
