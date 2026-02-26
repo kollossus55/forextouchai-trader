@@ -737,6 +737,7 @@ export default function Settings() {
 
               string pair = GetJsonValue(json, "pair");
               string type = GetJsonValue(json, "type");
+              string botId = GetJsonValue(json, "bot_id");
 
               // Get Signal Prices
               double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
