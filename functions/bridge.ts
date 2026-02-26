@@ -553,30 +553,27 @@ Deno.serve(async (req) => {
                         status: 'ACTIVE' 
                     }), 2);
 
-                    // Get bot details for MT4 comment - include bot ID for tracking
-                    let botComment = 'ForexTouchAI_Manual';
+                    // Get bot name for MT4 comment
+                    let botName = '';
                     if (signal.bot_id) {
                         try {
                             const allBots = await withRetry(() => base44.asServiceRole.entities.BotConfig.list(), 1);
                             const matchingBot = allBots.find(b => b.id === signal.bot_id);
                             if (matchingBot) {
-                                // Format: ForexTouchAI_STRATEGY Bot:bot_id (for tracking)
-                                const strategy = matchingBot.strategy_type || 'UNKNOWN';
-                                botComment = `ForexTouchAI_${strategy} Bot:${signal.bot_id}`;
+                                botName = matchingBot.name || 'Bot';
                             }
                         } catch (e) {
-                            // Fallback: at least include bot ID
-                            botComment = `ForexTouchAI Bot:${signal.bot_id}`;
+                            botName = 'Bot';
                         }
                     }
 
-                    console.log(`[GET] ✅ SENDING SIGNAL TO MT4: ${signal.id} | ${signal.pair} ${signal.type} @ ${signal.entry_price} | Lot: ${signal.lot_size} | Comment: ${botComment}`);
+                    console.log(`[GET] ✅ SENDING SIGNAL TO MT4: ${signal.id} | ${signal.pair} ${signal.type} @ ${signal.entry_price} | Bot: ${botName || 'Manual'}`);
                     return Response.json({
                         ...signal,
                         status: "PENDING",
                         id: signal.id,
                         magic: signal.bot_id || 0,
-                        comment: botComment
+                        bot_name: botName
                     });
                 }
                 console.log(`[GET] ℹ️ No pending signals available`);
