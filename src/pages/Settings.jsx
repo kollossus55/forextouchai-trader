@@ -341,10 +341,10 @@ export default function Settings() {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "3.00"
+      #property version   "3.10"
       #property strict
       
-      #define EA_VERSION "3.0"
+      #define EA_VERSION "3.1"
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
