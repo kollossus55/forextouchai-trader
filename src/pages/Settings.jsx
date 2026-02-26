@@ -808,11 +808,11 @@ export default function Settings() {
               double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
               Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
 
-              // Build comment with bot ID for tracking
-              string comment = "ForexTouchAI";
+              // Build comment with bot ID for tracking (MT4 has 31 char limit)
+              string comment = "ForexTouchAI_Manual";
               if(StringLen(botId) > 0) {
-                 comment = "ForexTouchAI Bot:" + botId;
-                 Print("Bot ID found: ", botId);
+                 comment = "Bot:" + botId;  // Max 28 chars (fits in 31 limit)
+                 Print("Bot ID found: ", botId, " Comment: ", comment);
               } else {
                  Print("Warning: No bot_id in signal (manual trade)");
               }
