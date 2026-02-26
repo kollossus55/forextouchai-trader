@@ -808,8 +808,17 @@ export default function Settings() {
               double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
               Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
 
+              // Build comment with bot ID for tracking
+              string comment = "ForexTouchAI";
+              if(StringLen(botId) > 0) {
+                 comment = "ForexTouchAI Bot:" + botId;
+                 Print("Bot ID found: ", botId);
+              } else {
+                 Print("Warning: No bot_id in signal (manual trade)");
+              }
+
               // Execute
-              int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, "ForexTouchAI", 0, 0, clrGreen);
+              int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, comment, 0, 0, clrGreen);
 
               if(ticket > 0) {
                  Print("Trade Executed! Ticket: ", ticket);
