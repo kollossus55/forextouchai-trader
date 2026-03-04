@@ -75,6 +75,18 @@ Deno.serve(async (req) => {
                     });
                     continue;
                 }
+
+                // Check if auto execution is enabled for this bot
+                if (!bot.auto_execution) {
+                    results.push({
+                        signal_id: signal.id,
+                        pair: signal.pair,
+                        success: false,
+                        skipped: true,
+                        reason: `Auto execution disabled for bot ${bot.name}`
+                    });
+                    continue;
+                }
                 
                 // Check bot's max open trades limit
                 const botOpenTrades = allOpenTrades.filter(t => 

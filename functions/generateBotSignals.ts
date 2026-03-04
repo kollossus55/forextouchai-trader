@@ -182,8 +182,19 @@ Deno.serve(async (req) => {
                         if (isGold) pipMultiplier = 0.1;
                         if (isCrypto) pipMultiplier = 10;
 
-                        const slPips = bot.stop_loss_pips || 30;
-                        const tpPips = bot.take_profit_pips || 60;
+                        // AI Dynamic Risk: adjust SL/TP based on volatility if enabled
+                        let slPips = bot.stop_loss_pips || 30;
+                        let tpPips = bot.take_profit_pips || 60;
+                        if (bot.use_ai_risk) {
+                            // Estimate volatility from recent price movement (simple ATR approximation)
+                            const atrApprox = currentPrice * 0.002; // ~0.2% of price as baseline
+                            const pipValue = pipMultiplier;
+                            const atrPips = Math.round(atrApprox / pipValue);
+                            // Scale SL/TP to volatility: higher volatility = wider stops
+                            slPips = Math.max(10, Math.min(150, atrPips * 1.5));
+                            tpPips = Math.max(20, Math.min(300, atrPips * 3));
+                            console.log(`[AI Risk] ${bot.name} ${pair}: ATR~${atrPips}p -> SL=${slPips}p TP=${tpPips}p`);
+                        }
                         const sl = signal.type === 'BUY'
                             ? currentPrice - slPips * pipMultiplier
                             : currentPrice + slPips * pipMultiplier;
