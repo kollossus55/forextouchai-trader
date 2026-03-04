@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ColoredSlider } from '@/components/ui/colored-slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
+import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
 
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
