@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConnectionDiagnostics from '../components/settings/ConnectionDiagnostics';
+import AccountStatusPanel from '../components/settings/AccountStatusPanel';
 import { 
   Settings as SettingsIcon, 
   Shield, 
