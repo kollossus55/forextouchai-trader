@@ -345,7 +345,7 @@ export default function RiskManagementPanel() {
                   onChange={(e) => handleChange('max_concurrent_trades', parseInt(e.target.value))}
                   className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
-                <p className="text-xs text-slate-400">Maximum number of open trades across all bots</p>
+                <p className="text-xs text-slate-400">Maximum number of open trades per account</p>
               </div>
 
               <div className="space-y-2">
