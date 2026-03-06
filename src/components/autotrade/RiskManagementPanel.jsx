@@ -96,7 +96,7 @@ export default function RiskManagementPanel() {
         daily_loss_current: 0,
         peak_equity: 0,
         is_trading_paused: false,
-        last_reset_date: new Date().toISOString().split('T')[0]
+        last_reset_date: new Date().toISOString() // full ISO timestamp, not just date
       });
     },
     onSuccess: () => {
