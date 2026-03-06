@@ -88,19 +88,32 @@ Deno.serve(async (req) => {
                     continue;
                 }
                 
-                // Check bot's max open trades limit
-                const botOpenTrades = allOpenTrades.filter(t => 
+                // Check bot's max open trades limit - scoped per account (owner_email)
+                // Each account gets its own independent limit
+                const botOpenTradesAll = allOpenTrades.filter(t => 
                     t.bot_id === signal.bot_id && 
                     t.status === 'OPEN'
                 );
                 
-                if (botOpenTrades.length >= (bot.max_open_trades || 5)) {
+                // Group by owner_email to check per-account limits
+                const ownerCounts = {};
+                for (const t of botOpenTradesAll) {
+                    const owner = t.owner_email || 'unknown';
+                    ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+                }
+                
+                // Check if ALL accounts are at limit (any account still under limit can take the trade)
+                const maxLimit = bot.max_open_trades || 5;
+                const allAccountsAtLimit = Object.keys(ownerCounts).length > 0 && 
+                    Object.values(ownerCounts).every(count => count >= maxLimit);
+                    
+                if (allAccountsAtLimit) {
                     results.push({
                         signal_id: signal.id,
                         pair: signal.pair,
                         success: false,
                         skipped: true,
-                        reason: `Bot ${bot.name} at max trades (${bot.max_open_trades || 5})`
+                        reason: `Bot ${bot.name} at max trades on all accounts (${maxLimit})`
                     });
                     continue;
                 }
