@@ -115,34 +115,44 @@ export default function RiskManagementPanel() {
 
   if (!formData) return null;
 
-  // Calculate current metrics
-  const currentAccount = connections?.[0];
-  const accountBalance = currentAccount?.balance || 0;
-  const accountEquity = currentAccount?.equity || 0;
-  
-  // Calculate daily loss - only count trades after the last reset
+  // Calculate metrics per account
   const today = new Date().toISOString().split('T')[0];
   const lastReset = formData.last_reset_date ? new Date(formData.last_reset_date) : null;
-  const todayTrades = trades?.filter(t => {
-    if (t.status !== 'CLOSED') return false;
-    if (!t.created_date?.startsWith(today)) return false;
-    if (lastReset && new Date(t.created_date) < lastReset) return false;
-    return true;
-  }) || [];
-  const dailyPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const dailyLossPercent = accountBalance > 0 ? Math.abs((dailyPnL / accountBalance) * 100) : 0;
 
-  // Calculate drawdown - use current equity as peak baseline if peak_equity is 0 (after reset)
-  const peakEquity = formData.peak_equity > 0 ? formData.peak_equity : accountEquity;
-  const currentDrawdown = peakEquity > 0 ? Math.max(0, ((peakEquity - accountEquity) / peakEquity) * 100) : 0;
+  // Build per-account stats
+  const accountStats = (connections || []).map(conn => {
+    const ownerEmail = conn.created_by;
+    const balance = conn.balance || 0;
+    const equity = conn.equity || 0;
 
-  // Open trades count
-  const openTradesCount = trades?.filter(t => t.status === 'OPEN').length || 0;
+    // Trades for this account after last reset
+    const accountTodayTrades = trades?.filter(t => {
+      if (t.status !== 'CLOSED') return false;
+      if (!t.created_date?.startsWith(today)) return false;
+      if (lastReset && new Date(t.created_date) < lastReset) return false;
+      if (ownerEmail && t.owner_email !== ownerEmail) return false;
+      return true;
+    }) || [];
 
-  // Risk status
-  const dailyLossRisk = (dailyLossPercent / formData.max_daily_loss_percent) * 100;
-  const drawdownRisk = (currentDrawdown / formData.max_drawdown_percent) * 100;
-  const tradesRisk = (openTradesCount / formData.max_concurrent_trades) * 100;
+    const dailyPnL = accountTodayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const dailyLossPercent = balance > 0 ? Math.abs((dailyPnL / balance) * 100) : 0;
+    const peakEquity = formData.peak_equity > 0 ? formData.peak_equity : equity;
+    const drawdown = peakEquity > 0 ? Math.max(0, ((peakEquity - equity) / peakEquity) * 100) : 0;
+    const openCount = trades?.filter(t => t.status === 'OPEN' && (!ownerEmail || t.owner_email === ownerEmail)).length || 0;
+
+    return { conn, balance, equity, dailyLossPercent, drawdown, openCount };
+  });
+
+  // Combined totals (sum across accounts) for overall risk gauge
+  const totalBalance = accountStats.reduce((s, a) => s + a.balance, 0);
+  const totalOpenTrades = accountStats.reduce((s, a) => s + a.openCount, 0);
+  const avgDailyLossPercent = accountStats.length > 0 ? accountStats.reduce((s, a) => s + a.dailyLossPercent, 0) / accountStats.length : 0;
+  const avgDrawdown = accountStats.length > 0 ? accountStats.reduce((s, a) => s + a.drawdown, 0) / accountStats.length : 0;
+
+  // Risk status (based on averages / totals)
+  const dailyLossRisk = (avgDailyLossPercent / formData.max_daily_loss_percent) * 100;
+  const drawdownRisk = (avgDrawdown / formData.max_drawdown_percent) * 100;
+  const tradesRisk = (totalOpenTrades / formData.max_concurrent_trades) * 100;
 
   const isAtRisk = dailyLossRisk >= formData.alert_threshold_percent || 
                    drawdownRisk >= formData.alert_threshold_percent ||
