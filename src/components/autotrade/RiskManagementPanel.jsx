@@ -358,10 +358,21 @@ export default function RiskManagementPanel() {
               </Label>
             </div>
 
-            <Button onClick={handleSave} disabled={saveMutation.isPending}>
-              <Save className="w-4 h-4 mr-2" />
-              Save Settings
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={resetMutation.isPending}
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reset Counters
+              </Button>
+              <Button onClick={handleSave} disabled={saveMutation.isPending}>
+                <Save className="w-4 h-4 mr-2" />
+                Save Settings
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
