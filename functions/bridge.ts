@@ -436,31 +436,34 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'GET') {
             try {
-                // Quick heartbeat update
+                // Quick heartbeat update - update ALL connections so multi-account setups stay alive
                 try {
-                    const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
-                    if (connections.length > 0) {
-                        await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
+                    const url = new URL(req.url);
+                    const accountNumber = url.searchParams.get('account');
+                    
+                    let connectionsToUpdate;
+                    if (accountNumber) {
+                        // Update only the specific account that sent this GET
+                        connectionsToUpdate = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ account_number: accountNumber }), 3);
+                        if (connectionsToUpdate.length === 0) {
+                            // Fallback to all connections
+                            connectionsToUpdate = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(), 3);
+                        }
+                    } else {
+                        // No account param - update ALL connections (keeps both alive)
+                        connectionsToUpdate = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(), 3);
+                    }
+                    
+                    await Promise.all(connectionsToUpdate.map(conn =>
+                        withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(conn.id, {
                             connection_status: 'CONNECTED',
                             last_sync: new Date().toISOString()
-                        }), 3);
-                        updateHealth(true, Date.now() - startTime);
-                        }
-                        } catch (heartbeatErr) {
-                        updateHealth(false, Date.now() - startTime);
+                        }), 2).catch(e => console.error(`[GET] Heartbeat failed for ${conn.account_number}:`, e.message))
+                    ));
+                    updateHealth(true, Date.now() - startTime);
+                } catch (heartbeatErr) {
+                    updateHealth(false, Date.now() - startTime);
                     console.error("[GET ERROR] Heartbeat:", heartbeatErr.message);
-                    
-                    // Fallback
-                    try {
-                        const connections = await base44.asServiceRole.entities.BrokerConnection.list(1);
-                        if (connections.length > 0) {
-                            await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                                last_sync: new Date().toISOString()
-                            });
-                        }
-                    } catch (fallbackErr) {
-                        // Continue
-                    }
                 }
 
                 // Fetch signal
