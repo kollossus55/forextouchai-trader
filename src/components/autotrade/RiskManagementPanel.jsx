@@ -132,9 +132,9 @@ export default function RiskManagementPanel() {
   const dailyPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const dailyLossPercent = accountBalance > 0 ? Math.abs((dailyPnL / accountBalance) * 100) : 0;
 
-  // Calculate drawdown
-  const peakEquity = formData.peak_equity || accountEquity;
-  const currentDrawdown = peakEquity > 0 ? ((peakEquity - accountEquity) / peakEquity) * 100 : 0;
+  // Calculate drawdown - use current equity as peak baseline if peak_equity is 0 (after reset)
+  const peakEquity = formData.peak_equity > 0 ? formData.peak_equity : accountEquity;
+  const currentDrawdown = peakEquity > 0 ? Math.max(0, ((peakEquity - accountEquity) / peakEquity) * 100) : 0;
 
   // Open trades count
   const openTradesCount = trades?.filter(t => t.status === 'OPEN').length || 0;
