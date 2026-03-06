@@ -89,6 +89,26 @@ export default function RiskManagementPanel() {
     saveMutation.mutate(formData);
   };
 
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      if (!riskSettings?.id) return;
+      return await base44.entities.RiskManagementSettings.update(riskSettings.id, {
+        daily_loss_current: 0,
+        peak_equity: 0,
+        is_trading_paused: false,
+        last_reset_date: new Date().toISOString().split('T')[0]
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['risk-settings']);
+      toast.success('Risk counters reset — trading resumed');
+    }
+  });
+
+  const handleReset = () => {
+    resetMutation.mutate();
+  };
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
