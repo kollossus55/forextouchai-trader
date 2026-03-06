@@ -120,11 +120,15 @@ export default function RiskManagementPanel() {
   const accountBalance = currentAccount?.balance || 0;
   const accountEquity = currentAccount?.equity || 0;
   
-  // Calculate daily loss
+  // Calculate daily loss - only count trades after the last reset
   const today = new Date().toISOString().split('T')[0];
-  const todayTrades = trades?.filter(t => 
-    t.created_date?.startsWith(today) && t.status === 'CLOSED'
-  ) || [];
+  const lastReset = formData.last_reset_date ? new Date(formData.last_reset_date) : null;
+  const todayTrades = trades?.filter(t => {
+    if (t.status !== 'CLOSED') return false;
+    if (!t.created_date?.startsWith(today)) return false;
+    if (lastReset && new Date(t.created_date) < lastReset) return false;
+    return true;
+  }) || [];
   const dailyPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const dailyLossPercent = accountBalance > 0 ? Math.abs((dailyPnL / accountBalance) * 100) : 0;
 
