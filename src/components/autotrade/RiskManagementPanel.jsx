@@ -213,47 +213,53 @@ export default function RiskManagementPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Current Risk Levels */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">Daily Loss</span>
-                <span className={`text-sm font-medium ${dailyLossRisk >= 100 ? 'text-rose-400' : dailyLossRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                  {dailyLossPercent.toFixed(2)}% / {formData.max_daily_loss_percent}%
-                </span>
+          {/* Current Risk Levels - Per Account */}
+          {accountStats.map(({ conn, dailyLossPercent, drawdown, openCount }, idx) => {
+            const accDailyRisk = (dailyLossPercent / formData.max_daily_loss_percent) * 100;
+            const accDrawdownRisk = (drawdown / formData.max_drawdown_percent) * 100;
+            const accTradesRisk = (openCount / formData.max_concurrent_trades) * 100;
+            return (
+              <div key={conn.id} className="space-y-2">
+                {accountStats.length > 1 && (
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Account #{conn.account_number || idx + 1}
+                  </p>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-400">Daily Loss</span>
+                      <span className={`text-sm font-medium ${accDailyRisk >= 100 ? 'text-rose-400' : accDailyRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                        {dailyLossPercent.toFixed(2)}% / {formData.max_daily_loss_percent}%
+                      </span>
+                    </div>
+                    <Progress value={Math.min(accDailyRisk, 100)} className={`h-2 ${accDailyRisk >= 100 ? '[&>div]:bg-rose-500' : accDailyRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`} />
+                  </div>
+                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-400">Drawdown</span>
+                      <span className={`text-sm font-medium ${accDrawdownRisk >= 100 ? 'text-rose-400' : accDrawdownRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                        {drawdown.toFixed(2)}% / {formData.max_drawdown_percent}%
+                      </span>
+                    </div>
+                    <Progress value={Math.min(accDrawdownRisk, 100)} className={`h-2 ${accDrawdownRisk >= 100 ? '[&>div]:bg-rose-500' : accDrawdownRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`} />
+                  </div>
+                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-400">Open Trades</span>
+                      <span className={`text-sm font-medium ${accTradesRisk >= 100 ? 'text-rose-400' : accTradesRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                        {openCount} / {formData.max_concurrent_trades}
+                      </span>
+                    </div>
+                    <Progress value={Math.min(accTradesRisk, 100)} className={`h-2 ${accTradesRisk >= 100 ? '[&>div]:bg-rose-500' : accTradesRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`} />
+                  </div>
+                </div>
               </div>
-              <Progress 
-                value={Math.min(dailyLossRisk, 100)} 
-                className={`h-2 ${dailyLossRisk >= 100 ? '[&>div]:bg-rose-500' : dailyLossRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`}
-              />
-            </div>
-
-            <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">Drawdown</span>
-                <span className={`text-sm font-medium ${drawdownRisk >= 100 ? 'text-rose-400' : drawdownRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                  {currentDrawdown.toFixed(2)}% / {formData.max_drawdown_percent}%
-                </span>
-              </div>
-              <Progress 
-                value={Math.min(drawdownRisk, 100)} 
-                className={`h-2 ${drawdownRisk >= 100 ? '[&>div]:bg-rose-500' : drawdownRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`}
-              />
-            </div>
-
-            <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">Open Trades</span>
-                <span className={`text-sm font-medium ${tradesRisk >= 100 ? 'text-rose-400' : tradesRisk >= formData.alert_threshold_percent ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                  {openTradesCount} / {formData.max_concurrent_trades}
-                </span>
-              </div>
-              <Progress 
-                value={Math.min(tradesRisk, 100)} 
-                className={`h-2 ${tradesRisk >= 100 ? '[&>div]:bg-rose-500' : tradesRisk >= formData.alert_threshold_percent ? '[&>div]:bg-yellow-500' : '[&>div]:bg-emerald-500'}`}
-              />
-            </div>
-          </div>
+            );
+          })}
+          {accountStats.length === 0 && (
+            <p className="text-sm text-slate-500 text-center py-4">No connected accounts</p>
+          )}
 
           <Separator className="bg-slate-800" />
 
