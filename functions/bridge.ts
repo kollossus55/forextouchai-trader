@@ -536,11 +536,27 @@ Deno.serve(async (req) => {
                             console.log(`[GET] ✓ Bot ${matchingBot.name} is RUNNING, proceeding...`);
 
                             if (matchingBot?.max_open_trades) {
+                                // Get the account number from the GET request to scope limit per-account
+                                const url = new URL(req.url);
+                                const requestingAccount = url.searchParams.get('account');
+                                
+                                // Find owner_email for the requesting account
+                                let accountOwnerEmail = null;
+                                if (requestingAccount) {
+                                    const accountConns = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.filter({ account_number: requestingAccount }), 1);
+                                    accountOwnerEmail = accountConns[0]?.created_by || null;
+                                }
+                                
                                 const openTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
-                                const botTrades = openTrades.filter(t => t.bot_id === String(matchingBot.id));
+                                // Filter by bot AND by account owner so each account has its own independent limit
+                                const botTrades = openTrades.filter(t => {
+                                    if (t.bot_id !== String(matchingBot.id)) return false;
+                                    if (accountOwnerEmail) return t.owner_email === accountOwnerEmail;
+                                    return true;
+                                });
 
                                 if (botTrades.length >= matchingBot.max_open_trades) {
-                                    console.log(`[GET] Bot limit reached (${botTrades.length}/${matchingBot.max_open_trades})`);
+                                    console.log(`[GET] Bot limit reached for account ${requestingAccount} (${botTrades.length}/${matchingBot.max_open_trades})`);
                                     await withRetry(() => base44.asServiceRole.entities.Signal.update(signal.id, { 
                                         status: 'SKIPPED',
                                         result_pnl: 0 
