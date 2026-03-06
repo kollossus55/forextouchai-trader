@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Shield, TrendingDown, PauseCircle, Play, Save } from 'lucide-react';
+import { AlertTriangle, Shield, TrendingDown, PauseCircle, Play, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function RiskManagementPanel() {
