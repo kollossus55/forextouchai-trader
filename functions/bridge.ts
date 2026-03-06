@@ -369,13 +369,15 @@ Deno.serve(async (req) => {
         // ---------------------------------------------------------
         if (req.method === 'HEAD') {
             try {
-                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(1), 3);
+                const connections = await withRetry(() => base44.asServiceRole.entities.BrokerConnection.list(), 3);
 
                 if (connections.length > 0) {
-                    await withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, {
-                        connection_status: 'CONNECTED',
-                        last_sync: new Date().toISOString()
-                    }), 3);
+                    await Promise.all(connections.map(conn =>
+                        withRetry(() => base44.asServiceRole.entities.BrokerConnection.update(conn.id, {
+                            connection_status: 'CONNECTED',
+                            last_sync: new Date().toISOString()
+                        }), 2).catch(e => console.error(`[HEAD] Heartbeat failed for ${conn.account_number}:`, e.message))
+                    ));
                     updateHealth(true, Date.now() - startTime);
 
                     // AUTO-CLEANUP: Close trades not updated in 2 minutes (MT4 likely closed them)
