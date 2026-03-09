@@ -94,7 +94,7 @@ export default function Settings() {
             if (!conn.last_sync) return false;
             const lastSync = new Date(conn.last_sync).getTime();
             const timeSinceSync = now - lastSync;
-            return timeSinceSync <= 30000 && conn.connection_status === 'CONNECTED';
+            return timeSinceSync <= 300000 && conn.connection_status === 'CONNECTED';
           });
           
           setConnectionStatus(hasActiveConnection ? 'CONNECTED' : 'DISCONNECTED');
