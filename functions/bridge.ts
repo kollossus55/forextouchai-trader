@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
 
     try {
         const base44 = createClientFromRequest(req);
-        
+
         // Handle empty body (connection test ping from EA)
         const rawText = await req.text();
         if (!rawText || rawText.trim() === '') {
@@ -23,11 +23,11 @@ Deno.serve(async (req) => {
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
+
         const body = JSON.parse(rawText);
+        console.log('[BRIDGE] Incoming payload keys:', Object.keys(body));
 
-        console.log('[BRIDGE] Incoming payload:', JSON.stringify(body));
-
-        // Support both flat payload and nested {account: {...}, trades: [...]} format
+        // Support both flat and nested {account:{...}, trades:[...]} format
         const accountData = body.account || body;
         const {
             account_number,
@@ -41,7 +41,6 @@ Deno.serve(async (req) => {
             currency,
             platform,
         } = accountData;
-        const open_trades = body.trades || body.open_trades;
 
         if (!account_number) {
             return Response.json({ error: 'account_number is required' }, {
@@ -49,9 +48,6 @@ Deno.serve(async (req) => {
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
-
-        // Find existing connection by account_number
-        const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
 
         const updateData = {
             connection_status: 'CONNECTED',
@@ -62,20 +58,19 @@ Deno.serve(async (req) => {
             free_margin: free_margin ?? 0,
             margin_level: margin_level ?? 0,
         };
-
         if (leverage) updateData.leverage = String(leverage);
         if (currency) updateData.currency = currency;
         if (platform) updateData.platform = platform;
         if (server_name) updateData.server_name = server_name;
 
-        let connection;
+        // Single DB call: find existing connection
+        const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
+
         if (connections && connections.length > 0) {
-            // Update existing connection
-            connection = await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData);
+            await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData);
             console.log('[BRIDGE] Updated connection for account:', account_number);
         } else {
-            // Create new connection record
-            connection = await base44.asServiceRole.entities.BrokerConnection.create({
+            await base44.asServiceRole.entities.BrokerConnection.create({
                 ...updateData,
                 account_number: String(account_number),
                 server_name: server_name || 'Unknown',
@@ -84,31 +79,8 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // If open trades provided, sync them
-        if (open_trades && Array.isArray(open_trades)) {
-            for (const trade of open_trades) {
-                if (!trade.ticket) continue;
-                const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: trade.ticket });
-                if (existing && existing.length > 0) {
-                    await base44.asServiceRole.entities.Trade.update(existing[0].id, {
-                        pnl: trade.profit ?? 0,
-                        status: 'OPEN',
-                    });
-                } else {
-                    await base44.asServiceRole.entities.Trade.create({
-                        ticket: trade.ticket,
-                        pair: trade.symbol || 'UNKNOWN',
-                        type: (trade.type === 0 || trade.type === 'BUY') ? 'BUY' : 'SELL',
-                        lot_size: trade.lots ?? 0.01,
-                        open_price: trade.open_price ?? 0,
-                        pnl: trade.profit ?? 0,
-                        status: 'OPEN',
-                        is_auto: true,
-                        owner_email: connections?.[0]?.created_by || '',
-                    });
-                }
-            }
-        }
+        // NOTE: Trade syncing is intentionally skipped here to avoid rate limits.
+        // Trades are managed via signals/auto-execution logic separately.
 
         return Response.json({
             success: true,
