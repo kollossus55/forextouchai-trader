@@ -14,7 +14,16 @@ Deno.serve(async (req) => {
 
     try {
         const base44 = createClientFromRequest(req);
-        const body = await req.json();
+        
+        // Handle empty body (connection test ping from EA)
+        const rawText = await req.text();
+        if (!rawText || rawText.trim() === '') {
+            console.log('[BRIDGE] Connection test ping received');
+            return Response.json({ success: true, message: 'Bridge online' }, {
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+        const body = JSON.parse(rawText);
 
         console.log('[BRIDGE] Incoming payload:', JSON.stringify(body));
 
