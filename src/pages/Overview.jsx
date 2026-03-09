@@ -140,21 +140,45 @@ export default function Overview() {
 
   const executeSignalMutation = useMutation({
     mutationFn: async (signal) => {
-      // Get current user to set owner_email for manual trades
-      const user = await base44.auth.me();
-      const connections = await base44.entities.BrokerConnection.list('-updated_date', 1);
-      const ownerEmail = connections[0]?.created_by || user?.email || null;
-      
-      return base44.entities.Signal.update(signal.id, { 
-        status: 'PENDING',
+      const allConnections = await base44.entities.BrokerConnection.list('-updated_date');
+      const connectedAccounts = allConnections.filter(c => c.connection_status === 'CONNECTED');
+
+      const signalBase = {
+        pair: signal.pair,
+        type: signal.type,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        take_profit: signal.take_profit,
+        confidence: signal.confidence,
         lot_size: signal.lot_size || 0.01,
         bot_id: signal.bot_id || null,
-        strategy: signal.strategy || 'MANUAL_EXECUTION'
-      });
+        strategy: signal.strategy || 'MANUAL_EXECUTION',
+        calculated_indicators: signal.calculated_indicators,
+        status: 'PENDING',
+        result_pnl: 0
+      };
+
+      if (connectedAccounts.length <= 1) {
+        // Single account - just update the existing signal
+        return base44.entities.Signal.update(signal.id, { 
+          status: 'PENDING',
+          lot_size: signalBase.lot_size,
+          strategy: signalBase.strategy
+        });
+      }
+
+      // Multiple accounts - mark original as SKIPPED and create one PENDING signal per account
+      await base44.entities.Signal.update(signal.id, { status: 'SKIPPED' });
+      await Promise.all(connectedAccounts.map(() => 
+        base44.entities.Signal.create(signalBase)
+      ));
     },
-    onSuccess: () => {
+    onSuccess: (_, signal) => {
       queryClient.invalidateQueries(['ai-signals']);
-      toast.success("Signal sent to MT4", { description: "Waiting for execution..." });
+      const count = connections?.filter(c => c.connection_status === 'CONNECTED').length || 1;
+      toast.success("Signal sent to MT4", { 
+        description: count > 1 ? `Sent to ${count} connected accounts` : "Waiting for execution..." 
+      });
     }
   });
 
