@@ -18,6 +18,8 @@ Deno.serve(async (req) => {
 
         console.log('[BRIDGE] Incoming payload:', JSON.stringify(body));
 
+        // Support both flat payload and nested {account: {...}, trades: [...]} format
+        const accountData = body.account || body;
         const {
             account_number,
             server_name,
@@ -29,8 +31,8 @@ Deno.serve(async (req) => {
             leverage,
             currency,
             platform,
-            open_trades,
-        } = body;
+        } = accountData;
+        const open_trades = body.trades || body.open_trades;
 
         if (!account_number) {
             return Response.json({ error: 'account_number is required' }, {
