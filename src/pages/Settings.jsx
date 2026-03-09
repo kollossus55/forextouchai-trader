@@ -222,18 +222,21 @@ export default function Settings() {
         last_sync: new Date().toISOString()
       };
 
-      if (connectionId) {
-        try {
-            await base44.entities.BrokerConnection.update(connectionId, data);
-        } catch (err) {
-            const newConn = await base44.entities.BrokerConnection.create(data);
-            setConnectionId(newConn.id);
-        }
+      // Check if a connection with this account number already exists
+      const existing = allConnections.find(c => c.account_number === mt4Config.login);
+      if (existing) {
+        await base44.entities.BrokerConnection.update(existing.id, data);
+        setErrorMessage('Connection updated for account ' + mt4Config.login);
       } else {
+        // Always create a NEW connection for a new account number
         const newConn = await base44.entities.BrokerConnection.create(data);
         setConnectionId(newConn.id);
+        setErrorMessage('New account ' + mt4Config.login + ' added successfully!');
       }
       setConnectionStatus('CONNECTED');
+      // Clear form for next entry
+      setMt4Config({ platform: 'MT4', server: '', login: '', password: '', apiKey: '' });
+      setTimeout(() => setErrorMessage(''), 4000);
     } catch (e) {
       console.error("Failed to save connection", e);
       setConnectionStatus('ERROR');
