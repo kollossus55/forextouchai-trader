@@ -79,13 +79,25 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // Reconcile open trades: if EA sends open_tickets, close any DB trades not in that list
+        // Reconcile open trades
+        const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+        
+        // 1. Close any trades with bad data (open_price = 0 are ghost/rogue trades)
+        const ghostTrades = dbOpenTrades.filter(t => !t.open_price || t.open_price === 0);
+        if (ghostTrades.length > 0) {
+            console.log('[BRIDGE] Closing', ghostTrades.length, 'ghost trades with no open price');
+            await Promise.all(ghostTrades.map(t =>
+                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' })
+            ));
+        }
+
+        // 2. If EA sends open_tickets list, close DB trades not present in it
         const openTickets = body.open_tickets || accountData.open_tickets;
         if (Array.isArray(openTickets)) {
-            const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
-            const rogues = dbOpenTrades.filter(t => !openTickets.includes(t.ticket));
+            const validOpen = dbOpenTrades.filter(t => t.open_price && t.open_price > 0);
+            const rogues = validOpen.filter(t => t.ticket && !openTickets.includes(t.ticket));
             if (rogues.length > 0) {
-                console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not found in EA:', rogues.map(t => t.ticket));
+                console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not in EA list:', rogues.map(t => t.ticket));
                 await Promise.all(rogues.map(t =>
                     base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
                 ));
