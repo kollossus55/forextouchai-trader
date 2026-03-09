@@ -133,18 +133,16 @@ Deno.serve(async (req) => {
                     }
                 }
 
-                // CLEANUP: Delete all invalid trades with ticket=null (zombie trades not from MT4)
+                // CLEANUP: Delete all invalid trades (ticket=null OR open_price=1 placeholder)
                 try {
-                    const zombieTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ 
-                        status: 'OPEN',
-                        ticket: null 
-                    }), 2);
+                    const allOpenTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }), 2);
+                    const invalidTrades = allOpenTrades.filter(t => !t.ticket || t.open_price === 1 || t.open_price <= 0);
 
-                    if (zombieTrades.length > 0) {
-                        console.log(`[POST CLEANUP] Found ${zombieTrades.length} zombie trades (ticket=null) - DELETING`);
-                        await Promise.all(zombieTrades.map(t => 
+                    if (invalidTrades.length > 0) {
+                        console.log(`[POST CLEANUP] Found ${invalidTrades.length} invalid trades (no ticket or bad price) - DELETING`);
+                        await Promise.all(invalidTrades.map(t => 
                             withRetry(() => base44.asServiceRole.entities.Trade.delete(t.id), 1)
-                                .catch(e => console.error(`Failed to delete zombie ${t.id}:`, e.message))
+                                .catch(e => console.error(`Failed to delete invalid trade ${t.id}:`, e.message))
                         ));
                     }
                 } catch (cleanupErr) {
