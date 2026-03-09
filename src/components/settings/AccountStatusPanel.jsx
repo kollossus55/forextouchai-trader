@@ -106,7 +106,7 @@ export default function AccountStatusPanel() {
                   </div>
                   <div className="text-center bg-slate-900/50 rounded p-2">
                     <p className="text-[10px] text-slate-500 mb-0.5">Last Sync</p>
-                    <p className={`text-xs font-mono ${secondsAgo === null ? 'text-slate-500' : secondsAgo > 30 ? 'text-rose-400' : secondsAgo > 15 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <p className={`text-xs font-mono ${secondsAgo === null ? 'text-slate-500' : secondsAgo > 300 ? 'text-rose-400' : secondsAgo > 120 ? 'text-amber-400' : 'text-emerald-400'}`}>
                       {secondsAgo !== null ? `${secondsAgo}s ago` : 'Never'}
                     </p>
                   </div>
