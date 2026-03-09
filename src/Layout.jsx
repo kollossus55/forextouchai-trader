@@ -93,7 +93,7 @@ export default function Layout({ children }) {
       if (!conn.last_sync) return false;
       const lastSync = new Date(conn.last_sync).getTime();
       const timeSinceSync = now - lastSync;
-      return timeSinceSync <= 90000 && conn.connection_status === 'CONNECTED';
+      return timeSinceSync <= 300000 && conn.connection_status === 'CONNECTED';
     }).length;
   }, [connections]);
   
