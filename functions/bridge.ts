@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
                     await base44.asServiceRole.entities.Trade.create({
                         ticket: trade.ticket,
                         pair: trade.symbol || 'UNKNOWN',
-                        type: trade.type === 0 ? 'BUY' : 'SELL',
+                        type: (trade.type === 0 || trade.type === 'BUY') ? 'BUY' : 'SELL',
                         lot_size: trade.lots ?? 0.01,
                         open_price: trade.open_price ?? 0,
                         pnl: trade.profit ?? 0,
