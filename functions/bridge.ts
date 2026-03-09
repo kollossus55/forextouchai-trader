@@ -79,8 +79,18 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // NOTE: Trade syncing is intentionally skipped here to avoid rate limits.
-        // Trades are managed via signals/auto-execution logic separately.
+        // Reconcile open trades: if EA sends open_tickets, close any DB trades not in that list
+        const openTickets = body.open_tickets || accountData.open_tickets;
+        if (Array.isArray(openTickets)) {
+            const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+            const rogues = dbOpenTrades.filter(t => !openTickets.includes(t.ticket));
+            if (rogues.length > 0) {
+                console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not found in EA:', rogues.map(t => t.ticket));
+                await Promise.all(rogues.map(t =>
+                    base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
+                ));
+            }
+        }
 
         return Response.json({
             success: true,
