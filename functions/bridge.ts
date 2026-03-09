@@ -284,12 +284,16 @@ Deno.serve(async (req) => {
                                 close_price: currentPrice || existing.close_price
                             });
                         } else {
-                            // LENIENT MODE: Accept trades even with missing data - MT4 EA bug workaround
-                            // Use placeholder values if critical fields are missing
-                            const fallbackOpenPrice = openPrice > 0 ? openPrice : (currentPrice > 0 ? currentPrice : 1.0);
+                            // STRICT MODE: Skip trades with missing/invalid open price to prevent phantom trades
+                            const fallbackOpenPrice = openPrice > 0 ? openPrice : (currentPrice > 0 ? currentPrice : 0);
                             const fallbackLots = Number(t.lots) || 0.01;
+
+                            if (fallbackOpenPrice <= 0) {
+                                console.log(`[POST] ⚠️ SKIPPED Trade ${ticket} - no valid open_price or current_price`);
+                                continue;
+                            }
                             
-                            console.log(`[POST] ⚠️ Trade ${ticket} missing fields - using fallbacks: open=${fallbackOpenPrice}, lots=${fallbackLots}`);
+                            console.log(`[POST] ⚠️ Trade ${ticket} missing open_price - using current_price as fallback: open=${fallbackOpenPrice}, lots=${fallbackLots}`);
                             
                             let botId = null;
                             if (t.magic && String(t.magic).length > 5) botId = String(t.magic);
