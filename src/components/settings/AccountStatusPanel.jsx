@@ -34,8 +34,8 @@ export default function AccountStatusPanel() {
   const getStatus = (conn) => {
     if (!conn.last_sync) return { connected: false, stale: true, secondsAgo: null };
     const timeSinceSync = now - new Date(conn.last_sync).getTime();
-    const connected = timeSinceSync <= 30000 && conn.connection_status === 'CONNECTED';
-    const stale = timeSinceSync > 30000;
+    const connected = timeSinceSync <= 300000 && conn.connection_status === 'CONNECTED';
+    const stale = timeSinceSync > 300000;
     return { connected, stale, secondsAgo: Math.floor(timeSinceSync / 1000) };
   };
 
