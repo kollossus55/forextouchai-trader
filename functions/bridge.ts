@@ -104,11 +104,24 @@ Deno.serve(async (req) => {
             }
         }
 
+        // Return pending signals for EA to execute
+        const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
+        console.log('[BRIDGE] Returning', pendingSignals.length, 'pending signals to EA');
+
         return Response.json({
             success: true,
             message: 'Sync successful',
             account: account_number,
             timestamp: new Date().toISOString(),
+            pending_signals: pendingSignals.map(s => ({
+                id: s.id,
+                pair: s.pair,
+                type: s.type,
+                lot_size: s.lot_size || 0.1,
+                stop_loss: s.stop_loss || 0,
+                take_profit: s.take_profit || 0,
+                entry_price: s.entry_price || 0,
+            }))
         }, {
             headers: { 'Access-Control-Allow-Origin': '*' }
         });
