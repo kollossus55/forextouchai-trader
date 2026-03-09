@@ -77,11 +77,9 @@ export default function Layout({ children }) {
       
       const lastSync = new Date(conn.last_sync).getTime();
       const timeSinceSync = now - lastSync;
-      const isStale = timeSinceSync > 90000; // 90 seconds instead of 30
+      const isStale = timeSinceSync > 300000; // 5 minutes - handles MT4 restarts/brief drops
       
-      const veryRecentSync = timeSinceSync < 15000; // 15 seconds instead of 8
-      const statusOk = conn.connection_status === 'CONNECTED' || 
-                       (veryRecentSync && conn.connection_status !== 'ERROR');
+      const statusOk = conn.connection_status === 'CONNECTED';
       
       return !isStale && statusOk;
     });
