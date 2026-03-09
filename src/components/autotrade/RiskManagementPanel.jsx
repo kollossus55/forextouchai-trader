@@ -110,7 +110,12 @@ export default function RiskManagementPanel() {
   };
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // When disabling auto-stop, also clear the paused flag
+    if (field === 'stop_trading_on_limit' && value === false) {
+      setFormData(prev => ({ ...prev, [field]: value, is_trading_paused: false }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   if (!formData) return null;
