@@ -87,12 +87,11 @@ Deno.serve(async (req) => {
             const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
             const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
-            // 1. Create Trade records for tickets from EA not yet in DB (must have open_price)
+            // 1. Create Trade records for tickets from EA not yet in DB
             const newEaTrades = eaTrades.filter(t => {
-                const price = t.open_price || t.price || 0;
-                console.log('[BRIDGE] Evaluating trade:', JSON.stringify(t), '-> price:', price, 'ticket:', t.ticket, 'inDB:', dbTickets.has(t.ticket));
-                // Reject missing price (0) or the placeholder value (exactly 1.0)
-                return t.ticket && !dbTickets.has(t.ticket) && price > 0 && price !== 1.0;
+                const hasSymbol = !!(t.pair || t.symbol);
+                console.log('[BRIDGE] Evaluating trade ticket:', t.ticket, 'symbol:', t.pair || t.symbol, 'inDB:', dbTickets.has(t.ticket));
+                return t.ticket && hasSymbol && !dbTickets.has(t.ticket);
             });
             if (newEaTrades.length > 0) {
                 console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
@@ -101,9 +100,9 @@ Deno.serve(async (req) => {
                 await Promise.all(newEaTrades.map(t =>
                     base44.asServiceRole.entities.Trade.create({
                         pair: t.pair || t.symbol,
-                        type: t.type,
+                        type: t.type || 'BUY',
                         lot_size: t.lot_size || t.lots || 0.1,
-                        open_price: t.open_price || t.price,
+                        open_price: t.open_price || t.price || 0,
                         pnl: t.pnl || t.profit || 0,
                         status: 'OPEN',
                         ticket: t.ticket,
