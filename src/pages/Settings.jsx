@@ -698,169 +698,130 @@ export default function Settings() {
          string resH;
          
          ResetLastError();
-         int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resH); // Increased timeout to 5s
+         int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resH);
          
          if(r == 200) {
-            // Success - connection is healthy
+            string response = CharArrayToString(res);
+            // Parse and execute any pending signals returned in the POST response
+            ProcessPendingSignals(response);
             return;
          }
          
          int err = GetLastError();
-         
-         // Only log significant errors (not intermittent -1 errors)
          if(r != 200 && r != -1) {
             Print("[BRIDGE ERROR] Sync Failed - HTTP: ", r, " | MT4 Error: ", err);
-            if(ArraySize(res) > 0) {
-               string response = CharArrayToString(res);
-               if(StringLen(response) > 0 && StringLen(response) < 500) {
-                  Print("[BRIDGE] Server Response: ", response);
-               }
-            }
          }
       }
       
-      void CheckSignals() {
-         char post[], result[];
-         string headers = "Content-Type: application/json\\r\\n";
-         string resHeaders;
+      //+------------------------------------------------------------------+
+      //| Parse and execute all signals in pending_signals array           |
+      //+------------------------------------------------------------------+
+      void ProcessPendingSignals(string json) {
+         // Find the pending_signals array
+         int arrStart = StringFind(json, "\\"pending_signals\\"");
+         if(arrStart < 0) return;
          
-         ResetLastError();
-         int res = WebRequest("GET", Endpoint, headers, 5000, post, result, resHeaders); // Increased timeout
+         arrStart = StringFind(json, "[", arrStart);
+         if(arrStart < 0) return;
          
-         if(res == 200) {
-            string json = CharArrayToString(result);
-            string id = GetJsonValue(json, "id");
-            string status = GetJsonValue(json, "status");
+         int arrEnd = StringFind(json, "]", arrStart);
+         if(arrEnd < 0) return;
+         
+         string arr = StringSubstr(json, arrStart + 1, arrEnd - arrStart - 1);
+         if(StringLen(arr) < 5) return; // empty array
+         
+         // Iterate over each signal object {}
+         int pos = 0;
+         while(pos < StringLen(arr)) {
+            int objStart = StringFind(arr, "{", pos);
+            if(objStart < 0) break;
+            int objEnd = StringFind(arr, "}", objStart);
+            if(objEnd < 0) break;
             
-            if(status == "ERROR") {
-                // Backend is reachable but reported an error (e.g. database down)
-                Print("[BRIDGE] Backend Error: " + GetJsonValue(json, "error"));
-            }
-            else if(status == "PENDING" && id != "" && id != lastSignalId) {
-              Print(">>> NEW SIGNAL RECEIVED: ", id);
-
-              string pair = GetJsonValue(json, "pair");
-              string type = GetJsonValue(json, "type");
-              string botId = GetJsonValue(json, "bot_id");
-              string botName = GetJsonValue(json, "bot_name");
-
-              // Get Signal Prices
-              double sigEntry = StringToDouble(GetJsonValue(json, "entry_price"));
-              double sigSL = StringToDouble(GetJsonValue(json, "stop_loss"));
-              double sigTP = StringToDouble(GetJsonValue(json, "take_profit"));
-              double sigLot = StringToDouble(GetJsonValue(json, "lot_size"));
-
-              // Clean pair name (remove / if exists)
-              StringReplace(pair, "/", "");
-
-              // === RISK CHECKS ===
-
-              // Check max open trades
-              if(MaxOpenTrades > 0 && OrdersTotal() >= MaxOpenTrades) {
-                 Print("Signal rejected: Max open trades limit (", MaxOpenTrades, ")");
-                 return;
-              }
-
-              // Check daily trade limit
-              if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
-                 Print("Signal rejected: Daily trade limit reached (", MaxDailyTrades, ")");
-                 return;
-              }
-
-              // Check spread
-              double spread = MarketInfo(pair, MODE_SPREAD);
-              double point = MarketInfo(pair, MODE_POINT);
-              double spreadPips = spread * point * 10;
-              if(MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
-                 Print("Signal rejected: Spread too high (", spreadPips, " pips > ", MaxSpreadPips, " pips)");
-                 return;
-              }
-
-              int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
-              double currentPrice = MarketInfo(pair, (cmd==OP_BUY?MODE_ASK:MODE_BID));
-              int digits = (int)MarketInfo(pair, MODE_DIGITS);
-
-              // Calculate Dynamic SL/TP Distances to handle Feed discrepancies
-              double slDist = 0;
-              double tpDist = 0;
-
-              if(sigEntry > 0) {
-                 if(cmd == OP_BUY) {
-                    if(sigSL > 0) slDist = sigEntry - sigSL;
-                    if(sigTP > 0) tpDist = sigTP - sigEntry;
-                 } else {
-                    if(sigSL > 0) slDist = sigSL - sigEntry;
-                    if(sigTP > 0) tpDist = sigEntry - sigTP;
-                 }
-              }
-
-              // Apply Distances to Current Price
-              double finalSL = 0;
-              double finalTP = 0;
-
-              if(slDist > 0) finalSL = (cmd==OP_BUY) ? (currentPrice - slDist) : (currentPrice + slDist);
-              if(tpDist > 0) finalTP = (cmd==OP_BUY) ? (currentPrice + tpDist) : (currentPrice - tpDist);
-
-              // Normalize
-              if(finalSL > 0) finalSL = NormalizeDouble(finalSL, digits);
-              if(finalTP > 0) finalTP = NormalizeDouble(finalTP, digits);
-
-              // Hidden SL/TP Mode
-              double displaySL = HideSLTP ? 0 : finalSL;
-              double displayTP = HideSLTP ? 0 : finalTP;
-
-              // Use signal lot size if provided, otherwise default to FixedLotSize
-              double finalLot = (sigLot > 0) ? sigLot : FixedLotSize;
-              Print("Executing Order: Lot=", finalLot, " (SignalLot=", sigLot, ")");
-
-              // Build comment with bot name (MT4 has 31 char limit)
-              string comment = "Manual";
-              if(StringLen(botName) > 0) {
-                 // Truncate bot name if too long (MT4 31 char limit)
-                 if(StringLen(botName) > 30) {
-                    comment = StringSubstr(botName, 0, 30);
-                 } else {
-                    comment = botName;
-                 }
-                 Print("Bot found: ", botName, " Comment: [", comment, "]");
-              } else {
-                 Print("Manual trade (no bot)");
-              }
-
-              // Execute
-              Print("OrderSend params: pair=", pair, " cmd=", cmd, " lots=", finalLot, " comment=[", comment, "]");
-              int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, comment, 0, 0, clrGreen);
-              
-              if(ticket > 0) {
-                 // Verify what comment was actually stored
-                 if(OrderSelect(ticket, SELECT_BY_TICKET)) {
-                    string storedComment = OrderComment();
-                    Print("Trade opened with ticket: ", ticket, " Stored comment: [", storedComment, "]");
-                 }
-              }
-
-              if(ticket > 0) {
-                 Print("Trade Executed! Ticket: ", ticket);
-                 lastSignalId = id;
-                 TradesToday++;
-
-                 // Store for hidden SL/TP management
-                 if(HideSLTP && (finalSL > 0 || finalTP > 0)) {
-                    ArrayResize(managedTrades, (int)(managedCount + 1));
-                    managedTrades[managedCount].ticket = (int)ticket;
-                    managedTrades[managedCount].openPrice = (double)currentPrice;
-                    managedTrades[managedCount].hiddenSL = (double)finalSL;
-                    managedTrades[managedCount].hiddenTP = (double)finalTP;
-                    managedCount++;
-                    Print("Hidden levels stored: SL=", finalSL, " TP=", finalTP);
-                 }
-              } else {
-                 Print("Trade Failed. Error: ", GetLastError());
-                 Print("Debug: Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP, " Lot=", finalLot);
-              }
-            }
+            string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+            ExecuteSignalObj(obj);
+            
+            pos = objEnd + 1;
          }
       }
+      
+      //+------------------------------------------------------------------+
+      //| Execute one signal object                                        |
+      //+------------------------------------------------------------------+
+      void ExecuteSignalObj(string obj) {
+         string id  = GetJsonValue(obj, "id");
+         string pair = GetJsonValue(obj, "pair");
+         string type = GetJsonValue(obj, "type");
+         double sigEntry = StringToDouble(GetJsonValue(obj, "entry_price"));
+         double sigSL    = StringToDouble(GetJsonValue(obj, "stop_loss"));
+         double sigTP    = StringToDouble(GetJsonValue(obj, "take_profit"));
+         double sigLot   = StringToDouble(GetJsonValue(obj, "lot_size"));
+         
+         if(StringLen(id) == 0 || StringLen(pair) == 0 || StringLen(type) == 0) return;
+         if(id == lastSignalId) return; // already executed
+         
+         // Risk checks
+         if(MaxOpenTrades > 0 && OrdersTotal() >= MaxOpenTrades) {
+            Print("[BRIDGE] Signal rejected: Max open trades (", MaxOpenTrades, ")");
+            return;
+         }
+         if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
+            Print("[BRIDGE] Signal rejected: Daily trade limit (", MaxDailyTrades, ")");
+            return;
+         }
+         
+         int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
+         double currentPrice = MarketInfo(pair, (cmd == OP_BUY ? MODE_ASK : MODE_BID));
+         int digits = (int)MarketInfo(pair, MODE_DIGITS);
+         
+         if(currentPrice == 0) {
+            Print("[BRIDGE] ERROR: Cannot get price for ", pair, " - add symbol to Market Watch");
+            return;
+         }
+         
+         // Calculate SL/TP as distance from signal entry, apply to current price
+         double finalSL = 0, finalTP = 0;
+         if(sigEntry > 0) {
+            double slDist = 0, tpDist = 0;
+            if(cmd == OP_BUY) {
+               if(sigSL > 0) slDist = sigEntry - sigSL;
+               if(sigTP > 0) tpDist = sigTP - sigEntry;
+               if(slDist > 0) finalSL = NormalizeDouble(currentPrice - slDist, digits);
+               if(tpDist > 0) finalTP = NormalizeDouble(currentPrice + tpDist, digits);
+            } else {
+               if(sigSL > 0) slDist = sigSL - sigEntry;
+               if(sigTP > 0) tpDist = sigEntry - sigTP;
+               if(slDist > 0) finalSL = NormalizeDouble(currentPrice + slDist, digits);
+               if(tpDist > 0) finalTP = NormalizeDouble(currentPrice - tpDist, digits);
+            }
+         }
+         
+         double displaySL = HideSLTP ? 0 : finalSL;
+         double displayTP = HideSLTP ? 0 : finalTP;
+         double finalLot  = (sigLot > 0) ? sigLot : FixedLotSize;
+         
+         Print("[BRIDGE] Executing: ", type, " ", pair, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
+         
+         int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, "ForexTouchAI", 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
+         
+         if(ticket > 0) {
+            Print("[BRIDGE] Trade opened! Ticket=", ticket, " Signal=", id);
+            lastSignalId = id;
+            TradesToday++;
+            if(HideSLTP && (finalSL > 0 || finalTP > 0)) {
+               ArrayResize(managedTrades, (int)(managedCount + 1));
+               managedTrades[managedCount].ticket    = ticket;
+               managedTrades[managedCount].openPrice = currentPrice;
+               managedTrades[managedCount].hiddenSL  = finalSL;
+               managedTrades[managedCount].hiddenTP  = finalTP;
+               managedCount++;
+            }
+         } else {
+            Print("[BRIDGE] OrderSend FAILED. Error=", GetLastError(), " Pair=", pair, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
+         }
+      }
+      
+      void CheckSignals() { /* Signals now come from POST response - see ProcessPendingSignals */ }
 
       //+------------------------------------------------------------------+
       //| JSON Parsing Helper                                              |
