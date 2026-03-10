@@ -450,6 +450,11 @@ export default function AutoTrade() {
                       }`}>
                         {bot.status}
                       </Badge>
+                      {bot.status === 'RUNNING' && !isWithinTradingHours(bot) && (
+                        <Badge variant="outline" className="ml-1 text-xs font-normal border-amber-500/50 text-amber-400 bg-amber-500/10">
+                          ⏰ Outside Hours
+                        </Badge>
+                      )}
                       {user?.role === 'admin' && bot.owner_email && (
                         <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
                           Owner: {bot.owner_email}
