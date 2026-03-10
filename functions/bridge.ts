@@ -87,7 +87,10 @@ Deno.serve(async (req) => {
             const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
             // 1. Create Trade records for tickets from EA not yet in DB (must have open_price)
-            const newEaTrades = eaTrades.filter(t => t.ticket && !dbTickets.has(t.ticket) && (t.open_price || t.price));
+            const newEaTrades = eaTrades.filter(t => {
+                const price = t.open_price || t.price || 0;
+                return t.ticket && !dbTickets.has(t.ticket) && price > 1.0;
+            });
             if (newEaTrades.length > 0) {
                 console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
                 const connList = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
