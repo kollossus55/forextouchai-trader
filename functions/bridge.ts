@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
             timestamp: new Date().toISOString(),
             pending_signals: pendingSignals.map(s => ({
                 id: s.id,
-                pair: s.pair,
+                pair: (s.pair || '').replace('/', ''),
                 type: s.type,
                 lot_size: s.lot_size || 0.1,
                 stop_loss: s.stop_loss || 0,
