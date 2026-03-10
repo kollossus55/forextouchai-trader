@@ -440,7 +440,13 @@ export default function AutoTrade() {
         <TabsContent value="bots" className="mt-0">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {bots.map((bot) => (
-              <Card key={bot.id} className={`bg-slate-900/50 backdrop-blur-sm border transition-all ${bot.status === 'RUNNING' ? 'border-emerald-500/30 shadow-[0_0_20px_-5px_rgba(16,185,129,0.1)]' : 'border-slate-800'}`}>
+              <Card key={bot.id} className={`bg-slate-900/50 backdrop-blur-sm border transition-all ${
+                bot.status === 'RUNNING' && isWithinTradingHours(bot)
+                  ? 'border-emerald-500/30 shadow-[0_0_20px_-5px_rgba(16,185,129,0.1)]'
+                  : bot.status === 'RUNNING'
+                  ? 'border-amber-500/30 shadow-[0_0_20px_-5px_rgba(245,158,11,0.1)]'
+                  : 'border-slate-800'
+              }`}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="space-y-1">
                     <CardTitle className="text-xl text-white flex items-center gap-2">
