@@ -382,6 +382,17 @@ export default function AutoTrade() {
       setIsConfigOpen(true);
   };
 
+  // Helper: check if a bot is within its trading hours (browser local time)
+  const isWithinTradingHours = (bot) => {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const [startH, startM] = (bot.trading_start_time || "00:00").split(':').map(Number);
+    const [endH, endM] = (bot.trading_end_time || "23:59").split(':').map(Number);
+    const startTime = startH * 60 + startM;
+    const endTime = endH * 60 + endM;
+    return currentTime >= startTime && currentTime <= endTime;
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
