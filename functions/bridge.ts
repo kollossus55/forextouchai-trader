@@ -89,7 +89,8 @@ Deno.serve(async (req) => {
             // 1. Create Trade records for tickets from EA not yet in DB (must have open_price)
             const newEaTrades = eaTrades.filter(t => {
                 const price = t.open_price || t.price || 0;
-                return t.ticket && !dbTickets.has(t.ticket) && price > 1.0;
+                // Reject missing price (0) or the placeholder value (exactly 1.0)
+                return t.ticket && !dbTickets.has(t.ticket) && price > 0 && price !== 1.0;
             });
             if (newEaTrades.length > 0) {
                 console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
