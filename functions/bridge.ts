@@ -112,15 +112,25 @@ Deno.serve(async (req) => {
                 ));
             }
 
-            // 2. Update PnL on existing open trades
+            // 2. Update PnL on existing open trades (only if changed by > $0.01 to avoid rate limits)
             const existingTrades = dbOpenTrades.filter(t => t.ticket && eaTicketSet.has(t.ticket));
             if (existingTrades.length > 0) {
-                await Promise.all(existingTrades.map(t => {
+                const tradesToUpdate = existingTrades.filter(t => {
                     const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
-                    if (eaTrade) {
-                        return base44.asServiceRole.entities.Trade.update(t.id, { pnl: eaTrade.pnl || eaTrade.profit || 0 });
+                    if (!eaTrade) return false;
+                    const newPnl = eaTrade.pnl || eaTrade.profit || 0;
+                    return Math.abs((t.pnl || 0) - newPnl) > 0.01;
+                });
+                if (tradesToUpdate.length > 0) {
+                    // Process in small batches to avoid rate limits
+                    for (let i = 0; i < tradesToUpdate.length; i += 3) {
+                        const batch = tradesToUpdate.slice(i, i + 3);
+                        await Promise.all(batch.map(t => {
+                            const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
+                            return base44.asServiceRole.entities.Trade.update(t.id, { pnl: eaTrade.pnl || eaTrade.profit || 0 });
+                        }));
                     }
-                }));
+                }
             }
 
             // 3. Close DB trades whose tickets are no longer reported by EA
