@@ -91,16 +91,69 @@ Deno.serve(async (req) => {
             ));
         }
 
-        // 2. If EA sends open_tickets list, close DB trades not present in it
-        const openTickets = body.open_tickets || accountData.open_tickets;
-        if (Array.isArray(openTickets)) {
+        // 2. Sync EA's open trades - create missing ones, close removed ones
+        const eaTrades = body.trades || accountData.trades;
+        if (Array.isArray(eaTrades) && eaTrades.length > 0) {
+            const dbTickets = dbOpenTrades.map(t => t.ticket).filter(Boolean);
+            
+            // Create Trade records for any new tickets from EA not in DB
+            const newEaTrades = eaTrades.filter(t => t.ticket && !dbTickets.includes(t.ticket));
+            if (newEaTrades.length > 0) {
+                console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
+                
+                // Get owner email from broker connection
+                const connList = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
+                const ownerEmail = connList?.[0]?.created_by || null;
+
+                await Promise.all(newEaTrades.map(t =>
+                    base44.asServiceRole.entities.Trade.create({
+                        pair: t.pair || t.symbol,
+                        type: t.type,
+                        lot_size: t.lot_size || t.lots || 0.1,
+                        open_price: t.open_price || t.price || 0,
+                        pnl: t.pnl || t.profit || 0,
+                        status: 'OPEN',
+                        ticket: t.ticket,
+                        is_auto: false,
+                        owner_email: ownerEmail,
+                    })
+                ));
+
+                // Mark corresponding PENDING signals as ACTIVE
+                const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
+                for (const newTrade of newEaTrades) {
+                    const matchingSignal = pendingSignals.find(s => 
+                        s.pair === (newTrade.pair || newTrade.symbol) && s.type === newTrade.type
+                    );
+                    if (matchingSignal) {
+                        await base44.asServiceRole.entities.Signal.update(matchingSignal.id, { status: 'ACTIVE' });
+                        console.log('[BRIDGE] Marked signal ACTIVE for new trade:', newTrade.ticket);
+                    }
+                }
+            }
+
+            // Close DB trades whose tickets are no longer in EA list
+            const eaTickets = eaTrades.map(t => t.ticket).filter(Boolean);
             const validOpen = dbOpenTrades.filter(t => t.open_price && t.open_price > 0);
-            const rogues = validOpen.filter(t => t.ticket && !openTickets.includes(t.ticket));
+            const rogues = validOpen.filter(t => t.ticket && !eaTickets.includes(t.ticket));
             if (rogues.length > 0) {
-                console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not in EA list:', rogues.map(t => t.ticket));
+                console.log('[BRIDGE] Closing', rogues.length, 'trades closed in EA:', rogues.map(t => t.ticket));
                 await Promise.all(rogues.map(t =>
                     base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
                 ));
+            }
+        } else {
+            // Fallback: use open_tickets list if EA sends that format
+            const openTickets = body.open_tickets || accountData.open_tickets;
+            if (Array.isArray(openTickets)) {
+                const validOpen = dbOpenTrades.filter(t => t.open_price && t.open_price > 0);
+                const rogues = validOpen.filter(t => t.ticket && !openTickets.includes(t.ticket));
+                if (rogues.length > 0) {
+                    console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not in EA list:', rogues.map(t => t.ticket));
+                    await Promise.all(rogues.map(t =>
+                        base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
+                    ));
+                }
             }
         }
 
