@@ -133,6 +133,13 @@ Deno.serve(async (req) => {
         const pendingSignals = allPendingSignals.filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
         console.log('[BRIDGE] Returning', pendingSignals.length, 'pending signals to EA');
 
+        // Mark signals as ACTIVE immediately so they are NOT re-sent next heartbeat
+        if (pendingSignals.length > 0) {
+            await Promise.all(pendingSignals.map(s =>
+                base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
+            ));
+        }
+
         return Response.json({
             success: true,
             message: 'Sync successful',
