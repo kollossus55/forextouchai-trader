@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
 
         // Reconcile open trades from EA heartbeat
         const eaTrades = body.trades || accountData.trades;
+        console.log('[BRIDGE] eaTrades received:', JSON.stringify(eaTrades));
         if (Array.isArray(eaTrades)) {
             const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
             const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
@@ -89,6 +90,7 @@ Deno.serve(async (req) => {
             // 1. Create Trade records for tickets from EA not yet in DB (must have open_price)
             const newEaTrades = eaTrades.filter(t => {
                 const price = t.open_price || t.price || 0;
+                console.log('[BRIDGE] Evaluating trade:', JSON.stringify(t), '-> price:', price, 'ticket:', t.ticket, 'inDB:', dbTickets.has(t.ticket));
                 // Reject missing price (0) or the placeholder value (exactly 1.0)
                 return t.ticket && !dbTickets.has(t.ticket) && price > 0 && price !== 1.0;
             });
