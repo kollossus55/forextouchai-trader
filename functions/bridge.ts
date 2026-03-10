@@ -112,8 +112,19 @@ Deno.serve(async (req) => {
                 ));
             }
 
-            // 2. Close DB trades whose tickets are no longer reported by EA
-            const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket) && t.open_price > 0);
+            // 2. Update PnL on existing open trades
+            const existingTrades = dbOpenTrades.filter(t => t.ticket && eaTicketSet.has(t.ticket));
+            if (existingTrades.length > 0) {
+                await Promise.all(existingTrades.map(t => {
+                    const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
+                    if (eaTrade) {
+                        return base44.asServiceRole.entities.Trade.update(t.id, { pnl: eaTrade.pnl || eaTrade.profit || 0 });
+                    }
+                }));
+            }
+
+            // 3. Close DB trades whose tickets are no longer reported by EA
+            const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
             if (closedTrades.length > 0) {
                 console.log('[BRIDGE] Closing', closedTrades.length, 'trades no longer in EA');
                 await Promise.all(closedTrades.map(t =>
