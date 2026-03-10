@@ -104,8 +104,20 @@ Deno.serve(async (req) => {
             }
         }
 
-        // Return pending signals for EA to execute
-        const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
+        // Return pending signals for EA to execute (limit to 5 most recent to avoid buffer overflow)
+        const allPendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 100);
+        
+        // Auto-expire signals older than 5 minutes (they're stale and will never execute)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const staleSignals = allPendingSignals.filter(s => s.created_date < fiveMinutesAgo);
+        if (staleSignals.length > 0) {
+            console.log('[BRIDGE] Expiring', staleSignals.length, 'stale pending signals');
+            await Promise.all(staleSignals.map(s =>
+                base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
+            ));
+        }
+        
+        const pendingSignals = allPendingSignals.filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
         console.log('[BRIDGE] Returning', pendingSignals.length, 'pending signals to EA');
 
         return Response.json({
