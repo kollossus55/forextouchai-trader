@@ -79,38 +79,25 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // Reconcile open trades
-        const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
-        
-        // 1. Close any trades with bad data (open_price = 0 are ghost/rogue trades)
-        const ghostTrades = dbOpenTrades.filter(t => !t.open_price || t.open_price === 0);
-        if (ghostTrades.length > 0) {
-            console.log('[BRIDGE] Closing', ghostTrades.length, 'ghost trades with no open price');
-            await Promise.all(ghostTrades.map(t =>
-                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED' })
-            ));
-        }
-
-        // 2. Sync EA's open trades - create missing ones, close removed ones
+        // Reconcile open trades from EA heartbeat
         const eaTrades = body.trades || accountData.trades;
-        if (Array.isArray(eaTrades) && eaTrades.length > 0) {
-            const dbTickets = dbOpenTrades.map(t => t.ticket).filter(Boolean);
-            
-            // Create Trade records for any new tickets from EA not in DB
-            const newEaTrades = eaTrades.filter(t => t.ticket && !dbTickets.includes(t.ticket));
+        if (Array.isArray(eaTrades)) {
+            const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+            const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
+            const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
+
+            // 1. Create Trade records for tickets from EA not yet in DB (must have open_price)
+            const newEaTrades = eaTrades.filter(t => t.ticket && !dbTickets.has(t.ticket) && (t.open_price || t.price));
             if (newEaTrades.length > 0) {
                 console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
-                
-                // Get owner email from broker connection
                 const connList = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
                 const ownerEmail = connList?.[0]?.created_by || null;
-
                 await Promise.all(newEaTrades.map(t =>
                     base44.asServiceRole.entities.Trade.create({
                         pair: t.pair || t.symbol,
                         type: t.type,
                         lot_size: t.lot_size || t.lots || 0.1,
-                        open_price: t.open_price || t.price || 0,
+                        open_price: t.open_price || t.price,
                         pnl: t.pnl || t.profit || 0,
                         status: 'OPEN',
                         ticket: t.ticket,
@@ -118,42 +105,15 @@ Deno.serve(async (req) => {
                         owner_email: ownerEmail,
                     })
                 ));
-
-                // Mark corresponding PENDING signals as ACTIVE
-                const pendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' });
-                for (const newTrade of newEaTrades) {
-                    const matchingSignal = pendingSignals.find(s => 
-                        s.pair === (newTrade.pair || newTrade.symbol) && s.type === newTrade.type
-                    );
-                    if (matchingSignal) {
-                        await base44.asServiceRole.entities.Signal.update(matchingSignal.id, { status: 'ACTIVE' });
-                        console.log('[BRIDGE] Marked signal ACTIVE for new trade:', newTrade.ticket);
-                    }
-                }
             }
 
-            // Close DB trades whose tickets are no longer in EA list
-            const eaTickets = eaTrades.map(t => t.ticket).filter(Boolean);
-            const validOpen = dbOpenTrades.filter(t => t.open_price && t.open_price > 0);
-            const rogues = validOpen.filter(t => t.ticket && !eaTickets.includes(t.ticket));
-            if (rogues.length > 0) {
-                console.log('[BRIDGE] Closing', rogues.length, 'trades closed in EA:', rogues.map(t => t.ticket));
-                await Promise.all(rogues.map(t =>
+            // 2. Close DB trades whose tickets are no longer reported by EA
+            const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket) && t.open_price > 0);
+            if (closedTrades.length > 0) {
+                console.log('[BRIDGE] Closing', closedTrades.length, 'trades no longer in EA');
+                await Promise.all(closedTrades.map(t =>
                     base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
                 ));
-            }
-        } else {
-            // Fallback: use open_tickets list if EA sends that format
-            const openTickets = body.open_tickets || accountData.open_tickets;
-            if (Array.isArray(openTickets)) {
-                const validOpen = dbOpenTrades.filter(t => t.open_price && t.open_price > 0);
-                const rogues = validOpen.filter(t => t.ticket && !openTickets.includes(t.ticket));
-                if (rogues.length > 0) {
-                    console.log('[BRIDGE] Closing', rogues.length, 'rogue trades not in EA list:', rogues.map(t => t.ticket));
-                    await Promise.all(rogues.map(t =>
-                        base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
-                    ));
-                }
             }
         }
 
