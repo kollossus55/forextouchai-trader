@@ -212,9 +212,15 @@ export default function Overview() {
           });
 
       // Invoke Backend Function for Real AI Analysis with Enhanced Parameters
+      // Only send prices for the pairs being analyzed (avoid oversized payload)
+      const filteredMarketData = {};
+      pairs.forEach(p => {
+          if (MarketDataService.prices[p]) filteredMarketData[p] = MarketDataService.prices[p];
+      });
+
       const response = await base44.functions.invoke('analyzeMarket', {
           pairs,
-          marketData: MarketDataService.prices,
+          marketData: filteredMarketData,
           minConfidence: scanSettings.minConfidence,
           riskLevel: scanSettings.riskLevel,
           signalSensitivity: scanSettings.signalSensitivity,
