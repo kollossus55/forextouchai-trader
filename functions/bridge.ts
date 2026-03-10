@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
                     const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
                     if (!eaTrade) return false;
                     const newPnl = eaTrade.pnl || eaTrade.profit || 0;
-                    return Math.abs((t.pnl || 0) - newPnl) > 0.01;
+                    return Math.abs((t.pnl || 0) - newPnl) > 0.10;
                 });
                 if (tradesToUpdate.length > 0) {
                     // Process in small batches to avoid rate limits
