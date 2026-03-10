@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
                 ));
             }
 
-            // 2. Update PnL on existing open trades (only if changed by > $0.01 to avoid rate limits)
+            // 2. Update PnL on existing open trades (only if changed by > $0.10 to avoid rate limits)
             const existingTrades = dbOpenTrades.filter(t => t.ticket && eaTicketSet.has(t.ticket));
             if (existingTrades.length > 0) {
                 const tradesToUpdate = existingTrades.filter(t => {
