@@ -42,8 +42,8 @@ export default function ConnectionDiagnostics() {
       const latency = Date.now() - start;
       if (status) {
         // Got a response = bridge is online
-        setDiagnostics({ status: 'OK', average_latency_ms: latency });
-        toast.success('Bridge connection healthy', { description: `Latency: ${latency}ms` });
+        setDiagnostics({ status: 'ONLINE', average_latency_ms: latency });
+        toast.success('Bridge Online ✓', { description: `Latency: ${latency}ms` });
       } else {
         // No response = truly unreachable
         toast.error('Connection test failed', { description: 'Unable to reach bridge endpoint' });
