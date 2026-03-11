@@ -31,17 +31,18 @@ export default function ConnectionDiagnostics() {
   // Test connection to bridge endpoint - directly fetch diagnostics URL
   const testConnection = async () => {
     setIsTestingConnection(true);
+    const start = Date.now();
     try {
-      const response = await fetch('/functions/bridge', { method: 'OPTIONS' });
-      const data = await response.json();
-      
-      if (data) {
+      const response = await fetch('/functions/bridge', { method: 'GET' });
+      const latency = Date.now() - start;
+      if (response.ok) {
+        const data = { status: 'OK', average_latency_ms: latency };
         setDiagnostics(data);
-        const latency = data.average_latency_ms || 'N/A';
-        const successRate = data.success_rate || '0%';
         toast.success('Bridge connection healthy', {
-          description: `Status: ${data.status || 'OK'} - ${data.successful_requests || 0} successful requests`
+          description: `Latency: ${latency}ms`
         });
+      } else {
+        throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
       toast.error('Connection test failed', {
