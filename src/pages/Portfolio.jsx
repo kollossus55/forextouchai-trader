@@ -18,7 +18,7 @@ export default function Portfolio() {
   const { data: trades } = useQuery({
     queryKey: ['trades-all'],
     queryFn: () => base44.entities.Trade.list('-created_date', 100),
-    refetchInterval: 3000,
+    refetchInterval: 10000,
     initialData: []
   });
 
