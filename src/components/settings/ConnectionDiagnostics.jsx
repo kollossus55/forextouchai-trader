@@ -34,17 +34,13 @@ export default function ConnectionDiagnostics() {
     setIsTestingConnection(true);
     const start = Date.now();
     try {
-      const response = await fetch('/functions/bridge', { method: 'GET' });
+      await base44.functions.invoke('bridge', {});
       const latency = Date.now() - start;
-      if (response.ok) {
-        const data = { status: 'OK', average_latency_ms: latency };
-        setDiagnostics(data);
-        toast.success('Bridge connection healthy', {
-          description: `Latency: ${latency}ms`
-        });
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const data = { status: 'OK', average_latency_ms: latency };
+      setDiagnostics(data);
+      toast.success('Bridge connection healthy', {
+        description: `Latency: ${latency}ms`
+      });
     } catch (error) {
       toast.error('Connection test failed', {
         description: error.message || 'Unable to reach bridge endpoint'
