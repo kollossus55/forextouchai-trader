@@ -156,13 +156,13 @@ export default function ConnectionDiagnostics() {
 
       {/* Advanced Diagnostics */}
       {diagnostics && !diagnostics.error && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-emerald-500/30">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-cyan-400" />
-              Bridge Diagnostics
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              Bridge Online — OK
             </CardTitle>
-            <CardDescription>Detailed bridge endpoint performance metrics</CardDescription>
+            <CardDescription>Bridge endpoint is reachable and responding</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
