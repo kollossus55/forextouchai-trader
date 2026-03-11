@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
+
 export default function ConnectionDiagnostics() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
