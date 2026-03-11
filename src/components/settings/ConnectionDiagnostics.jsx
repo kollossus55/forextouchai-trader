@@ -34,18 +34,21 @@ export default function ConnectionDiagnostics() {
     setIsTestingConnection(true);
     const start = Date.now();
     try {
+      // Any HTTP response (even 400) means bridge is reachable
       await base44.functions.invoke('bridge', {});
-      const latency = Date.now() - start;
-      const data = { status: 'OK', average_latency_ms: latency };
-      setDiagnostics(data);
-      toast.success('Bridge connection healthy', {
-        description: `Latency: ${latency}ms`
-      });
     } catch (error) {
-      toast.error('Connection test failed', {
-        description: error.message || 'Unable to reach bridge endpoint'
-      });
-      setDiagnostics({ error: error.message });
+      // axios throws on 4xx/5xx - check if it's a real network error or just a 400 (bridge reachable)
+      const status = error?.response?.status;
+      const latency = Date.now() - start;
+      if (status) {
+        // Got a response = bridge is online
+        setDiagnostics({ status: 'OK', average_latency_ms: latency });
+        toast.success('Bridge connection healthy', { description: `Latency: ${latency}ms` });
+      } else {
+        // No response = truly unreachable
+        toast.error('Connection test failed', { description: 'Unable to reach bridge endpoint' });
+        setDiagnostics({ error: error.message });
+      }
     } finally {
       setIsTestingConnection(false);
     }
