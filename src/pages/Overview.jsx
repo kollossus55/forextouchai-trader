@@ -96,14 +96,13 @@ export default function Overview() {
   const { data: trades, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home'],
     queryFn: async () => {
-      // Use function to bypass RLS and show ALL trades from MT4
-      const result = await base44.functions.invoke('getAllTrades', {});
-      console.log('[Overview] Fetched trades:', result.data.length, result.data);
-      return result.data;
+      const result = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
+      console.log('[Overview] Fetched trades:', result.length, result);
+      return result;
     },
-    refetchInterval: 3000, // Poll every 3 seconds
-    staleTime: 0, // Always consider stale
-    gcTime: 0, // Don't cache at all (new React Query v5 syntax)
+    refetchInterval: 10000, // Poll every 10 seconds
+    staleTime: 0,
+    gcTime: 0,
     initialData: []
   });
 
