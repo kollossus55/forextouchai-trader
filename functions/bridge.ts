@@ -137,9 +137,23 @@ Deno.serve(async (req) => {
             const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
             if (closedTrades.length > 0) {
                 console.log('[BRIDGE] Closing', closedTrades.length, 'trades no longer in EA');
-                await Promise.all(closedTrades.map(t =>
-                    base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price })
-                ));
+                await Promise.all(closedTrades.map(t => {
+                    // Use the last known PnL (already synced in step 2) as the final pnl
+                    // close_price is estimated from pnl since EA doesn't report it on close
+                    const finalPnl = t.pnl || 0;
+                    const pipValue = (t.open_price > 10) ? 0.001 : 0.0001;
+                    const lotMultiplier = (t.lot_size || 0.1) * 100000;
+                    const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
+                    const closePrice = t.type === 'BUY'
+                        ? t.open_price + priceMove
+                        : t.open_price - priceMove;
+                    console.log(`[BRIDGE] Closing ticket ${t.ticket}: pnl=${finalPnl}, close_price≈${closePrice.toFixed(5)}`);
+                    return base44.asServiceRole.entities.Trade.update(t.id, {
+                        status: 'CLOSED',
+                        close_price: parseFloat(closePrice.toFixed(5)),
+                        pnl: finalPnl
+                    });
+                }));
             }
         }
 
