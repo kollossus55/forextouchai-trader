@@ -51,29 +51,31 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
-        const bots = await base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' });
+        // Fetch all required data in parallel to minimize latency
+        const [bots, openTrades, pairsList, riskSettingsList] = await Promise.all([
+            base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 20),
+            base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
+            base44.asServiceRole.entities.CurrencyPair.list('-created_date', 30),
+            base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1),
+        ]);
+
         if (!bots.length) {
             return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
         }
 
-        const riskSettingsList = await base44.asServiceRole.entities.RiskManagementSettings.list();
         const globalRisk = riskSettingsList?.[0] || {};
-
         if (globalRisk.is_trading_paused) {
             return Response.json({ success: true, message: 'Trading paused globally', signals_created: 0 });
         }
 
-        const openTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
         const maxGlobal = globalRisk.max_concurrent_trades || 100;
-
         if (openTrades.length >= maxGlobal) {
             return Response.json({ success: true, message: `Global trade limit reached (${openTrades.length}/${maxGlobal})`, signals_created: 0 });
         }
 
-        // Fetch currency pair prices
-        const pairs = await base44.asServiceRole.entities.CurrencyPair.list();
+        // Build price map
         const priceMap = {};
-        for (const p of pairs) {
+        for (const p of pairsList) {
             if (p.symbol && p.current_price) priceMap[p.symbol] = p.current_price;
         }
 
