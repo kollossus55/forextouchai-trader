@@ -242,7 +242,7 @@ void ConfirmExecution(string signalId, int ticket, string pair, string type, dou
     Print("[ForexTouchAI] Execution confirmed to bridge for ticket ", ticket);
 }
 
-string StringReplace(string src, string find, string replace) {
+string ReplaceString(string src, string find, string replace) {
     int pos = StringFind(src, find);
     if (pos == -1) return src;
     return StringSubstr(src, 0, pos) + replace + StringSubstr(src, pos + StringLen(find));
