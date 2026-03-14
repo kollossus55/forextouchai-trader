@@ -1,57 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 
-// Lightweight signal analysis using simple math
-function analyzeSignal(pair, currentPrice, strategy) {
-    // Use seeded-ish deterministic values based on price + time bucket
-    // This avoids heavy random loops while still varying signals
-    const timeBucket = Math.floor(Date.now() / (5 * 60 * 1000)); // changes every 5 min
-    const seed = (currentPrice * 1000 + timeBucket) % 100;
-
-    const strat = (strategy || '').toUpperCase();
-
-    // Simulate RSI-like value from price seed
-    const rsi = 30 + (seed % 50); // 30-80
-    const ema20Offset = (seed % 10 - 5) * 0.0001 * currentPrice;
-    const ema50Offset = (seed % 8 - 4) * 0.0001 * currentPrice;
-    const ema20 = currentPrice + ema20Offset;
-    const ema50 = currentPrice + ema50Offset;
-
-    let bullScore = 0, bearScore = 0;
-
-    if (rsi < 35) bullScore += 3;
-    else if (rsi < 45) bullScore += 1;
-    else if (rsi > 65) bearScore += 3;
-    else if (rsi > 55) bearScore += 1;
-
-    if (ema20 > ema50) bullScore += 2; else bearScore += 2;
-    if (currentPrice > ema20) bullScore += 1; else bearScore += 1;
-
-    // Strategy bias using seed
-    if (strat.includes('SCALP')) { if (seed % 3 === 0) bullScore++; else bearScore++; }
-    if (strat.includes('SWING') || strat.includes('DAY')) { if (seed % 2 === 0) bullScore++; }
-    if (strat.includes('PRICE_ACTION') || strat.includes('CANDLESTICK') || strat.includes('PATTERN') || strat.includes('HYBRID')) {
-        if (seed % 5 < 2) bullScore++;
-        if (seed % 5 >= 3) bearScore++;
-    }
-    if (strat.includes('AI_PREDICTIVE')) {
-        if (seed % 4 < 2) bullScore += 2; else bearScore += 2;
-    }
-
-    const total = bullScore + bearScore;
-    if (total === 0) return null;
-
-    const type = bullScore > bearScore ? 'BUY' : 'SELL';
-    const rawConfidence = Math.max(bullScore, bearScore) / total;
-    const confidence = Math.round(72 + rawConfidence * 22);
-
-    return { type, confidence, rsi: parseFloat(rsi.toFixed(2)), ema20: parseFloat(ema20.toFixed(5)), ema50: parseFloat(ema50.toFixed(5)) };
-}
-
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
-        // Fetch all required data in parallel to minimize latency
+        // Fetch all required data in parallel
         const [bots, openTrades, pairsList, riskSettingsList] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 20),
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
@@ -73,10 +26,70 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: `Global trade limit reached (${openTrades.length}/${maxGlobal})`, signals_created: 0 });
         }
 
-        // Build price map
+        // Build price map from CurrencyPair table
         const priceMap = {};
         for (const p of pairsList) {
             if (p.symbol && p.current_price) priceMap[p.symbol] = p.current_price;
+        }
+
+        // Collect all unique pairs across all running bots that have a known price
+        const allPairsSet = new Set();
+        for (const bot of bots) {
+            for (const pair of (bot.pairs || [])) {
+                const price = priceMap[pair] || priceMap[pair.replace('/', '')];
+                if (price) allPairsSet.add(pair);
+            }
+        }
+
+        const allPairs = [...allPairsSet];
+        if (!allPairs.length) {
+            return Response.json({ success: true, message: 'No pairs with known prices', signals_created: 0 });
+        }
+
+        // Build price context for AI
+        const priceContext = allPairs.map(pair => {
+            const price = priceMap[pair] || priceMap[pair.replace('/', '')];
+            return `${pair}: ${price}`;
+        }).join(', ');
+
+        // Call Base44 built-in AI once for all pairs
+        const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: `You are a professional forex trading analyst. Analyze these currency pairs and their current prices, then provide a trading recommendation for EACH pair.
+
+Current Prices: ${priceContext}
+Timeframe: H1
+Analysis time: ${new Date().toUTCString()}
+
+For each pair, determine whether to BUY, SELL, or stay NEUTRAL based on technical analysis principles (RSI levels, EMA crossovers, momentum, overbought/oversold conditions).
+
+Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to NEUTRAL.`,
+            response_json_schema: {
+                type: "object",
+                properties: {
+                    signals: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                pair: { type: "string" },
+                                type: { type: "string", enum: ["BUY", "SELL", "NEUTRAL"] },
+                                confidence: { type: "number", minimum: 0, maximum: 100 },
+                                rsi: { type: "number" },
+                                ema_trend: { type: "string" },
+                                momentum: { type: "string" },
+                                reason: { type: "string" }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const aiSignals = aiResult?.signals || [];
+        // Build a lookup map from pair -> AI analysis
+        const aiMap = {};
+        for (const s of aiSignals) {
+            if (s.pair) aiMap[s.pair] = s;
         }
 
         const signalsToCreate = [];
@@ -94,13 +107,13 @@ Deno.serve(async (req) => {
             for (const pair of botPairs) {
                 if (botOpenTrades.length + signalsToCreate.filter(s => s.bot_id === bot.id).length >= maxOpen) break;
                 if (openTrades.length + signalsToCreate.length >= maxGlobal) break;
-                if (openTrades.some(t => t.bot_id === bot.id && t.pair === pair)) continue;
+                if (openTrades.some(t => t.bot_id === bot.id && (t.pair === pair || t.pair === pair.replace('/', '')))) continue;
 
                 const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || null;
                 if (!currentPrice) continue;
 
-                const analysis = analyzeSignal(pair, currentPrice, bot.strategy_type);
-                if (!analysis || analysis.confidence < minConf) continue;
+                const analysis = aiMap[pair];
+                if (!analysis || analysis.type === 'NEUTRAL' || (analysis.confidence || 0) < minConf) continue;
 
                 // Calculate SL/TP
                 let slPips = bot.stop_loss_pips || 30;
@@ -122,7 +135,7 @@ Deno.serve(async (req) => {
                     ? currentPrice + (tpPips * pipValue)
                     : currentPrice - (tpPips * pipValue);
 
-                console.log(`[Signal] ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%)`);
+                console.log(`[Signal] ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) | ${analysis.reason || ''}`);
 
                 signalsToCreate.push({
                     pair,
@@ -138,8 +151,9 @@ Deno.serve(async (req) => {
                     result_pnl: 0,
                     calculated_indicators: {
                         rsi: analysis.rsi,
-                        ema20: analysis.ema20,
-                        ema50: analysis.ema50
+                        ema_trend: analysis.ema_trend,
+                        momentum: analysis.momentum,
+                        reason: analysis.reason
                     }
                 });
             }
@@ -153,6 +167,7 @@ Deno.serve(async (req) => {
             success: true,
             bots_processed: bots.length,
             signals_created: signalsToCreate.length,
+            pairs_analyzed: allPairs.length,
             message: `Created ${signalsToCreate.length} signals from ${bots.length} running bots`
         });
 

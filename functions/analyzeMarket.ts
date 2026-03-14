@@ -1,7 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import OpenAI from 'npm:openai';
-
-const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY") });
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -28,13 +25,12 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'No pairs provided' }, { status: 400 });
         }
 
-        // Build price context
         const priceContext = pairs.map(pair => {
             const price = marketData?.[pair] || 0;
             return `${pair}: ${price}`;
         }).join(', ');
 
-        const prompt = `You are a professional forex trading analyst. Analyze the following currency pairs and market data, then identify the SINGLE BEST trading opportunity.
+        const prompt = `You are a professional forex trading analyst. Analyze the following currency pairs and identify the SINGLE BEST trading opportunity right now.
 
 Current Prices: ${priceContext}
 Timeframe: ${timeframe}
@@ -43,56 +39,38 @@ Signal Sensitivity: ${signalSensitivity}
 Active Indicators: ${indicators.join(', ') || 'RSI, MACD, EMA, Bollinger Bands'}
 Minimum Confidence Required: ${minConfidence}%
 
-Analyze the market conditions and return the best trading signal. Consider:
-- Trend direction and momentum
-- Support/resistance levels
-- Risk/reward ratio (minimum 1.5:1)
-- Current market volatility
+Analyze market conditions considering trend direction, momentum, support/resistance levels, and risk/reward ratio (minimum 1.5:1).
 
-Return ONLY a JSON object (no markdown, no explanation) with this exact structure:
-{
-  "pair": "EUR/USD",
-  "type": "BUY" or "SELL",
-  "entry_price": 1.08450,
-  "stop_loss": 1.08100,
-  "take_profit": 1.08975,
-  "confidence": 82,
-  "strategy": "EMA Crossover + RSI Oversold",
-  "calculated_indicators": {
-    "rsi": 42,
-    "macd_signal": "bullish",
-    "ema_trend": "uptrend",
-    "bb_position": "lower_band",
-    "stochastic": 28
-  },
-  "historicalData": []
-}
+If no pair meets the minimum confidence of ${minConfidence}%, set the "error" field to "No high-confidence setup found" and leave other fields null.`;
 
-If no signal meets the minimum confidence of ${minConfidence}%, return: {"error": "No high-confidence setup found"}`;
-
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.3,
-            max_tokens: 500,
+        const signal = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt,
+            response_json_schema: {
+                type: "object",
+                properties: {
+                    error: { type: "string" },
+                    pair: { type: "string" },
+                    type: { type: "string", enum: ["BUY", "SELL"] },
+                    entry_price: { type: "number" },
+                    stop_loss: { type: "number" },
+                    take_profit: { type: "number" },
+                    confidence: { type: "number" },
+                    strategy: { type: "string" },
+                    calculated_indicators: {
+                        type: "object",
+                        properties: {
+                            rsi: { type: "number" },
+                            macd_signal: { type: "string" },
+                            ema_trend: { type: "string" },
+                            bb_position: { type: "string" },
+                            stochastic: { type: "number" }
+                        }
+                    }
+                }
+            }
         });
 
-        const content = response.choices[0].message.content.trim();
-        
-        let signal;
-        try {
-            signal = JSON.parse(content);
-        } catch {
-            // Try to extract JSON from response
-            const match = content.match(/\{[\s\S]*\}/);
-            if (match) {
-                signal = JSON.parse(match[0]);
-            } else {
-                return Response.json({ error: 'Failed to parse AI response' }, { status: 500 });
-            }
-        }
-
-        console.log('[ANALYZE_MARKET] Signal generated:', signal.pair, signal.type, signal.confidence + '%');
+        console.log('[ANALYZE_MARKET] Signal generated:', signal?.pair, signal?.type, signal?.confidence + '%');
 
         return Response.json(signal, {
             headers: { 'Access-Control-Allow-Origin': '*' }
