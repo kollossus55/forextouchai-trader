@@ -58,9 +58,28 @@ void SendHeartbeat() {
     }
     tradesJson += "]";
 
+    // Build live prices array from all Market Watch symbols
+    string pricesJson = "[";
+    bool firstPrice = true;
+    int totalSymbols = SymbolsTotal(true); // true = only Market Watch symbols
+    for (int j = 0; j < totalSymbols; j++) {
+        string sym = SymbolName(j, true);
+        double bid = MarketInfo(sym, MODE_BID);
+        double ask = MarketInfo(sym, MODE_ASK);
+        if (bid <= 0) continue;
+        double change24h = 0;
+        if (!firstPrice) pricesJson += ",";
+        firstPrice = false;
+        pricesJson += StringFormat(
+            "{\"symbol\":\"%s\",\"bid\":%.5f,\"ask\":%.5f}",
+            sym, bid, ask
+        );
+    }
+    pricesJson += "]";
+
     // Build full payload
     string payload = StringFormat(
-        "{\"account_number\":\"%s\",\"server_name\":\"%s\",\"balance\":%.2f,\"equity\":%.2f,\"margin\":%.2f,\"free_margin\":%.2f,\"margin_level\":%.2f,\"trades\":%s}",
+        "{\"account_number\":\"%s\",\"server_name\":\"%s\",\"balance\":%.2f,\"equity\":%.2f,\"margin\":%.2f,\"free_margin\":%.2f,\"margin_level\":%.2f,\"trades\":%s,\"prices\":%s}",
         IntegerToString(AccountNumber()),
         AccountServer(),
         AccountBalance(),
@@ -68,7 +87,8 @@ void SendHeartbeat() {
         AccountMargin(),
         AccountFreeMargin(),
         AccountMargin() > 0 ? AccountEquity() / AccountMargin() * 100 : 0,
-        tradesJson
+        tradesJson,
+        pricesJson
     );
 
     // --- Send HTTP POST ---
