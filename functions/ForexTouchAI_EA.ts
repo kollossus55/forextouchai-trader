@@ -224,7 +224,7 @@ void ExecuteSignal(string obj) {
 
 //+------------------------------------------------------------------+
 void ConfirmExecution(string signalId, int ticket, string pair, string type, double lots, double price) {
-    string confirmUrl = StringReplace(BridgeURL, "bridge", "confirmExecution");
+    string confirmUrl = ReplaceString(BridgeURL, "bridge", "confirmExecution");
 
     string payload = StringFormat(
         "{\"signal_id\":\"%s\",\"ticket\":%d,\"pair\":\"%s\",\"type\":\"%s\",\"lot_size\":%.2f,\"open_price\":%.5f,\"account_number\":\"%s\"}",
