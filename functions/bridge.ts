@@ -79,6 +79,54 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
+        // Update live prices from EA Market Watch data
+        const eaPrices = body.prices || accountData.prices;
+        if (Array.isArray(eaPrices) && eaPrices.length > 0) {
+            const existingPairs = await base44.asServiceRole.entities.CurrencyPair.list('-created_date', 100);
+            const pairMap = {};
+            for (const p of existingPairs) {
+                if (p.symbol) pairMap[p.symbol] = p;
+            }
+
+            const upsertOps = [];
+            for (const price of eaPrices) {
+                const sym = price.symbol;
+                const bid = price.bid;
+                if (!sym || !bid || bid <= 0) continue;
+
+                // Format symbol with slash for display (e.g. EURUSD -> EUR/USD)
+                const displaySymbol = sym.length === 6
+                    ? sym.slice(0, 3) + '/' + sym.slice(3)
+                    : sym;
+
+                const priceData = {
+                    symbol: displaySymbol,
+                    current_price: bid,
+                };
+
+                // Check both raw and display symbol
+                const existing = pairMap[displaySymbol] || pairMap[sym];
+                if (existing) {
+                    upsertOps.push(base44.asServiceRole.entities.CurrencyPair.update(existing.id, priceData));
+                } else {
+                    upsertOps.push(base44.asServiceRole.entities.CurrencyPair.create({
+                        ...priceData,
+                        category: 'MAJOR',
+                        ai_signal: 'NEUTRAL',
+                        ai_confidence: 0,
+                    }));
+                }
+            }
+
+            if (upsertOps.length > 0) {
+                // Process in batches of 5 to avoid rate limits
+                for (let i = 0; i < upsertOps.length; i += 5) {
+                    await Promise.all(upsertOps.slice(i, i + 5));
+                }
+                console.log('[BRIDGE] Updated', upsertOps.length, 'currency pair prices');
+            }
+        }
+
         // Reconcile open trades from EA heartbeat
         const eaTrades = body.trades || accountData.trades;
         console.log('[BRIDGE] eaTrades received:', JSON.stringify(eaTrades));
