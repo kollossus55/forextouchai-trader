@@ -25,7 +25,9 @@ Deno.serve(async (req) => {
         }
 
         const body = JSON.parse(rawText);
-        console.log('[BRIDGE] Incoming payload keys:', Object.keys(body));
+        const now = Date.now();
+        // Only update prices every 30 seconds to avoid rate limits
+        const updatePrices = !body.last_price_update || (now - body.last_price_update) > 30000;
 
         // Support both flat and nested {account:{...}, trades:[...]} format
         const accountData = body.account || body;
@@ -79,9 +81,9 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // Update live prices from EA Market Watch data
+        // Update live prices from EA Market Watch data (throttled to every 30s)
         const eaPrices = body.prices || accountData.prices;
-        if (Array.isArray(eaPrices) && eaPrices.length > 0) {
+        if (updatePrices && Array.isArray(eaPrices) && eaPrices.length > 0) {
             const existingPairs = await base44.asServiceRole.entities.CurrencyPair.list('-created_date', 100);
             const pairMap = {};
             for (const p of existingPairs) {
@@ -129,18 +131,13 @@ Deno.serve(async (req) => {
 
         // Reconcile open trades from EA heartbeat
         const eaTrades = body.trades || accountData.trades;
-        console.log('[BRIDGE] eaTrades received:', JSON.stringify(eaTrades));
         if (Array.isArray(eaTrades)) {
             const dbOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
             const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
             const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
             // 1. Create Trade records for tickets from EA not yet in DB
-            const newEaTrades = eaTrades.filter(t => {
-                const hasSymbol = !!(t.pair || t.symbol);
-                console.log('[BRIDGE] Evaluating trade ticket:', t.ticket, 'symbol:', t.pair || t.symbol, 'inDB:', dbTickets.has(t.ticket));
-                return t.ticket && hasSymbol && !dbTickets.has(t.ticket);
-            });
+            const newEaTrades = eaTrades.filter(t => t.ticket && !!(t.pair || t.symbol) && !dbTickets.has(t.ticket));
             if (newEaTrades.length > 0) {
                 console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades from EA heartbeat');
                 const connList = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
