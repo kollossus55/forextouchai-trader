@@ -7,7 +7,7 @@
 #property strict
 
 // --- INPUTS ---
-input string BridgeURL    = "https://693abc8e3fbeec43cc744e2a.base44.app/api/functions/bridge";
+input string BridgeURL    = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
 input int    HeartbeatSec = 5;   // How often to poll bridge (seconds)
 input int    MagicNumber  = 12345;
 input int    Slippage     = 3;
@@ -67,7 +67,6 @@ void SendHeartbeat() {
         double bid = MarketInfo(sym, MODE_BID);
         double ask = MarketInfo(sym, MODE_ASK);
         if (bid <= 0) continue;
-        double change24h = 0;
         if (!firstPrice) pricesJson += ",";
         firstPrice = false;
         pricesJson += StringFormat(
