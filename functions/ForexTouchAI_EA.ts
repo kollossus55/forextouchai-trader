@@ -7,7 +7,7 @@
 #property strict
 
 // --- INPUTS ---
-input string BridgeURL    = "https://app.base44.com/api/apps/693abc8e3fbeec43cc744e2a/functions/bridge";
+input string BridgeURL    = "https://693abc8e3fbeec43cc744e2a.base44.app/api/functions/bridge";
 input int    HeartbeatSec = 5;   // How often to poll bridge (seconds)
 input int    MagicNumber  = 12345;
 input int    Slippage     = 3;
