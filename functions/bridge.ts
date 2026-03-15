@@ -230,6 +230,7 @@ Deno.serve(async (req) => {
             message: 'Sync successful',
             account: account_number,
             timestamp: new Date().toISOString(),
+            price_update_ts: updatePrices ? now : (body.last_price_update || now),
             pending_signals: pendingSignals.map(s => ({
                 id: s.id,
                 pair: (s.pair || '').replace('/', ''),
