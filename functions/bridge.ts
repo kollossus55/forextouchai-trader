@@ -275,15 +275,35 @@ Deno.serve(async (req) => {
             account: account_number,
             timestamp: new Date().toISOString(),
             price_update_ts: updatePrices ? now : (body.last_price_update || now),
-            pending_signals: pendingSignals.map(s => ({
-                id: s.id,
-                pair: (s.pair || '').replace('/', ''),
-                type: s.type,
-                lot_size: s.lot_size || 0.1,
-                stop_loss: s.stop_loss || 0,
-                take_profit: s.take_profit || 0,
-                entry_price: s.entry_price || 0,
-            }))
+            pending_signals: pendingSignals.map(s => {
+                const pair = (s.pair || '').replace('/', '');
+                const type = s.type;
+                const sl = s.stop_loss || 0;
+                const tp = s.take_profit || 0;
+                const entryPrice = s.entry_price || 0;
+
+                // Validate SL/TP direction — if wrong side of entry, zero them out to avoid MT4 Error 130
+                let safeSL = sl;
+                let safeTP = tp;
+                if (sl > 0 && entryPrice > 0) {
+                    if (type === 'BUY' && sl >= entryPrice) safeSL = 0;
+                    if (type === 'SELL' && sl <= entryPrice) safeSL = 0;
+                }
+                if (tp > 0 && entryPrice > 0) {
+                    if (type === 'BUY' && tp <= entryPrice) safeTP = 0;
+                    if (type === 'SELL' && tp >= entryPrice) safeTP = 0;
+                }
+
+                return {
+                    id: s.id,
+                    pair,
+                    type,
+                    lot_size: s.lot_size || 0.1,
+                    stop_loss: safeSL,
+                    take_profit: safeTP,
+                    entry_price: entryPrice,
+                };
+            })
         }, {
             headers: { 'Access-Control-Allow-Origin': '*' }
         });
