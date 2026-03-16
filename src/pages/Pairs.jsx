@@ -281,8 +281,8 @@ export default function Pairs() {
     const minorForex = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY', 'GBPCHF', 'EURAUD', 'EURCAD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPNZD', 'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'CADJPY', 'CHFJPY', 'NZDCAD', 'NZDCHF', 'NZDJPY'];
     if (majorForex.includes(sym)) return 'MAJOR';
     if (minorForex.includes(sym)) return 'MINOR';
-    // Fallback to stored category, or MINOR for non-forex instruments
-    return pair.category || 'MINOR';
+    // Non-forex instruments (indices, metals, crypto) go to MINOR
+    return 'MINOR';
   };
 
   // Merge Live Data with Static Data
