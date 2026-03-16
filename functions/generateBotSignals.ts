@@ -5,9 +5,10 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
 
         // Fetch all required data in parallel
-        const [bots, openTrades, pairsList, riskSettingsList] = await Promise.all([
+        const [bots, openTrades, pendingSignals, pairsList, riskSettingsList] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 20),
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
+            base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50),
             base44.asServiceRole.entities.CurrencyPair.list('-created_date', 30),
             base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1),
         ]);
