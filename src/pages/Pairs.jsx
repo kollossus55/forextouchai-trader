@@ -389,7 +389,7 @@ export default function Pairs() {
               </p>
               <div className={`flex items-center justify-end text-xs font-medium ${pair.change_24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {pair.change_24h >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {pair.change_24h > 0 ? '+' : ''}{pair.change_24h.toFixed(2)}%
+                {pair.change_24h != null ? `${pair.change_24h > 0 ? '+' : ''}${pair.change_24h.toFixed(2)}%` : '—'}
               </div>
             </div>
           </div>
