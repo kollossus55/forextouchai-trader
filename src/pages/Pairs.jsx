@@ -385,7 +385,7 @@ export default function Pairs() {
             </div>
             <div className="text-right">
               <p className="text-xl font-bold tracking-tight font-mono transition-colors duration-300 text-white">
-                {pair.current_price.toFixed(5)}
+                {pair.current_price != null ? pair.current_price.toFixed(5) : '—'}
               </p>
               <div className={`flex items-center justify-end text-xs font-medium ${pair.change_24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {pair.change_24h >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
