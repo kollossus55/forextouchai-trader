@@ -204,6 +204,48 @@ Deno.serve(async (req) => {
             }
         }
 
+        // --- Daily Profit Target Check ---
+        const riskSettingsList = await base44.asServiceRole.entities.RiskManagementSettings.list();
+        const riskSettings = riskSettingsList?.[0];
+        const profitTarget = riskSettings?.daily_profit_target_percent || 0;
+
+        if (profitTarget > 0 && !riskSettings?.is_trading_paused) {
+            const accountBalance = balance || 0;
+            if (accountBalance > 0) {
+                // Calculate today's profit from closed trades
+                const today = new Date().toISOString().split('T')[0];
+                const todayTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' });
+                const todayProfit = todayTrades
+                    .filter(t => t.created_date?.startsWith(today))
+                    .reduce((sum, t) => sum + (t.pnl || 0), 0);
+                // Also add open trade floating PnL
+                const currentOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' });
+                const floatingPnl = currentOpenTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+                const totalDailyProfit = todayProfit + floatingPnl;
+                const dailyProfitPercent = (totalDailyProfit / accountBalance) * 100;
+
+                console.log(`[BRIDGE] Daily profit check: ${dailyProfitPercent.toFixed(2)}% vs target ${profitTarget}%`);
+
+                if (dailyProfitPercent >= profitTarget) {
+                    console.log(`[BRIDGE] Daily profit target reached (${dailyProfitPercent.toFixed(2)}%) — closing all trades and pausing`);
+                    // Close all open trades in DB
+                    await Promise.all(currentOpenTrades.map(t =>
+                        base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
+                    ));
+                    // Pause trading
+                    if (riskSettings?.id) {
+                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
+                    }
+                    // Create alert
+                    await base44.asServiceRole.entities.Alert.create({
+                        title: '🎯 Daily Profit Target Reached!',
+                        message: `Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${profitTarget}% target. All trades closed and trading paused.`,
+                        type: 'SUCCESS',
+                    });
+                }
+            }
+        }
+
         // Return pending signals for EA to execute (limit to 5 most recent to avoid buffer overflow)
         const allPendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 100);
         
