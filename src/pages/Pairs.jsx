@@ -135,7 +135,8 @@ export default function Pairs() {
                     change_24h: pair.change_24h,
                     history,
                     ai_confidence: 0,
-                    ai_signal: 'NEUTRAL'
+                    ai_signal: 'NEUTRAL',
+                    signal_timestamp: Date.now()
                 };
             }
 
