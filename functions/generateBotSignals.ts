@@ -108,7 +108,17 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
             for (const pair of botPairs) {
                 if (botOpenTrades.length + signalsToCreate.filter(s => s.bot_id === bot.id).length >= maxOpen) break;
                 if (openTrades.length + signalsToCreate.length >= maxGlobal) break;
-                if (openTrades.some(t => t.bot_id === bot.id && (t.pair === pair || t.pair === pair.replace('/', '')))) continue;
+
+                const pairRaw = pair.replace('/', '');
+
+                // Skip if there's already an open trade for this pair (any direction, any bot)
+                if (openTrades.some(t => (t.pair === pair || t.pair === pairRaw))) continue;
+
+                // Skip if there's already a pending signal for this pair (any direction, any bot)
+                if (pendingSignals.some(s => (s.pair === pair || s.pair === pairRaw))) continue;
+
+                // Skip if we already queued a signal for this pair in this run
+                if (signalsToCreate.some(s => (s.pair === pair || s.pair === pairRaw))) continue;
 
                 const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || null;
                 if (!currentPrice) continue;
