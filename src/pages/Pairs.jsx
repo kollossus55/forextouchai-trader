@@ -276,9 +276,13 @@ export default function Pairs() {
   };
 
   const getCategory = (pair) => {
-    if (pair.category) return pair.category;
-    const majors = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD'];
-    return majors.includes(pair.symbol) ? 'MAJOR' : 'MINOR';
+    const sym = pair.symbol.replace('/', '');
+    const majorForex = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD'];
+    const minorForex = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY', 'GBPCHF', 'EURAUD', 'EURCAD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPNZD', 'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'CADJPY', 'CHFJPY', 'NZDCAD', 'NZDCHF', 'NZDJPY'];
+    if (majorForex.includes(sym)) return 'MAJOR';
+    if (minorForex.includes(sym)) return 'MINOR';
+    // Fallback to stored category, or MINOR for non-forex instruments
+    return pair.category || 'MINOR';
   };
 
   // Merge Live Data with Static Data
