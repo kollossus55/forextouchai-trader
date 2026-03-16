@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Shield, TrendingDown, PauseCircle, Play, Save, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Shield, TrendingDown, TrendingUp, PauseCircle, Play, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function RiskManagementPanel() {
@@ -302,6 +302,23 @@ export default function RiskManagementPanel() {
                   className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100 [&::-webkit-inner-spin-button]:bg-slate-800 [&::-webkit-outer-spin-button]:bg-slate-800"
                 />
                 <p className="text-xs text-slate-400">Maximum allowed equity drawdown from peak</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  Daily Profit Target (%)
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={formData.daily_profit_target_percent ?? 0}
+                  onChange={(e) => handleChange('daily_profit_target_percent', parseFloat(e.target.value))}
+                  className="bg-slate-950 border-slate-700 text-white text-base h-11 [&::-webkit-inner-spin-button]:opacity-100 [&::-webkit-outer-spin-button]:opacity-100"
+                />
+                <p className="text-xs text-slate-400">Close all trades & pause when daily profit reaches this % of balance (0 = disabled)</p>
               </div>
 
               <div className="space-y-2">
