@@ -49,6 +49,7 @@ export default function RiskManagementPanel() {
         risk_per_trade_percent: 2,
         alert_threshold_percent: 80,
         stop_trading_on_limit: true,
+        daily_profit_target_percent: 0,
         daily_loss_current: 0,
         peak_equity: 0,
         is_trading_paused: false
