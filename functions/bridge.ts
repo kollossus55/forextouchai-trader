@@ -17,14 +17,16 @@ Deno.serve(async (req) => {
 
         // Handle empty body (connection test ping from EA)
         const rawText = await req.text();
-        if (!rawText || rawText.trim() === '') {
+        // Strip null bytes and whitespace that MT4 StringToCharArray sometimes pads
+        const cleanText = rawText.replace(/\0/g, '').trim();
+        if (!cleanText) {
             console.log('[BRIDGE] Connection test ping received');
             return Response.json({ success: true, message: 'Bridge online' }, {
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-        const body = JSON.parse(rawText);
+        const body = JSON.parse(cleanText);
         const now = Date.now();
         // Only update prices every 30 seconds to avoid rate limits
         const updatePrices = !body.last_price_update || (now - body.last_price_update) > 30000;
