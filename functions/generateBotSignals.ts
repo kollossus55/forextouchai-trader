@@ -146,7 +146,8 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
                     tpPips = Math.round((atr * (bot.atr_multiplier_tp || 3.0)) / pipSize);
                 }
 
-                const pipValue = currentPrice > 10 ? 0.001 : 0.0001;
+                // Pip value: JPY pairs (price ~100+) use 0.01, standard pairs use 0.0001
+                const pipValue = currentPrice > 20 ? 0.01 : 0.0001;
                 const sl = analysis.type === 'BUY'
                     ? currentPrice - (slPips * pipValue)
                     : currentPrice + (slPips * pipValue);
