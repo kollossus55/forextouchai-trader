@@ -598,6 +598,16 @@ export default function Pairs() {
               </div>
             </div>
           </div>
+          {selectedPair && (() => {
+            const { slPrice, tpPrice, executionPrice } = calcSLTP();
+            return (
+              <div className="px-1 pb-2 text-xs text-slate-500 bg-slate-950/50 rounded-lg p-3 border border-slate-800 mx-1">
+                <div className="flex justify-between"><span>Entry:</span><span className="text-slate-300 font-mono">{executionPrice.toFixed(5)}</span></div>
+                <div className="flex justify-between"><span>SL Price:</span><span className={slPrice > 0 ? 'text-rose-400 font-mono' : 'text-slate-500'}>{slPrice > 0 ? slPrice.toFixed(5) : 'None'}</span></div>
+                <div className="flex justify-between"><span>TP Price:</span><span className={tpPrice > 0 ? 'text-emerald-400 font-mono' : 'text-slate-500'}>{tpPrice > 0 ? tpPrice.toFixed(5) : 'None'}</span></div>
+              </div>
+            );
+          })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTradeModalOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
               Cancel
