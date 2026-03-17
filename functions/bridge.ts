@@ -272,13 +272,25 @@ Deno.serve(async (req) => {
 
             let safeSL = sl;
             let safeTP = tp;
-            if (sl > 0 && entryPrice > 0) {
-                if (type === 'BUY' && sl >= entryPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for BUY ${pair}: SL ${sl} >= entry ${entryPrice}`); }
-                if (type === 'SELL' && sl <= entryPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for SELL ${pair}: SL ${sl} <= entry ${entryPrice}`); }
+
+            // Use current market price from EA heartbeat as reference if entry_price is missing/zero
+            const refPrice = entryPrice > 0 ? entryPrice : (priceMap[pair] || priceMap[(s.pair || '')] || 0);
+
+            if (refPrice > 0) {
+                if (sl > 0) {
+                    if (type === 'BUY' && sl >= refPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for BUY ${pair}: SL ${sl} >= price ${refPrice}`); }
+                    if (type === 'SELL' && sl <= refPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for SELL ${pair}: SL ${sl} <= price ${refPrice}`); }
+                }
+                if (tp > 0) {
+                    if (type === 'BUY' && tp <= refPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for BUY ${pair}: TP ${tp} <= price ${refPrice}`); }
+                    if (type === 'SELL' && tp >= refPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for SELL ${pair}: TP ${tp} >= price ${refPrice}`); }
+                }
             }
-            if (tp > 0 && entryPrice > 0) {
-                if (type === 'BUY' && tp <= entryPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for BUY ${pair}: TP ${tp} <= entry ${entryPrice}`); }
-                if (type === 'SELL' && tp >= entryPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for SELL ${pair}: TP ${tp} >= entry ${entryPrice}`); }
+
+            // Final sanity: for BUY, SL must be < TP; for SELL, SL must be > TP
+            if (safeSL > 0 && safeTP > 0) {
+                if (type === 'BUY' && safeSL >= safeTP) { safeSL = 0; safeTP = 0; console.log(`[BRIDGE] Zeroing SL/TP for BUY ${pair}: SL ${safeSL} >= TP ${safeTP}`); }
+                if (type === 'SELL' && safeSL <= safeTP) { safeSL = 0; safeTP = 0; console.log(`[BRIDGE] Zeroing SL/TP for SELL ${pair}: SL ${safeSL} <= TP ${safeTP}`); }
             }
 
             return {
