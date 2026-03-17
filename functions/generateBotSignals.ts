@@ -118,14 +118,14 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
 
                 const pairRaw = pair.replace('/', '');
 
-                // Skip if there's already an open trade for this pair (any direction, any bot)
-                if (openTrades.some(t => (t.pair === pair || t.pair === pairRaw))) continue;
+                // Skip if there's already an open trade for this pair FROM THIS BOT
+                if (openTrades.some(t => t.bot_id === bot.id && (t.pair === pair || t.pair === pairRaw))) continue;
 
-                // Skip if there's already a pending signal for this pair (any direction, any bot)
-                if (pendingSignals.some(s => (s.pair === pair || s.pair === pairRaw))) continue;
+                // Skip if there's already a pending/active signal for this pair FROM THIS BOT
+                if (pendingSignals.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw))) continue;
 
-                // Skip if we already queued a signal for this pair in this run
-                if (signalsToCreate.some(s => (s.pair === pair || s.pair === pairRaw))) continue;
+                // Skip if we already queued a signal for this pair for this bot in this run
+                if (signalsToCreate.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw))) continue;
 
                 const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || null;
                 if (!currentPrice) continue;
