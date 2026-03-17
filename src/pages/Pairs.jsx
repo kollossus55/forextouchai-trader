@@ -622,11 +622,17 @@ export default function Pairs() {
           </div>
           {selectedPair && (() => {
             const { slPrice, tpPrice, executionPrice } = calcSLTP();
+            const isLivePrice = !!liveData[selectedPair.id]?.current_price;
+            // Detect invalid SL/TP direction
+            const slInvalid = slPrice > 0 && (tradeType === 'BUY' ? slPrice >= executionPrice : slPrice <= executionPrice);
+            const tpInvalid = tpPrice > 0 && (tradeType === 'BUY' ? tpPrice <= executionPrice : tpPrice >= executionPrice);
             return (
-              <div className="px-1 pb-2 text-xs text-slate-500 bg-slate-950/50 rounded-lg p-3 border border-slate-800 mx-1">
-                <div className="flex justify-between"><span>Entry:</span><span className="text-slate-300 font-mono">{executionPrice.toFixed(5)}</span></div>
-                <div className="flex justify-between"><span>SL Price:</span><span className={slPrice > 0 ? 'text-rose-400 font-mono' : 'text-slate-500'}>{slPrice > 0 ? slPrice.toFixed(5) : 'None'}</span></div>
-                <div className="flex justify-between"><span>TP Price:</span><span className={tpPrice > 0 ? 'text-emerald-400 font-mono' : 'text-slate-500'}>{tpPrice > 0 ? tpPrice.toFixed(5) : 'None'}</span></div>
+              <div className={`px-1 pb-2 text-xs bg-slate-950/50 rounded-lg p-3 border mx-1 ${slInvalid || tpInvalid ? 'border-rose-500/50' : 'border-slate-800'}`}>
+                {!isLivePrice && <div className="text-amber-400 mb-2 font-semibold">⚠ Using cached price — live price not yet loaded</div>}
+                {(slInvalid || tpInvalid) && <div className="text-rose-400 mb-2 font-semibold">⚠ Invalid SL/TP — order will be blocked</div>}
+                <div className="flex justify-between text-slate-500"><span>Entry:</span><span className={`font-mono ${isLivePrice ? 'text-slate-300' : 'text-amber-400'}`}>{executionPrice.toFixed(5)}</span></div>
+                <div className="flex justify-between text-slate-500"><span>SL Price:</span><span className={slInvalid ? 'text-rose-500 font-mono font-bold' : slPrice > 0 ? 'text-rose-400 font-mono' : 'text-slate-500'}>{slPrice > 0 ? slPrice.toFixed(5) : 'None'}</span></div>
+                <div className="flex justify-between text-slate-500"><span>TP Price:</span><span className={tpInvalid ? 'text-rose-500 font-mono font-bold' : tpPrice > 0 ? 'text-emerald-400 font-mono' : 'text-slate-500'}>{tpPrice > 0 ? tpPrice.toFixed(5) : 'None'}</span></div>
               </div>
             );
           })()}
