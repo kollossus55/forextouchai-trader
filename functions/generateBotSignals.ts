@@ -27,10 +27,13 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: `Global trade limit reached (${openTrades.length}/${maxGlobal})`, signals_created: 0 });
         }
 
-        // Build price map from CurrencyPair table
+        // Build price map from CurrencyPair table (store under both raw and slash formats)
         const priceMap = {};
         for (const p of pairsList) {
-            if (p.symbol && p.current_price) priceMap[p.symbol] = p.current_price;
+            if (p.symbol && p.current_price) {
+                priceMap[p.symbol] = p.current_price;
+                priceMap[p.symbol.replace('/', '')] = p.current_price;
+            }
         }
 
         // Collect all unique pairs across all running bots that have a known price
