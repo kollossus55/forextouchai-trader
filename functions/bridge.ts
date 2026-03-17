@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
             let safeTP = tp;
 
             // Use current market price from EA heartbeat as reference if entry_price is missing/zero
-            const refPrice = entryPrice > 0 ? entryPrice : (priceMap[pair] || priceMap[(s.pair || '')] || 0);
+            const refPrice = entryPrice > 0 ? entryPrice : (livePriceMap[pair] || livePriceMap[(s.pair || '')] || 0);
 
             if (refPrice > 0) {
                 if (sl > 0) {
