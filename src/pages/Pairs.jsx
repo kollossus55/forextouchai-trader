@@ -259,6 +259,28 @@ export default function Pairs() {
     if (!selectedPair) return;
     const { slPrice, tpPrice, executionPrice } = calcSLTP();
 
+    // Hard validation: reject if SL/TP are on the wrong side of entry
+    if (slPrice > 0) {
+      if (tradeType === 'BUY' && slPrice >= executionPrice) {
+        toast.error('Invalid Stop Loss', { description: `SL (${slPrice.toFixed(5)}) must be below entry (${executionPrice.toFixed(5)}) for BUY` });
+        return;
+      }
+      if (tradeType === 'SELL' && slPrice <= executionPrice) {
+        toast.error('Invalid Stop Loss', { description: `SL (${slPrice.toFixed(5)}) must be above entry (${executionPrice.toFixed(5)}) for SELL` });
+        return;
+      }
+    }
+    if (tpPrice > 0) {
+      if (tradeType === 'BUY' && tpPrice <= executionPrice) {
+        toast.error('Invalid Take Profit', { description: `TP (${tpPrice.toFixed(5)}) must be above entry (${executionPrice.toFixed(5)}) for BUY` });
+        return;
+      }
+      if (tradeType === 'SELL' && tpPrice >= executionPrice) {
+        toast.error('Invalid Take Profit', { description: `TP (${tpPrice.toFixed(5)}) must be below entry (${executionPrice.toFixed(5)}) for SELL` });
+        return;
+      }
+    }
+
     sendSignal.mutate({
       pair: selectedPair.symbol,
       type: tradeType,
