@@ -234,41 +234,38 @@ export default function Pairs() {
     calculatePairIndicators();
   };
 
-  const executeTrade = () => {
-    if (!selectedPair) return;
-    
-    // Use the simulated live price for execution accuracy
-    const executionPrice = liveData[selectedPair.id]?.current_price || selectedPair.current_price;
-    
-    // Calculate SL/TP prices based on pips
+  const getManualPipSize = (symbol) => {
+    const s = (symbol || '').replace('/', '').toUpperCase();
+    return s.includes('JPY') ? 0.01 : 0.0001;
+  };
+
+  const calcSLTP = () => {
+    if (!selectedPair) return { slPrice: 0, tpPrice: 0, executionPrice: 0 };
+    const executionPrice = liveData[selectedPair.id]?.current_price || selectedPair.current_price || 0;
+    const pipSize = getManualPipSize(selectedPair.symbol);
     const slPips = parseFloat(stopLossPips) || 0;
     const tpPips = parseFloat(takeProfitPips) || 0;
-    
-    // Determine pip size (0.0001 for most pairs, 0.01 for JPY pairs)
-    const pipSize = selectedPair.symbol.includes('JPY') ? 0.01 : 0.0001;
-    
-    let stopLossPrice = 0;
-    let takeProfitPrice = 0;
-    
-    if (slPips > 0) {
-      stopLossPrice = tradeType === 'BUY' 
-        ? executionPrice - (slPips * pipSize)
-        : executionPrice + (slPips * pipSize);
-    }
-    
-    if (tpPips > 0) {
-      takeProfitPrice = tradeType === 'BUY'
-        ? executionPrice + (tpPips * pipSize)
-        : executionPrice - (tpPips * pipSize);
-    }
+
+    const slPrice = slPips > 0
+      ? (tradeType === 'BUY' ? executionPrice - slPips * pipSize : executionPrice + slPips * pipSize)
+      : 0;
+    const tpPrice = tpPips > 0
+      ? (tradeType === 'BUY' ? executionPrice + tpPips * pipSize : executionPrice - tpPips * pipSize)
+      : 0;
+    return { slPrice, tpPrice, executionPrice };
+  };
+
+  const executeTrade = () => {
+    if (!selectedPair) return;
+    const { slPrice, tpPrice, executionPrice } = calcSLTP();
 
     sendSignal.mutate({
       pair: selectedPair.symbol,
       type: tradeType,
       entry_price: executionPrice,
       lot_size: parseFloat(volume),
-      stop_loss: stopLossPrice,
-      take_profit: takeProfitPrice,
+      stop_loss: parseFloat(slPrice.toFixed(5)),
+      take_profit: parseFloat(tpPrice.toFixed(5)),
       confidence: 100,
       strategy: 'MANUAL_EXECUTION',
       status: 'PENDING',
