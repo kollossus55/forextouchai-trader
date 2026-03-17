@@ -141,7 +141,7 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
                 if (bot.sl_tp_mode === 'ATR' || bot.use_ai_risk) {
                     const volatilityFactor = currentPrice > 100 ? 0.002 : 0.0015;
                     const atr = currentPrice * volatilityFactor;
-                    const pipSize = currentPrice > 20 ? 0.01 : 0.0001;
+                    const pipSize = currentPrice > 50 ? 0.01 : 0.0001;
                     slPips = Math.round((atr * (bot.atr_multiplier_sl || 1.5)) / pipSize);
                     tpPips = Math.round((atr * (bot.atr_multiplier_tp || 3.0)) / pipSize);
                 }
