@@ -262,9 +262,39 @@ Deno.serve(async (req) => {
         const pendingSignals = allPendingSignals.filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
         console.log('[BRIDGE] Returning', pendingSignals.length, 'pending signals to EA');
 
-        // Mark signals as ACTIVE immediately so they are NOT re-sent next heartbeat
-        if (pendingSignals.length > 0) {
-            await Promise.all(pendingSignals.map(s =>
+        // Sanitize SL/TP and build payload BEFORE marking as ACTIVE
+        const sanitizedSignals = pendingSignals.map(s => {
+            const pair = (s.pair || '').replace('/', '');
+            const type = s.type;
+            const sl = s.stop_loss || 0;
+            const tp = s.take_profit || 0;
+            const entryPrice = s.entry_price || 0;
+
+            let safeSL = sl;
+            let safeTP = tp;
+            if (sl > 0 && entryPrice > 0) {
+                if (type === 'BUY' && sl >= entryPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for BUY ${pair}: SL ${sl} >= entry ${entryPrice}`); }
+                if (type === 'SELL' && sl <= entryPrice) { safeSL = 0; console.log(`[BRIDGE] Zeroing invalid SL for SELL ${pair}: SL ${sl} <= entry ${entryPrice}`); }
+            }
+            if (tp > 0 && entryPrice > 0) {
+                if (type === 'BUY' && tp <= entryPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for BUY ${pair}: TP ${tp} <= entry ${entryPrice}`); }
+                if (type === 'SELL' && tp >= entryPrice) { safeTP = 0; console.log(`[BRIDGE] Zeroing invalid TP for SELL ${pair}: TP ${tp} >= entry ${entryPrice}`); }
+            }
+
+            return {
+                id: s.id,
+                pair,
+                type,
+                lot_size: s.lot_size || 0.1,
+                stop_loss: safeSL,
+                take_profit: safeTP,
+                entry_price: entryPrice,
+            };
+        });
+
+        // Mark signals as ACTIVE AFTER sanitization so they are NOT re-sent next heartbeat
+        if (sanitizedSignals.length > 0) {
+            await Promise.all(sanitizedSignals.map(s =>
                 base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
             ));
         }
@@ -275,35 +305,7 @@ Deno.serve(async (req) => {
             account: account_number,
             timestamp: new Date().toISOString(),
             price_update_ts: updatePrices ? now : (body.last_price_update || now),
-            pending_signals: pendingSignals.map(s => {
-                const pair = (s.pair || '').replace('/', '');
-                const type = s.type;
-                const sl = s.stop_loss || 0;
-                const tp = s.take_profit || 0;
-                const entryPrice = s.entry_price || 0;
-
-                // Validate SL/TP direction — if wrong side of entry, zero them out to avoid MT4 Error 130
-                let safeSL = sl;
-                let safeTP = tp;
-                if (sl > 0 && entryPrice > 0) {
-                    if (type === 'BUY' && sl >= entryPrice) safeSL = 0;
-                    if (type === 'SELL' && sl <= entryPrice) safeSL = 0;
-                }
-                if (tp > 0 && entryPrice > 0) {
-                    if (type === 'BUY' && tp <= entryPrice) safeTP = 0;
-                    if (type === 'SELL' && tp >= entryPrice) safeTP = 0;
-                }
-
-                return {
-                    id: s.id,
-                    pair,
-                    type,
-                    lot_size: s.lot_size || 0.1,
-                    stop_loss: safeSL,
-                    take_profit: safeTP,
-                    entry_price: entryPrice,
-                };
-            })
+            pending_signals: sanitizedSignals
         }, {
             headers: { 'Access-Control-Allow-Origin': '*' }
         });
