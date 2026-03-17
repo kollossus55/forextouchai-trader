@@ -87,11 +87,15 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
         });
 
         const aiSignals = aiResult?.signals || [];
-        // Build a lookup map from pair -> AI analysis
+        // Build a lookup map from pair -> AI analysis (normalized to raw format e.g. EURUSD)
         const aiMap = {};
         for (const s of aiSignals) {
-            if (s.pair) aiMap[s.pair] = s;
+            if (s.pair) {
+                const rawPair = s.pair.replace('/', '');
+                aiMap[rawPair] = s;
+            }
         }
+        console.log('[generateBotSignals] AI returned signals for pairs:', Object.keys(aiMap).join(', '));
 
         const signalsToCreate = [];
 
