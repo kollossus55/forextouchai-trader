@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
             account: account_number,
             timestamp: new Date().toISOString(),
             price_update_ts: updatePrices ? now : (body.last_price_update || now),
-            pending_signals: sanitizedSignals
+            pending_signals: sanitizedSignals,
         }, {
             headers: { 'Access-Control-Allow-Origin': '*' }
         });
