@@ -83,8 +83,19 @@ Deno.serve(async (req) => {
             console.log('[BRIDGE] Created new connection for account:', account_number);
         }
 
-        // Update live prices from EA Market Watch data (throttled to every 30s)
+        // Build a live price map from EA heartbeat prices (always available for SL/TP validation)
         const eaPrices = body.prices || accountData.prices;
+        const livePriceMap = {};
+        if (Array.isArray(eaPrices)) {
+            for (const p of eaPrices) {
+                if (p.symbol && p.bid > 0) {
+                    livePriceMap[p.symbol] = p.bid;                          // e.g. USDJPY
+                    livePriceMap[p.symbol.replace('/', '')] = p.bid;          // normalize
+                }
+            }
+        }
+
+        // Update live prices from EA Market Watch data (throttled to every 30s)
         if (updatePrices && Array.isArray(eaPrices) && eaPrices.length > 0) {
             const existingPairs = await base44.asServiceRole.entities.CurrencyPair.list('-created_date', 100);
             const pairMap = {};
