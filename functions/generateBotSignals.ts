@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
         const [bots, openTrades, pendingSignals, pairsList, riskSettingsList] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 20),
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
-            base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50),
+            base44.asServiceRole.entities.Signal.filter({ status: { $in: ['PENDING', 'ACTIVE'] } }, '-created_date', 100),
             base44.asServiceRole.entities.CurrencyPair.list('-created_date', 30),
             base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1),
         ]);
