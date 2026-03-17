@@ -127,7 +127,8 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
                 const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || null;
                 if (!currentPrice) continue;
 
-                const analysis = aiMap[pair];
+                // Lookup using normalized (slash-free) pair key
+                const analysis = aiMap[pair.replace('/', '')];
                 if (!analysis || analysis.type === 'NEUTRAL' || (analysis.confidence || 0) < minConf) continue;
 
                 // Calculate SL/TP
