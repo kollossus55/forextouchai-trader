@@ -17,6 +17,15 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
         }
 
+        // Check at least one broker connection is live (updated within last 5 minutes)
+        const brokerConnections = await base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 10);
+        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const hasLiveConnection = brokerConnections.some(c => c.connection_status === 'CONNECTED' && c.last_sync >= fiveMinsAgo);
+        if (!hasLiveConnection) {
+            console.log('[generateBotSignals] No live MT4/MT5 connection — skipping signal generation');
+            return Response.json({ success: true, message: 'No live broker connection', signals_created: 0 });
+        }
+
         const globalRisk = riskSettingsList?.[0] || {};
         if (globalRisk.is_trading_paused) {
             return Response.json({ success: true, message: 'Trading paused globally', signals_created: 0 });
