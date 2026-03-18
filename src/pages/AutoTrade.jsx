@@ -123,22 +123,7 @@ export default function AutoTrade() {
     });
   }, []);
 
-  // Auto-execute pending signals
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        await base44.functions.invoke('executeSignals');
-        queryClient.invalidateQueries(['all-trades']);
-      } catch (error) {
-        // Silently handle errors to avoid console spam
-        if (error?.response?.status !== 429) {
-          console.error('Signal execution error:', error);
-        }
-      }
-    }, 30000); // Check every 30 seconds
 
-    return () => clearInterval(interval);
-  }, []);
 
   // AI Trading Engine Simulation
   useEffect(() => {
