@@ -8,7 +8,7 @@
 
 // --- INPUTS ---
 input string BridgeURL    = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
-input int    HeartbeatSec = 5;   // How often to poll bridge (seconds)
+input int    HeartbeatSec = 30;  // How often to poll bridge (seconds)
 input int    MagicNumber  = 12345;
 input int    Slippage     = 3;
 
