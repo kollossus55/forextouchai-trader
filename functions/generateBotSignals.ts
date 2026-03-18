@@ -46,6 +46,9 @@ Deno.serve(async (req) => {
         }
 
         const allPairs = [...allPairsSet];
+        console.log('[generateBotSignals] Price map keys:', Object.keys(priceMap).join(', '));
+        console.log('[generateBotSignals] Bot pairs:', bots.map(b => `${b.name}: ${(b.pairs||[]).join(',')}`).join(' | '));
+        console.log('[generateBotSignals] Pairs with known prices:', allPairs.join(', '));
         if (!allPairs.length) {
             return Response.json({ success: true, message: 'No pairs with known prices', signals_created: 0 });
         }
