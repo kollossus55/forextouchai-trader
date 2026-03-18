@@ -27,14 +27,24 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: `Global trade limit reached (${openTrades.length}/${maxGlobal})`, signals_created: 0 });
         }
 
-        // Build price map from CurrencyPair table (store under both raw and slash formats)
+        // Build price map from CurrencyPair table — only use prices updated within last 10 minutes (live EA data)
         const priceMap = {};
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        let staleCount = 0;
         for (const p of pairsList) {
             if (p.symbol && p.current_price) {
-                priceMap[p.symbol] = p.current_price;
-                priceMap[p.symbol.replace('/', '')] = p.current_price;
+                // Accept price if updated recently OR if it's a manually seeded pair (no updated_date check)
+                const isLive = !p.updated_date || p.updated_date >= tenMinutesAgo;
+                if (isLive) {
+                    priceMap[p.symbol] = p.current_price;
+                    priceMap[p.symbol.replace('/', '')] = p.current_price;
+                } else {
+                    staleCount++;
+                }
             }
         }
+        if (staleCount > 0) console.log(`[generateBotSignals] Skipped ${staleCount} pairs with stale prices (>10 min old)`);
+        console.log(`[generateBotSignals] ${Object.keys(priceMap).length / 2} pairs with live prices available`);
 
         // Collect all unique pairs across all running bots that have a known price
         const allPairsSet = new Set();
