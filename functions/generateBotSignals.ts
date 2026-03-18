@@ -131,11 +131,13 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
                 if (signalsToCreate.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw))) continue;
 
                 const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || null;
-                if (!currentPrice) continue;
+                if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price in DB`); continue; }
 
                 // Lookup using normalized (slash-free) pair key
                 const analysis = aiMap[pair.replace('/', '')];
-                if (!analysis || analysis.type === 'NEUTRAL' || (analysis.confidence || 0) < minConf) continue;
+                if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis returned`); continue; }
+                if (analysis.type === 'NEUTRAL') { console.log(`[Skip] ${bot.name} ${pair}: AI says NEUTRAL (conf=${analysis.confidence})`); continue; }
+                if ((analysis.confidence || 0) < minConf) { console.log(`[Skip] ${bot.name} ${pair}: confidence ${analysis.confidence} < ${minConf}`); continue; }
 
                 // Calculate SL/TP
                 let slPips = bot.stop_loss_pips || 30;
