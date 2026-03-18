@@ -358,31 +358,34 @@ export default function AutoTrade() {
                     </div>
                   </div>
 
-                  {/* Live Terminal Output */}
-                  <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-y-auto relative border border-slate-800 flex flex-col-reverse">
-                    <div className="absolute top-2 right-2 flex gap-1.5 z-10">
-                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]' : 'bg-red-500/20'}`}></div>
-                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-yellow-500 shadow-[0_0_4px_rgba(234,179,8,0.6)]' : 'bg-yellow-500/20'}`}></div>
-                      <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-green-500 animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.8)]' : 'bg-green-500/20'}`}></div>
-                    </div>
-                    <div className="space-y-1">
-                      {terminalLogs.filter(log => log.botName === bot.name).length > 0 ? (
-                        terminalLogs.filter(log => log.botName === bot.name).map((log, i) => (
-                           <p key={i} className={`${
-                               log.type === 'success' ? 'text-emerald-400' : 
-                               log.type === 'info' ? 'text-amber-400' : 'text-slate-400'
-                           }`}>
-                             <span className="text-blue-500 opacity-70">[{log.timestamp}]</span> {log.message}
-                           </p>
-                        ))
-                      ) : (
-                        <p className="text-slate-500 italic">Waiting for market data...</p>
-                      )}
-                      {bot.status === 'RUNNING' && (
-                        <p className="text-emerald-500/50 animate-pulse text-[10px]">_ AI Engine Active: Processing ticks</p>
-                      )}
-                    </div>
-                  </div>
+                  {/* Live Signal Feed from Backend */}
+                  {(() => {
+                    const botSignals = recentSignals.filter(s => s.bot_id === bot.id).slice(0, 8);
+                    return (
+                      <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-y-auto relative border border-slate-800">
+                        <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                          <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-red-500' : 'bg-red-500/20'}`}></div>
+                          <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-yellow-500' : 'bg-yellow-500/20'}`}></div>
+                          <div className={`w-2 h-2 rounded-full ${bot.status === 'RUNNING' ? 'bg-green-500 animate-pulse' : 'bg-green-500/20'}`}></div>
+                        </div>
+                        <div className="space-y-1 pt-1">
+                          {botSignals.length > 0 ? botSignals.map((sig, i) => (
+                            <p key={i} className={`${
+                              sig.status === 'PENDING' ? 'text-amber-400' :
+                              sig.status === 'ACTIVE' ? 'text-emerald-400' :
+                              sig.status === 'EXPIRED' || sig.status === 'SKIPPED' ? 'text-slate-500' :
+                              'text-slate-400'
+                            }`}>
+                              <span className="text-blue-500/70">[{new Date(sig.created_date).toLocaleTimeString()}]</span>{' '}
+                              {sig.type} {sig.pair} @ {sig.entry_price?.toFixed(5)} ({sig.confidence}%) — {sig.status}
+                            </p>
+                          )) : (
+                            <p className="text-slate-500 italic">{bot.status === 'RUNNING' ? 'Waiting for next signal cycle (every 5 min)...' : 'Bot stopped.'}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </CardContent>
                 <CardFooter className="flex justify-between border-t border-slate-800 pt-4">
                    <Button variant="ghost" size="sm" onClick={() => handleEdit(bot)} className="text-slate-400 hover:text-white text-xs">
