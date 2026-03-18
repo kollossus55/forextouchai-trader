@@ -26,9 +26,6 @@ import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { MarketDataService } from '@/components/services/MarketDataService';
-import { technicalAnalysisService } from '@/components/services/TechnicalAnalysisService';
-import { candlestickPatternService } from '@/components/services/CandlestickPatternService';
-import { chartPatternService } from '@/components/services/ChartPatternService';
 
 export default function AutoTrade() {
   const queryClient = useQueryClient();
