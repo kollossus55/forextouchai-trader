@@ -258,14 +258,31 @@ Deno.serve(async (req) => {
         }
 
         // Return pending signals for EA to execute (limit to 5 most recent to avoid buffer overflow)
-        const allPendingSignals = await base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 100);
+        const [allPendingSignals, allActiveSignals] = await Promise.all([
+            base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 100),
+            base44.asServiceRole.entities.Signal.filter({ status: 'ACTIVE' }, '-created_date', 200),
+        ]);
         
-        // Auto-expire signals older than 5 minutes (they're stale and will never execute)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const staleSignals = allPendingSignals.filter(s => s.created_date < fiveMinutesAgo);
-        if (staleSignals.length > 0) {
-            console.log('[BRIDGE] Expiring', staleSignals.length, 'stale pending signals');
-            await Promise.all(staleSignals.map(s =>
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+        // Auto-expire PENDING signals older than 5 minutes
+        const stalePending = allPendingSignals.filter(s => s.created_date < fiveMinutesAgo);
+        // Auto-expire ACTIVE signals older than 10 minutes with no matching open trade
+        // (EA received the signal but never confirmed execution - stuck signals)
+        const openTradeTickets = new Set((await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200)).map(t => t.bot_id + '|' + t.pair));
+        const stuckActive = allActiveSignals.filter(s => {
+            if (s.updated_date > tenMinutesAgo) return false; // recently marked active, give it time
+            // If no open trade exists for this bot+pair combo, the EA never opened it
+            const key = s.bot_id + '|' + (s.pair || '');
+            const keyRaw = s.bot_id + '|' + (s.pair || '').replace('/', '');
+            return !openTradeTickets.has(key) && !openTradeTickets.has(keyRaw);
+        });
+
+        const toExpire = [...stalePending, ...stuckActive];
+        if (toExpire.length > 0) {
+            console.log('[BRIDGE] Expiring', stalePending.length, 'stale pending +', stuckActive.length, 'stuck active signals');
+            await Promise.all(toExpire.map(s =>
                 base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
             ));
         }
