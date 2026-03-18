@@ -33,7 +33,6 @@ export default function AutoTrade() {
   const [selectedBot, setSelectedBot] = useState(null);
   const [backtestBot, setBacktestBot] = useState(null);
   const [activeTab, setActiveTab] = useState("bots");
-  const [terminalLogs, setTerminalLogs] = useState([]);
   const [user, setUser] = useState(null);
   
   // Fetch current user
