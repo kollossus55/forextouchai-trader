@@ -336,6 +336,284 @@ export default function Settings() {
       }
   };
 
+  const handleDownloadBridgeMT5 = () => {
+    const mql5Code = `//+------------------------------------------------------------------+
+//|                                    ForexTouchAI_Bridge_MT5.mq5 |
+//|                                   ForexTouchAI Bridge EA (MT5) |
+//+------------------------------------------------------------------+
+#property copyright "ForexTouchAI"
+#property version   "1.00"
+#property strict
+
+#define EA_VERSION "1.0"
+
+// --- INPUTS ---
+input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
+input double FixedLotSize      = 0.01;
+input int    MaxOpenTrades     = 5;
+input int    MaxDailyTrades    = 0;       // 0 = unlimited
+input double MaxSpreadPips     = 3.0;
+input bool   EnableTrailingStop = false;
+input double TrailingStopPips  = 20;
+input double TrailingStartPips = 30;
+input string TradingStartTime  = "00:00";
+input string TradingEndTime    = "23:59";
+
+// --- GLOBALS ---
+string Endpoint;
+datetime LastSync   = 0;
+string lastSignalId = "";
+int    TradesToday  = 0;
+MqlDateTime LastResetDate;
+CTrade trade;
+
+//+------------------------------------------------------------------+
+int OnInit() {
+   string url = AppUrl;
+   StringTrimRight(url);
+   StringTrimLeft(url);
+   int len = StringLen(url);
+   if(len > 0 && StringSubstr(url, len-1, 1) == "/")
+      url = StringSubstr(url, 0, len-1);
+   Endpoint = url + "/functions/bridge";
+
+   Print("===================================");
+   Print("ForexTouchAI Bridge EA MT5 v", EA_VERSION);
+   Print("===================================");
+   Print("Endpoint: ", Endpoint);
+
+   EventSetTimer(5);
+   return INIT_SUCCEEDED;
+}
+
+void OnDeinit(const int reason) {
+   EventKillTimer();
+   Print("ForexTouchAI Bridge stopped.");
+}
+
+void OnTimer() {
+   MqlDateTime now;
+   TimeToStruct(TimeCurrent(), now);
+   MqlDateTime last;
+   TimeToStruct(LastSync, last);
+   if(now.day != LastResetDate.day) {
+      TradesToday = 0;
+      TimeToStruct(TimeCurrent(), LastResetDate);
+   }
+   if(!IsWithinTradingHours()) return;
+   if(EnableTrailingStop) ManageTrailingStops();
+   string json = BuildJson();
+   SendPost(json);
+}
+
+void OnTick() {}
+
+//+------------------------------------------------------------------+
+bool IsWithinTradingHours() {
+   if(TradingStartTime == "" || TradingEndTime == "") return true;
+   MqlDateTime t;
+   TimeToStruct(TimeCurrent(), t);
+   int cur  = t.hour * 100 + t.min;
+   int sH   = (int)StringToInteger(StringSubstr(TradingStartTime, 0, 2));
+   int sM   = (int)StringToInteger(StringSubstr(TradingStartTime, 3, 2));
+   int eH   = (int)StringToInteger(StringSubstr(TradingEndTime, 0, 2));
+   int eM   = (int)StringToInteger(StringSubstr(TradingEndTime, 3, 2));
+   return (cur >= sH*100+sM && cur <= eH*100+eM);
+}
+
+//+------------------------------------------------------------------+
+void ManageTrailingStops() {
+   for(int i = PositionsTotal()-1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl        = PositionGetDouble(POSITION_SL);
+      double tp        = PositionGetDouble(POSITION_TP);
+      string sym       = PositionGetString(POSITION_SYMBOL);
+      long   ptype     = PositionGetInteger(POSITION_TYPE);
+      double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
+      int    digits    = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      double trailDist  = TrailingStopPips * point * 10;
+      double activeDist = TrailingStartPips * point * 10;
+
+      if(ptype == POSITION_TYPE_BUY) {
+         double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+         if(bid - openPrice >= activeDist) {
+            double newSL = NormalizeDouble(bid - trailDist, digits);
+            if(newSL > sl)
+               trade.PositionModify(ticket, newSL, tp);
+         }
+      } else {
+         double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
+         if(openPrice - ask >= activeDist) {
+            double newSL = NormalizeDouble(ask + trailDist, digits);
+            if(sl == 0 || newSL < sl)
+               trade.PositionModify(ticket, newSL, tp);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+string BuildJson() {
+   long   acct     = AccountInfoInteger(ACCOUNT_LOGIN);
+   string server   = AccountInfoString(ACCOUNT_SERVER);
+   double balance  = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity   = AccountInfoDouble(ACCOUNT_EQUITY);
+   double margin   = AccountInfoDouble(ACCOUNT_MARGIN);
+   double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   double marginLvl = (margin > 0) ? equity / margin * 100 : 0;
+
+   string j = "{\\"account\\":{" +
+      "\\"account_number\\":\\"" + IntegerToString(acct) + "\\"," +
+      "\\"server_name\\":\\"" + server + "\\"," +
+      "\\"platform\\":\\"MT5\\"," +
+      "\\"balance\\":" + DoubleToString(balance, 2) + "," +
+      "\\"equity\\":" + DoubleToString(equity, 2) + "," +
+      "\\"margin\\":" + DoubleToString(margin, 2) + "," +
+      "\\"free_margin\\":" + DoubleToString(freeMargin, 2) + "," +
+      "\\"margin_level\\":" + DoubleToString(marginLvl, 2) +
+      "},\\"trades\\":[";
+
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++) {
+      ulong ticket = PositionGetTicket(i);
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(i > 0) j += ",";
+      long ptype = PositionGetInteger(POSITION_TYPE);
+      j += "{\\"ticket\\":" + IntegerToString((long)ticket) +
+           ",\\"symbol\\":\\"" + PositionGetString(POSITION_SYMBOL) + "\\"" +
+           ",\\"type\\":\\"" + (ptype == POSITION_TYPE_BUY ? "BUY" : "SELL") + "\\"" +
+           ",\\"pnl\\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + "}";
+   }
+   j += "]}";
+   return j;
+}
+
+//+------------------------------------------------------------------+
+void SendPost(string json) {
+   char data[], res[];
+   StringToCharArray(json, data, 0, StringLen(json));
+   string headers = "Content-Type: application/json\\r\\n";
+   string resHeaders;
+   ResetLastError();
+   int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resHeaders);
+   if(r == 200) {
+      string response = CharArrayToString(res);
+      ProcessPendingSignals(response);
+   } else {
+      int err = GetLastError();
+      Print("[BRIDGE MT5] HTTP: ", r, " Error: ", err);
+      if(err == 5203 || err == 5200) {
+         Print(">>> Add URL to: Tools > Options > Expert Advisors > Allow WebRequest <<<");
+         Print("URL: ", AppUrl);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+void ProcessPendingSignals(string json) {
+   int arrStart = StringFind(json, "\\"pending_signals\\"");
+   if(arrStart < 0) return;
+   arrStart = StringFind(json, "[", arrStart);
+   if(arrStart < 0) return;
+   int arrEnd = StringFind(json, "]", arrStart);
+   if(arrEnd < 0) return;
+   string arr = StringSubstr(json, arrStart + 1, arrEnd - arrStart - 1);
+   if(StringLen(arr) < 5) return;
+   int pos = 0;
+   while(pos < StringLen(arr)) {
+      int objStart = StringFind(arr, "{", pos);
+      if(objStart < 0) break;
+      int objEnd = StringFind(arr, "}", objStart);
+      if(objEnd < 0) break;
+      ExecuteSignalObj(StringSubstr(arr, objStart, objEnd - objStart + 1));
+      pos = objEnd + 1;
+   }
+}
+
+//+------------------------------------------------------------------+
+void ExecuteSignalObj(string obj) {
+   string id    = GetJsonValue(obj, "id");
+   string pair  = GetJsonValue(obj, "pair");
+   string type  = GetJsonValue(obj, "type");
+   double sigEntry = StringToDouble(GetJsonValue(obj, "entry_price"));
+   double sigSL    = StringToDouble(GetJsonValue(obj, "stop_loss"));
+   double sigTP    = StringToDouble(GetJsonValue(obj, "take_profit"));
+   double sigLot   = StringToDouble(GetJsonValue(obj, "lot_size"));
+
+   if(StringLen(id) == 0 || StringLen(pair) == 0 || StringLen(type) == 0) return;
+   if(id == lastSignalId) return;
+   if(MaxOpenTrades > 0 && PositionsTotal() >= MaxOpenTrades) {
+      Print("[BRIDGE MT5] Rejected: max open trades");
+      return;
+   }
+   if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
+      Print("[BRIDGE MT5] Rejected: daily trade limit");
+      return;
+   }
+
+   bool isBuy = (type == "BUY");
+   double price   = isBuy ? SymbolInfoDouble(pair, SYMBOL_ASK) : SymbolInfoDouble(pair, SYMBOL_BID);
+   int    digits  = (int)SymbolInfoInteger(pair, SYMBOL_DIGITS);
+   if(price == 0) {
+      Print("[BRIDGE MT5] Cannot get price for ", pair, " - add to Market Watch");
+      return;
+   }
+
+   double finalSL = 0, finalTP = 0;
+   if(sigEntry > 0) {
+      if(isBuy) {
+         if(sigSL > 0) finalSL = NormalizeDouble(price - (sigEntry - sigSL), digits);
+         if(sigTP > 0) finalTP = NormalizeDouble(price + (sigTP - sigEntry), digits);
+      } else {
+         if(sigSL > 0) finalSL = NormalizeDouble(price + (sigSL - sigEntry), digits);
+         if(sigTP > 0) finalTP = NormalizeDouble(price - (sigEntry - sigTP), digits);
+      }
+   }
+
+   double lot = (sigLot > 0) ? sigLot : FixedLotSize;
+   Print("[BRIDGE MT5] Executing: ", type, " ", pair, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
+
+   bool ok = isBuy
+      ? trade.Buy(lot, pair, price, finalSL, finalTP, "ForexTouchAI")
+      : trade.Sell(lot, pair, price, finalSL, finalTP, "ForexTouchAI");
+
+   if(ok) {
+      Print("[BRIDGE MT5] Trade opened! Signal=", id, " RetCode=", trade.ResultRetcode());
+      lastSignalId = id;
+      TradesToday++;
+   } else {
+      Print("[BRIDGE MT5] OrderSend FAILED. RetCode=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription());
+   }
+}
+
+//+------------------------------------------------------------------+
+string GetJsonValue(string json, string key) {
+   int keyPos = StringFind(json, "\\"" + key + "\\"");
+   if(keyPos < 0) return "";
+   int valStart = StringFind(json, ":", keyPos) + 1;
+   int valEnd   = StringFind(json, ",", valStart);
+   int braceEnd = StringFind(json, "}", valStart);
+   if(valEnd < 0) valEnd = braceEnd;
+   if(braceEnd > 0 && braceEnd < valEnd) valEnd = braceEnd;
+   if(valEnd < 0) return "";
+   string val = StringSubstr(json, valStart, valEnd - valStart);
+   StringReplace(val, "\\"", "");
+   StringReplace(val, " ", "");
+   return val;
+}
+//+------------------------------------------------------------------+`;
+
+    const element = document.createElement("a");
+    const file = new Blob([mql5Code], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "ForexTouchAI_Bridge_MT5.mq5";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
   const handleDownloadBridge = () => {
     // Enhanced version 3.0 with advanced features
     const mql4Code = `//+------------------------------------------------------------------+
@@ -1165,9 +1443,9 @@ export default function Settings() {
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
-                  <li>Download the <span className="text-emerald-400">ForexTouchAI_Bridge.mq4</span> file below.</li>
-                  <li>Open MT4/MT5 → File → Open Data Folder → MQL4 → Experts → paste the .mq4 file there.</li>
-                  <li>In MT4, right-click on Navigator → Refresh. You should see "ForexTouchAI_Bridge" in Expert Advisors.</li>
+                  <li>Download the <span className="text-blue-400">MT4 (.mq4)</span> or <span className="text-purple-400">MT5 (.mq5)</span> bridge file below depending on your platform.</li>
+                  <li><strong>MT4:</strong> File → Open Data Folder → MQL4 → Experts → paste .mq4 file there.<br/><strong>MT5:</strong> File → Open Data Folder → MQL5 → Experts → paste .mq5 file there.</li>
+                  <li>Right-click Navigator → Refresh. You should see "ForexTouchAI_Bridge" in Expert Advisors.</li>
                   <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors.</li>
                   <li>Check <strong>"Allow WebRequest for listed URLs"</strong> and add your App URL to the list.</li>
                   <li className="text-white font-mono bg-slate-900 p-1.5 mt-1 block text-center select-all rounded">https://forex-ai-trader-cc744e2a.base44.app</li>
@@ -1188,12 +1466,20 @@ export default function Settings() {
                 <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all">
                   <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
                 </Button>
-                <Button 
-                  onClick={handleDownloadBridge}
-                  className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
-                >
-                  Download Bridge Source (.mq4)
-                </Button>
+                <div className="flex gap-2 ml-auto">
+                  <Button 
+                    onClick={handleDownloadBridge}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Download MT4 Bridge (.mq4)
+                  </Button>
+                  <Button 
+                    onClick={handleDownloadBridgeMT5}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    Download MT5 Bridge (.mq5)
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
