@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 Deno.serve(async (req) => {
     try {
@@ -70,6 +70,23 @@ Deno.serve(async (req) => {
         console.log('[generateBotSignals] Pairs with known prices:', allPairs.join(', '));
         if (!allPairs.length) {
             return Response.json({ success: true, message: 'No pairs with known prices', signals_created: 0 });
+        }
+
+        // Check if any bot actually needs a new signal before calling AI (saves quota)
+        const botsNeedingSignals = bots.filter(bot => {
+            const botOpenTrades = openTrades.filter(t => t.bot_id === bot.id);
+            if (botOpenTrades.length >= (bot.max_open_trades || 5)) return false;
+            return (bot.pairs || []).some(pair => {
+                const pairRaw = pair.replace('/', '');
+                const hasOpen = openTrades.some(t => t.bot_id === bot.id && (t.pair === pair || t.pair === pairRaw));
+                const hasPending = pendingSignals.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw));
+                return !hasOpen && !hasPending && (priceMap[pair] || priceMap[pairRaw]);
+            });
+        });
+
+        if (!botsNeedingSignals.length) {
+            console.log('[generateBotSignals] All bots are at capacity or have pending signals — skipping AI call');
+            return Response.json({ success: true, message: 'No signal slots available', signals_created: 0 });
         }
 
         // Build price context for AI
