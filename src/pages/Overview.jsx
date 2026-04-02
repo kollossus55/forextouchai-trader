@@ -83,8 +83,9 @@ export default function Overview() {
     initialData: []
   });
 
+  const activeConnections = connections?.filter(c => c.connection_status === 'CONNECTED') || [];
   const activeConnection = connections?.[0] || null;
-  const isConnected = activeConnection?.connection_status === 'CONNECTED';
+  const isConnected = activeConnections.length > 0;
 
   // Update last updated timestamp when connection data changes
   useEffect(() => {
@@ -271,30 +272,28 @@ export default function Overview() {
     }
   };
 
-  // MT4 Account Data
-  const baseBalance = (activeConnection?.balance && activeConnection.balance > 0) ? activeConnection.balance : 10000;
-  // Use real equity from broker connection, falling back to balance if not available
-  const currentEquity = (activeConnection?.equity && activeConnection.equity > 0) ? activeConnection.equity : baseBalance;
-  const currentMargin = activeConnection?.margin || 0;
-  
-  // Calculate derived values if not provided by broker
-  const freeMargin = activeConnection?.free_margin || (currentEquity - currentMargin);
-  const marginLevel = activeConnection?.margin_level || (currentMargin > 0 ? (currentEquity / currentMargin) * 100 : 0);
-  
-  const mt4Account = {
-    broker: activeConnection?.server_name || "Demo Broker",
-    server: activeConnection?.server_name || "Demo-Server",
-    accountNumber: activeConnection?.account_number || "---",
-    platform: activeConnection?.platform || "MT4",
-    leverage: activeConnection?.leverage || "1:500",
-    currency: activeConnection?.currency || "USD",
-    balance: baseBalance,
-    equity: currentEquity,
-    margin: currentMargin,
-    freeMargin: freeMargin,
-    marginLevel: marginLevel,
-    profit: currentEquity - baseBalance
-  };
+  // Build per-account data array
+  const accountList = (connections || []).map(conn => {
+    const balance = (conn.balance && conn.balance > 0) ? conn.balance : 0;
+    const equity = (conn.equity && conn.equity > 0) ? conn.equity : balance;
+    const margin = conn.margin || 0;
+    const freeMargin = conn.free_margin || (equity - margin);
+    const marginLevel = conn.margin_level || (margin > 0 ? (equity / margin) * 100 : 0);
+    return {
+      id: conn.id,
+      broker: conn.server_name || "Demo Broker",
+      accountNumber: conn.account_number || "---",
+      platform: conn.platform || "MT4",
+      leverage: conn.leverage || "1:500",
+      currency: conn.currency || "USD",
+      balance, equity, margin, freeMargin, marginLevel,
+      profit: equity - balance,
+      isConnected: conn.connection_status === 'CONNECTED',
+    };
+  });
+
+  // Keep mt4Account pointing to first for DailyPerformanceCard compatibility
+  const mt4Account = accountList[0] || { balance: 10000, equity: 10000, margin: 0, freeMargin: 10000, marginLevel: 0, profit: 0, broker: 'Demo Broker', accountNumber: '---', platform: 'MT4', leverage: '1:500', currency: 'USD' };
 
   const refreshConnection = async () => {
     try {
@@ -345,128 +344,113 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* Enhanced MT4 Account Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-emerald-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-emerald-500/10">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <DollarSign className="w-20 h-20 text-emerald-500" />
-          </div>
-          <CardHeader className="pb-2 relative">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-500/20 rounded-lg">
-                  <DollarSign className="w-4 h-4 text-emerald-400" />
-                </div>
-                Balance
-              </CardTitle>
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-4xl font-bold bg-gradient-to-br from-white to-emerald-100 bg-clip-text text-transparent mb-3 tracking-tight">
-              ${mt4Account.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-500">
-                <span className="text-slate-300 font-medium">{mt4Account.broker}</span>
-              </p>
-              {activeConnection && <span className="text-emerald-400 text-[10px] border border-emerald-500/30 px-2 py-0.5 rounded-full bg-emerald-500/10 font-semibold">Live</span>}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Per-Account Cards */}
+      {accountList.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[['Balance','emerald'],['Equity','cyan'],['Margin Level','purple'],['Free Margin','amber']].map(([label, color]) => (
+            <Card key={label} className="bg-slate-900/50 border-slate-800/50 shadow-xl">
+              <CardContent className="pt-6">
+                <p className="text-sm text-slate-500">{label}</p>
+                <p className="text-3xl font-bold text-slate-600 mt-2">--</p>
+                <p className="text-xs text-slate-600 mt-2">No account connected</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {accountList.map((acct) => (
+            <div key={acct.id} className="space-y-2">
+              {/* Account label row */}
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${acct.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                <span className="text-sm font-semibold text-slate-300">{acct.platform} — {acct.broker}</span>
+                <span className="text-xs text-slate-500 font-mono">#{acct.accountNumber}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${acct.isConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'}`}>
+                  {acct.isConnected ? 'Live' : 'Offline'}
+                </span>
+              </div>
+              {/* 4 metric cards for this account */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-emerald-500/30 transition-all duration-300 group shadow-xl">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <DollarSign className="w-14 h-14 text-emerald-500" />
+                  </div>
+                  <CardHeader className="pb-1 pt-4 px-4">
+                    <CardTitle className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <div className="p-1 bg-emerald-500/20 rounded"><DollarSign className="w-3 h-3 text-emerald-400" /></div>
+                      Balance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <div className="text-2xl font-bold bg-gradient-to-br from-white to-emerald-100 bg-clip-text text-transparent tracking-tight">
+                      ${acct.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">{acct.currency} · {acct.leverage}</p>
+                  </CardContent>
+                </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-cyan-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-cyan-500/10">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity className="w-20 h-20 text-cyan-500" />
-          </div>
-          <CardHeader className="pb-2 relative">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                <div className="p-1.5 bg-cyan-500/20 rounded-lg">
-                  <Activity className="w-4 h-4 text-cyan-400" />
-                </div>
-                Equity
-              </CardTitle>
-              {mt4Account.profit >= 0 ? (
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-              ) : (
-                <TrendingDown className="w-5 h-5 text-rose-400" />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-4xl font-bold bg-gradient-to-br from-white to-cyan-100 bg-clip-text text-transparent mb-3 tracking-tight">
-              ${mt4Account.equity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-            </div>
-            <div className={`flex items-center gap-1.5 text-sm font-bold ${mt4Account.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {mt4Account.profit >= 0 ? (
-                <TrendingUp className="w-4 h-4" />
-              ) : (
-                <TrendingDown className="w-4 h-4" />
-              )}
-              <span>{mt4Account.profit >= 0 ? '+' : ''}${Math.abs(mt4Account.profit).toFixed(2)}</span>
-              <span className="text-xs text-slate-500 font-normal">floating</span>
-            </div>
-          </CardContent>
-        </Card>
+                <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-cyan-500/30 transition-all duration-300 group shadow-xl">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Activity className="w-14 h-14 text-cyan-500" />
+                  </div>
+                  <CardHeader className="pb-1 pt-4 px-4">
+                    <CardTitle className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <div className="p-1 bg-cyan-500/20 rounded"><Activity className="w-3 h-3 text-cyan-400" /></div>
+                      Equity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <div className="text-2xl font-bold bg-gradient-to-br from-white to-cyan-100 bg-clip-text text-transparent tracking-tight">
+                      ${acct.equity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </div>
+                    <div className={`flex items-center gap-1 text-xs font-bold mt-1 ${acct.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {acct.profit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {acct.profit >= 0 ? '+' : ''}${Math.abs(acct.profit).toFixed(2)} floating
+                    </div>
+                  </CardContent>
+                </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-purple-500/10">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <PieChart className="w-20 h-20 text-purple-500" />
-          </div>
-          <CardHeader className="pb-2 relative">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                <div className="p-1.5 bg-purple-500/20 rounded-lg">
-                  <PieChart className="w-4 h-4 text-purple-400" />
-                </div>
-                Margin Level
-              </CardTitle>
-              {mt4Account.marginLevel >= 100 ? (
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-              ) : (
-                <TrendingDown className="w-5 h-5 text-rose-400" />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className={`text-4xl font-bold mb-3 tracking-tight ${mt4Account.marginLevel >= 100 ? 'bg-gradient-to-br from-white to-purple-100' : 'bg-gradient-to-br from-rose-100 to-rose-300'} bg-clip-text text-transparent`}>
-              {mt4Account.marginLevel.toFixed(0)}%
-            </div>
-            <Progress value={Math.min(100, mt4Account.marginLevel/50)} className="h-2.5 mt-2 bg-slate-800/50 rounded-full shadow-inner" indicatorClassName={`rounded-full ${mt4Account.marginLevel >= 100 ? 'bg-gradient-to-r from-purple-500 to-purple-400' : 'bg-gradient-to-r from-rose-500 to-rose-400'}`} />
-            <p className="text-xs text-slate-500 mt-2.5">Leverage: <span className="text-slate-300 font-medium">{mt4Account.leverage}</span></p>
-          </CardContent>
-        </Card>
+                <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300 group shadow-xl">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <PieChart className="w-14 h-14 text-purple-500" />
+                  </div>
+                  <CardHeader className="pb-1 pt-4 px-4">
+                    <CardTitle className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <div className="p-1 bg-purple-500/20 rounded"><PieChart className="w-3 h-3 text-purple-400" /></div>
+                      Margin Level
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <div className={`text-2xl font-bold tracking-tight ${acct.marginLevel >= 100 ? 'bg-gradient-to-br from-white to-purple-100' : 'bg-gradient-to-br from-rose-100 to-rose-300'} bg-clip-text text-transparent`}>
+                      {acct.marginLevel.toFixed(0)}%
+                    </div>
+                    <Progress value={Math.min(100, acct.marginLevel / 50)} className="h-1.5 mt-2 bg-slate-800/50 rounded-full" indicatorClassName={`rounded-full ${acct.marginLevel >= 100 ? 'bg-purple-500' : 'bg-rose-500'}`} />
+                  </CardContent>
+                </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-amber-500/30 transition-all duration-300 group shadow-xl hover:shadow-2xl hover:shadow-amber-500/10">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <BarChart3 className="w-20 h-20 text-amber-500" />
-          </div>
-          <CardHeader className="pb-2 relative">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                <div className="p-1.5 bg-amber-500/20 rounded-lg">
-                  <BarChart3 className="w-4 h-4 text-amber-400" />
-                </div>
-                Free Margin
-              </CardTitle>
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-amber-500/30 transition-all duration-300 group shadow-xl">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <BarChart3 className="w-14 h-14 text-amber-500" />
+                  </div>
+                  <CardHeader className="pb-1 pt-4 px-4">
+                    <CardTitle className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <div className="p-1 bg-amber-500/20 rounded"><BarChart3 className="w-3 h-3 text-amber-400" /></div>
+                      Free Margin
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <div className="text-2xl font-bold bg-gradient-to-br from-white to-amber-100 bg-clip-text text-transparent tracking-tight">
+                      ${acct.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">Used: <span className="text-slate-300">${acct.margin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></p>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-100 bg-clip-text text-transparent mb-3 tracking-tight">
-              ${mt4Account.freeMargin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-            </div>
-            <p className="text-xs text-slate-500">
-              Used: <span className="text-slate-300 font-semibold">${mt4Account.margin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Enhanced AI Signal Generator Banner */}
       <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 via-emerald-900/30 to-slate-900/90 border-emerald-500/30 backdrop-blur-xl shadow-2xl shadow-emerald-500/10">
