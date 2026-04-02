@@ -85,25 +85,29 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1),
         ]);
 
-        // --- 3. Reconcile trades (non-blocking fire-and-forget) ---
+        // --- 3. Reconcile trades (throttled: every 30s) ---
         const eaTrades = body.trades || accountData.trades;
-        if (Array.isArray(eaTrades)) {
+        const lastReconcile = body.last_reconcile || 0;
+        const shouldReconcile = (now - lastReconcile) > 30000;
+        if (shouldReconcile && Array.isArray(eaTrades)) {
             reconcileTrades(base44, eaTrades, dbOpenTrades, account_number, connections).catch(e =>
                 console.error('[BRIDGE] Trade reconcile error:', e.message)
             );
         }
 
-        // --- 4. Update currency pair prices (fire-and-forget, throttled) ---
-        const shouldUpdatePrices = !body.last_price_update || (now - body.last_price_update) > 30000;
+        // --- 4. Update currency pair prices (throttled: every 60s) ---
+        const shouldUpdatePrices = !body.last_price_update || (now - body.last_price_update) > 60000;
         if (shouldUpdatePrices && Array.isArray(eaPrices) && eaPrices.length > 0) {
             updateCurrencyPrices(base44, eaPrices).catch(e =>
                 console.error('[BRIDGE] Price update error:', e.message)
             );
         }
 
-        // --- 5. Check risk/daily profit target (fire-and-forget) ---
+        // --- 5. Check risk/daily profit target (throttled: every 60s) ---
         const riskSettings = riskSettingsList?.[0];
-        if (riskSettings?.daily_profit_target_percent > 0 && !riskSettings?.is_trading_paused && balance > 0) {
+        const lastRiskCheck = body.last_risk_check || 0;
+        const shouldCheckRisk = (now - lastRiskCheck) > 60000;
+        if (shouldCheckRisk && riskSettings?.daily_profit_target_percent > 0 && !riskSettings?.is_trading_paused && balance > 0) {
             checkDailyProfitTarget(base44, riskSettings, balance, dbOpenTrades).catch(e =>
                 console.error('[BRIDGE] Risk check error:', e.message)
             );
@@ -197,6 +201,8 @@ Deno.serve(async (req) => {
             account: account_number,
             timestamp: new Date().toISOString(),
             price_update_ts: shouldUpdatePrices ? now : (body.last_price_update || now),
+            last_reconcile: shouldReconcile ? now : lastReconcile,
+            last_risk_check: shouldCheckRisk ? now : lastRiskCheck,
             pending_signals: sanitizedSignals,
         }, {
             headers: { 'Access-Control-Allow-Origin': '*' }
@@ -243,8 +249,8 @@ async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number, c
         if (!eaTrade) return false;
         return Math.abs((t.pnl || 0) - (eaTrade.pnl || 0)) > 0.10;
     });
-    for (let i = 0; i < toUpdatePnl.length; i += 3) {
-        await Promise.all(toUpdatePnl.slice(i, i + 3).map(t => {
+    for (let i = 0; i < toUpdatePnl.length; i += 2) {
+        await Promise.all(toUpdatePnl.slice(i, i + 2).map(t => {
             const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
             return base44.asServiceRole.entities.Trade.update(t.id, { pnl: eaTrade.pnl || 0 });
         }));
