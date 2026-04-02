@@ -1,0 +1,106 @@
+{
+  "name": "Trade",
+  "type": "object",
+  "properties": {
+    "pair": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "BUY",
+        "SELL"
+      ]
+    },
+    "lot_size": {
+      "type": "number"
+    },
+    "open_price": {
+      "type": "number"
+    },
+    "close_price": {
+      "type": "number"
+    },
+    "pnl": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "CLOSED"
+      ],
+      "default": "OPEN"
+    },
+    "is_auto": {
+      "type": "boolean",
+      "default": true
+    },
+    "bot_id": {
+      "type": "string",
+      "description": "ID of the bot that executed this trade"
+    },
+    "ticket": {
+      "type": "number",
+      "description": "MT4/MT5 Order Ticket Number"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the user who owns this trade (for MT4/MT5 sync)"
+    }
+  },
+  "required": [
+    "pair",
+    "type",
+    "lot_size",
+    "open_price"
+  ],
+  "rls": {
+    "create": {},
+    "read": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

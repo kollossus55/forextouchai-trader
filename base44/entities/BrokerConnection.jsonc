@@ -1,0 +1,113 @@
+{
+  "name": "BrokerConnection",
+  "type": "object",
+  "properties": {
+    "platform": {
+      "type": "string",
+      "enum": [
+        "MT4",
+        "MT5"
+      ],
+      "default": "MT4"
+    },
+    "server_name": {
+      "type": "string",
+      "description": "Broker server name"
+    },
+    "account_number": {
+      "type": "string"
+    },
+    "password": {
+      "type": "string",
+      "description": "Trading account password (stored securely)"
+    },
+    "api_key": {
+      "type": "string",
+      "description": "Optional: Bridge provider API Key for added security"
+    },
+    "connection_status": {
+      "type": "string",
+      "enum": [
+        "CONNECTED",
+        "DISCONNECTED",
+        "ERROR"
+      ],
+      "default": "DISCONNECTED"
+    },
+    "last_sync": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "balance": {
+      "type": "number",
+      "default": 0
+    },
+    "equity": {
+      "type": "number",
+      "default": 0
+    },
+    "margin": {
+      "type": "number",
+      "default": 0
+    },
+    "free_margin": {
+      "type": "number",
+      "default": 0
+    },
+    "margin_level": {
+      "type": "number",
+      "default": 0
+    },
+    "leverage": {
+      "type": "string",
+      "default": "1:100"
+    },
+    "currency": {
+      "type": "string",
+      "default": "USD"
+    }
+  },
+  "required": [
+    "server_name",
+    "account_number"
+  ],
+  "rls": {
+    "create": {},
+    "read": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
