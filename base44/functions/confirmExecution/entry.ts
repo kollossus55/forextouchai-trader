@@ -1,7 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 Deno.serve(async (req) => {
-    // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         return new Response(null, {
             headers: {
@@ -16,49 +15,48 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
 
         const body = await req.json();
-        const { signal_id, ticket, open_price, lot_size, pair, type, account_number } = body;
+        // Support both open_price and price (EA may send either)
+        const { signal_id, ticket, pair, type, account_number, lot_size } = body;
+        const open_price = body.open_price || body.price || 0;
 
-        console.log('[CONFIRM] Received execution confirmation:', { signal_id, ticket, pair, type });
+        console.log('[CONFIRM] Received execution confirmation:', { signal_id, ticket, pair, type, open_price });
 
-        if (!signal_id || !ticket || !open_price) {
-            return Response.json({ error: 'signal_id, ticket, and open_price are required' }, {
+        if (!signal_id || !ticket) {
+            return Response.json({ error: 'signal_id and ticket are required' }, {
                 status: 400,
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-        // Update the signal to ACTIVE
-        await base44.asServiceRole.entities.Signal.update(signal_id, {
-            status: 'ACTIVE',
-        });
+        // Fetch signal and broker connection in parallel (all via service role — EA has no user token)
+        const [signals, connections] = await Promise.all([
+            base44.asServiceRole.entities.Signal.filter({ id: signal_id }),
+            account_number
+                ? base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) })
+                : Promise.resolve([]),
+        ]);
 
-        // Find the owner of the signal
-        const signals = await base44.asServiceRole.entities.Signal.filter({ id: signal_id });
         const signal = signals?.[0];
+        const ownerEmail = connections?.[0]?.created_by || signal?.created_by || null;
 
-        // Find the broker connection to get owner email
-        let ownerEmail = signal?.created_by || null;
-        if (account_number) {
-            const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
-            if (connections?.length > 0) {
-                ownerEmail = connections[0].created_by || ownerEmail;
-            }
-        }
+        // Update signal status + create trade record in parallel
+        await Promise.all([
+            base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' }),
+            base44.asServiceRole.entities.Trade.create({
+                pair: pair || signal?.pair,
+                type: type || signal?.type,
+                lot_size: lot_size || signal?.lot_size || 0.1,
+                open_price: open_price,
+                status: 'OPEN',
+                ticket: ticket,
+                pnl: 0,
+                is_auto: true,
+                bot_id: signal?.bot_id || null,
+                owner_email: ownerEmail,
+            }),
+        ]);
 
-        // Create a Trade record for tracking
-        await base44.asServiceRole.entities.Trade.create({
-            pair: pair || signal?.pair,
-            type: type || signal?.type,
-            lot_size: lot_size || signal?.lot_size || 0.1,
-            open_price: open_price,
-            status: 'OPEN',
-            ticket: ticket,
-            pnl: 0,
-            is_auto: false,
-            owner_email: ownerEmail,
-        });
-
-        console.log('[CONFIRM] Trade created for ticket:', ticket, 'signal:', signal_id);
+        console.log('[CONFIRM] Trade created for ticket:', ticket, 'signal:', signal_id, 'owner:', ownerEmail);
 
         return Response.json({
             success: true,
