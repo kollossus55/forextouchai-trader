@@ -27,9 +27,9 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ColoredSlider } from '@/components/ui/colored-slider';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import SignalCard from '@/components/dashboard/SignalCard';
 import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
+import RunningTradesSummary from '@/components/dashboard/RunningTradesSummary';
 
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -693,93 +693,23 @@ export default function Overview() {
           
 
 
-          <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-emerald-400" /> Running Trades
-                </CardTitle>
-                <CardDescription className="text-slate-400">Active market positions</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const toastId = toast.loading('Waiting for MT4 sync...');
-                    try {
-                      // Wait 6 seconds for EA to push latest data to bridge
-                      await new Promise(resolve => setTimeout(resolve, 6000));
-                      
-                      // Force complete cache clear
-                      queryClient.removeQueries(['trades-home']);
-                      
-                      // Fetch completely fresh data directly from database
-                      const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
-                      console.log('[REFRESH] Fresh trades from DB:', freshTrades.length, freshTrades);
-                      
-                      // Update cache with fresh data
-                      queryClient.setQueryData(['trades-home'], freshTrades);
-                      
-                      const count = freshTrades.length;
-                      toast.success(`Synced - ${count} open trade${count !== 1 ? 's' : ''}`, { id: toastId });
-                    } catch (e) {
-                      console.error('Sync error:', e);
-                      toast.error('Sync failed: ' + e.message, { id: toastId });
-                    }
-                  }}
-                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </Button>
-                <Badge variant="outline" className="border-blue-500/30 text-blue-400 bg-blue-500/10">
-                  {trades.length} Open
-                </Badge>
-                {activeConnection?.last_sync && (
-                  <span className="text-[10px] text-slate-500">
-                    EA: {Math.floor((Date.now() - new Date(activeConnection.last_sync).getTime()) / 1000)}s ago
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-slate-950/50">
-                  <TableRow className="border-slate-800 hover:bg-slate-900/50">
-                    <TableHead className="text-slate-400 h-10">Symbol</TableHead>
-                    <TableHead className="text-slate-400 h-10">Type</TableHead>
-                    <TableHead className="text-slate-400 h-10">Price</TableHead>
-                    <TableHead className="text-slate-400 h-10 text-right">Profit</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {trades.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-slate-500">
-                        No active trades running
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    trades.map((trade) => (
-                      <TableRow key={trade.id} className="border-slate-800 hover:bg-slate-800/30">
-                        <TableCell className="font-medium text-slate-200">{trade.pair}</TableCell>
-                        <TableCell>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${trade.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                            {trade.type}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-slate-300 text-sm">{trade.open_price}</TableCell>
-                        <TableCell className={`text-right font-medium ${(trade.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {(trade.pnl || 0) >= 0 ? '+' : ''}{(trade.pnl || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <RunningTradesSummary
+            trades={trades}
+            connections={connections || []}
+            lastSync={activeConnection?.last_sync}
+            onRefresh={async () => {
+              const toastId = toast.loading('Waiting for MT4 sync...');
+              try {
+                await new Promise(resolve => setTimeout(resolve, 6000));
+                queryClient.removeQueries(['trades-home']);
+                const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
+                queryClient.setQueryData(['trades-home'], freshTrades);
+                toast.success(`Synced - ${freshTrades.length} open trade${freshTrades.length !== 1 ? 's' : ''}`, { id: toastId });
+              } catch (e) {
+                toast.error('Sync failed: ' + e.message, { id: toastId });
+              }
+            }}
+          />
 
           {/* Market News */}
           <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
