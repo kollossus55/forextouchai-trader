@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { Activity, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function RunningTradesSummary({ trades, connections, onRefresh, lastSync }) {
+  const [collapsed, setCollapsed] = useState({});
   // Group trades by owner_email (each account)
   const accountMap = {};
   for (const trade of trades) {
@@ -83,10 +84,14 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                 pairSummary[t.pair].pnl += t.pnl || 0;
               }
 
+              const isCollapsed = collapsed[ownerEmail];
               return (
                 <div key={ownerEmail} className="border border-slate-700/50 rounded-xl overflow-hidden">
-                  {/* Account header */}
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800/50 border-b border-slate-700/40">
+                  {/* Account header — clickable to toggle */}
+                  <button
+                    onClick={() => setCollapsed(prev => ({ ...prev, [ownerEmail]: !prev[ownerEmail] }))}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-800/50 border-b border-slate-700/40 hover:bg-slate-800/70 transition-colors"
+                  >
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${conn?.connection_status === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></div>
                       <span className="text-sm font-semibold text-slate-200">
@@ -104,11 +109,12 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                         {accountPnl >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                         {accountPnl >= 0 ? '+' : ''}${accountPnl.toFixed(2)}
                       </span>
+                      {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Pair rows */}
-                  <div className="divide-y divide-slate-800/50">
+                  {/* Pair rows — hidden when collapsed */}
+                  {!isCollapsed && <div className="divide-y divide-slate-800/50">
                     {Object.entries(pairSummary).map(([pair, info]) => (
                       <div key={pair} className="flex items-center justify-between px-4 py-2 hover:bg-slate-800/20 transition-colors">
                         <div className="flex items-center gap-2">
@@ -131,7 +137,7 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                         </span>
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               );
             })}
