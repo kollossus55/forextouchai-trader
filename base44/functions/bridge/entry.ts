@@ -186,12 +186,8 @@ Deno.serve(async (req) => {
             };
         });
 
-        // Mark as ACTIVE (fire-and-forget)
-        if (sanitizedSignals.length > 0) {
-            Promise.all(sanitizedSignals.map(s =>
-                base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
-            )).catch(e => console.error('[BRIDGE] Mark active error:', e.message));
-        }
+        // NOTE: Do NOT mark signals as ACTIVE here — only confirmExecution does that
+        // This ensures ALL connected EAs (MT4 + MT5) can receive the same pending signals
 
         console.log('[BRIDGE] Returning', sanitizedSignals.length, 'signals to EA');
 
