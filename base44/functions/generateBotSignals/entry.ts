@@ -126,10 +126,12 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
         for (const [ownerEmail, ownerBots] of Object.entries(botsByOwner)) {
             // Per-user risk settings
             const riskSettings = riskByOwner[ownerEmail] || {};
-            if (riskSettings.is_trading_paused) {
+            // Explicitly check for boolean true to avoid string/number coercion issues
+            if (riskSettings.is_trading_paused === true) {
                 console.log(`[generateBotSignals] Trading paused for ${ownerEmail} — skipping`);
                 continue;
             }
+
 
             // Only this user's open trades and pending signals
             const userOpenTrades = openTrades.filter(t => t.owner_email === ownerEmail || t.created_by === ownerEmail);
