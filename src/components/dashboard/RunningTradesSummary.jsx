@@ -16,14 +16,18 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
       return { [key]: trades };
     }
 
-    // Multiple accounts — group by ticket presence or owner_email
+    // Multiple accounts — group by account_number stored in owner_email field
     const map = {};
     for (const conn of connections) {
       map[conn.id] = [];
     }
     for (const trade of trades) {
-      // Try to match by owner_email -> connection created_by
-      const matchedConn = connections.find(c => c.created_by === trade.owner_email || c.created_by === trade.created_by);
+      // owner_email holds the account_number string set by the bridge
+      const matchedConn = connections.find(c =>
+        c.account_number === trade.owner_email ||
+        c.created_by === trade.owner_email ||
+        c.created_by === trade.created_by
+      );
       const key = matchedConn?.id || connections[0]?.id || 'default';
       if (!map[key]) map[key] = [];
       map[key].push(trade);

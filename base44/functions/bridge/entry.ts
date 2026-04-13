@@ -261,6 +261,7 @@ async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
                     status: 'OPEN',
                     ticket: t.ticket,
                     is_auto: true,
+                    owner_email: account_number, // store account_number so UI can group trades per broker
                 })
             ));
         }
