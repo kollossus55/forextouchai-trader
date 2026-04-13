@@ -73,7 +73,6 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         martingale_multiplier: initialData.martingale_multiplier || 2.0
       });
     } else {
-      // Reset to defaults for new bot
       setFormData({
         name: '',
         strategy_type: 'AI_PREDICTIVE',
@@ -108,16 +107,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         const { data } = await base44.functions.invoke('optimizeStrategy', {
             strategyType: formData.strategy_type,
             currentParams: formData,
-            // In a real app, we might pass specific historical data here
         });
-
         if (data && data.suggested_params) {
-            setFormData(prev => ({
-                ...prev,
-                ...data.suggested_params
-            }));
-            // Show toast or alert with reasoning
-            // alert(`Optimization applied: ${data.suggested_params.reasoning}`); 
+            setFormData(prev => ({ ...prev, ...data.suggested_params }));
         }
     } catch (e) {
         console.error("Optimization failed", e);
@@ -136,7 +128,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
       <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            {initialData ? <Settings className="w-5 h-5 text-emerald-500" /> : <Settings className="w-5 h-5 text-emerald-500" />}
+            <Settings className="w-5 h-5 text-emerald-500" />
             {initialData ? 'Edit Bot Configuration' : 'Create New Trading Bot'}
           </DialogTitle>
         </DialogHeader>
@@ -229,6 +221,32 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label>Active Pairs</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-md max-h-40 overflow-y-auto">
+                  {uniquePairs.map(pair => (
+                    <Badge
+                      key={pair.id}
+                      variant="outline"
+                      className={`cursor-pointer transition-all select-none ${formData.pairs.includes(pair.symbol)
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30'
+                        : 'text-slate-400 border-slate-700 hover:text-slate-200 hover:border-slate-500'}`}
+                      onClick={() => {
+                        const current = formData.pairs;
+                        if (current.includes(pair.symbol)) {
+                          setFormData({...formData, pairs: current.filter(p => p !== pair.symbol)});
+                        } else {
+                          setFormData({...formData, pairs: [...current, pair.symbol]});
+                        }
+                      }}
+                    >
+                      {pair.symbol}
+                    </Badge>
+                  ))}
+                  {uniquePairs.length === 0 && <span className="text-xs text-slate-500">No pairs available. Please check Pairs tab.</span>}
+                </div>
+                <p className="text-[10px] text-slate-500">Select which currency pairs this bot should trade.</p>
+              </div>
             </TabsContent>
 
             {/* Risk Tab */}
