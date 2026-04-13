@@ -1,4 +1,23 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// In-memory cache to reduce DB calls and avoid rate limits
+const cache = {
+    signals: { data: null, ts: 0 },
+    trades: { data: null, ts: 0 },
+    risk: { data: null, ts: 0 },
+    connections: {},  // keyed by account_number, { data, ts }
+};
+
+const CACHE_TTL = {
+    signals: 15000,   // 15s — signals change infrequently
+    trades: 30000,    // 30s — trades change infrequently
+    risk: 60000,      // 60s — risk settings rarely change
+    connection: 8000, // 8s — always update connection heartbeat
+};
+
+function isFresh(entry, ttl) {
+    return entry.data !== null && (Date.now() - entry.ts) < ttl;
+}
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -34,7 +53,7 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Build live price map from EA heartbeat FIRST — used for SL/TP validation
+        // Build live price map from EA heartbeat
         const eaPrices = body.prices || accountData.prices;
         const livePriceMap = {};
         if (Array.isArray(eaPrices)) {
@@ -42,7 +61,6 @@ Deno.serve(async (req) => {
                 if (p.symbol && p.bid > 0) {
                     livePriceMap[p.symbol] = p.bid;
                     livePriceMap[p.symbol.replace('/', '')] = p.bid;
-                    // Also store ask for BUY trades
                     if (p.ask > 0) {
                         livePriceMap[p.symbol + '_ask'] = p.ask;
                         livePriceMap[p.symbol.replace('/', '') + '_ask'] = p.ask;
@@ -51,7 +69,8 @@ Deno.serve(async (req) => {
             }
         }
 
-        // --- 1. Update broker connection (fast, always needed) ---
+        // --- 1. Update broker connection (throttled per account) ---
+        const connCache = cache.connections[account_number] || { data: null, ts: 0 };
         const updateData = {
             connection_status: 'CONNECTED',
             last_sync: new Date().toISOString(),
@@ -66,44 +85,77 @@ Deno.serve(async (req) => {
         if (platform) updateData.platform = platform;
         if (server_name) updateData.server_name = server_name;
 
-        const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
-        if (connections && connections.length > 0) {
-            await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData);
-        } else {
-            await base44.asServiceRole.entities.BrokerConnection.create({
-                ...updateData,
-                account_number: String(account_number),
-                server_name: server_name || 'Unknown',
-                platform: platform || 'MT4',
-            });
+        // Always update connection (fire-and-forget to avoid blocking)
+        if (!isFresh(connCache, CACHE_TTL.connection)) {
+            cache.connections[account_number] = { data: true, ts: now };
+            (async () => {
+                const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) });
+                if (connections && connections.length > 0) {
+                    await base44.asServiceRole.entities.BrokerConnection.update(connections[0].id, updateData);
+                } else {
+                    await base44.asServiceRole.entities.BrokerConnection.create({
+                        ...updateData,
+                        account_number: String(account_number),
+                        server_name: server_name || 'Unknown',
+                        platform: platform || 'MT4',
+                    });
+                }
+            })().catch(e => console.error('[BRIDGE] Connection update error:', e.message));
         }
 
-        // --- 2. Fetch pending signals + open trades in parallel (critical path) ---
+        // --- 2. Fetch signals, trades, risk from cache ---
+        const fetchPromises = [];
+        let signalsPromise, tradesPromise, riskPromise;
+
+        if (!isFresh(cache.signals, CACHE_TTL.signals)) {
+            signalsPromise = base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 20)
+                .then(data => { cache.signals = { data, ts: now }; return data; });
+            fetchPromises.push(signalsPromise);
+        } else {
+            signalsPromise = Promise.resolve(cache.signals.data);
+        }
+
+        if (!isFresh(cache.trades, CACHE_TTL.trades)) {
+            tradesPromise = base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' })
+                .then(data => { cache.trades = { data, ts: now }; return data; });
+            fetchPromises.push(tradesPromise);
+        } else {
+            tradesPromise = Promise.resolve(cache.trades.data);
+        }
+
+        if (!isFresh(cache.risk, CACHE_TTL.risk)) {
+            riskPromise = base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1)
+                .then(data => { cache.risk = { data, ts: now }; return data; });
+            fetchPromises.push(riskPromise);
+        } else {
+            riskPromise = Promise.resolve(cache.risk.data);
+        }
+
         const [allPendingSignals, dbOpenTrades, riskSettingsList] = await Promise.all([
-            base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 20),
-            base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }),
-            base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1),
+            signalsPromise, tradesPromise, riskPromise
         ]);
 
-        // --- 3. Reconcile trades (throttled: every 30s) ---
+        // --- 3. Reconcile trades (throttled: every 30s, fire-and-forget) ---
         const eaTrades = body.trades || accountData.trades;
         const lastReconcile = body.last_reconcile || 0;
         const shouldReconcile = (now - lastReconcile) > 30000;
         if (shouldReconcile && Array.isArray(eaTrades)) {
-            reconcileTrades(base44, eaTrades, dbOpenTrades, account_number, connections).catch(e =>
-                console.error('[BRIDGE] Trade reconcile error:', e.message)
-            );
+            // Invalidate cache after reconcile
+            reconcileTrades(base44, eaTrades, dbOpenTrades, account_number).then(() => {
+                cache.trades = { data: null, ts: 0 };
+            }).catch(e => console.error('[BRIDGE] Trade reconcile error:', e.message));
         }
 
-        // --- 4. Update currency pair prices (throttled: every 60s) ---
-        const shouldUpdatePrices = !body.last_price_update || (now - body.last_price_update) > 60000;
+        // --- 4. Update currency pair prices (throttled: every 60s, fire-and-forget) ---
+        const lastPriceUpdate = body.last_price_update || 0;
+        const shouldUpdatePrices = (now - lastPriceUpdate) > 60000;
         if (shouldUpdatePrices && Array.isArray(eaPrices) && eaPrices.length > 0) {
             updateCurrencyPrices(base44, eaPrices).catch(e =>
                 console.error('[BRIDGE] Price update error:', e.message)
             );
         }
 
-        // --- 5. Check risk/daily profit target (throttled: every 60s) ---
+        // --- 5. Check risk/daily profit target (throttled: every 60s, fire-and-forget) ---
         const riskSettings = riskSettingsList?.[0];
         const lastRiskCheck = body.last_risk_check || 0;
         const shouldCheckRisk = (now - lastRiskCheck) > 60000;
@@ -117,21 +169,21 @@ Deno.serve(async (req) => {
         const fiveMinutesAgo = new Date(now - 5 * 60 * 1000).toISOString();
 
         // Expire stale pending signals (fire-and-forget)
-        const stalePending = allPendingSignals.filter(s => s.created_date < fiveMinutesAgo);
+        const stalePending = (allPendingSignals || []).filter(s => s.created_date < fiveMinutesAgo);
         if (stalePending.length > 0) {
             Promise.all(stalePending.map(s =>
                 base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
-            )).catch(e => console.error('[BRIDGE] Expire error:', e.message));
+            )).then(() => {
+                cache.signals = { data: null, ts: 0 }; // invalidate
+            }).catch(e => console.error('[BRIDGE] Expire error:', e.message));
         }
 
-        const freshSignals = allPendingSignals.filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
+        const freshSignals = (allPendingSignals || []).filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
 
-        // Sanitize SL/TP using LIVE price from EA (not signal entry_price)
+        // Sanitize SL/TP using live price from EA
         const sanitizedSignals = freshSignals.map(s => {
             const pair = (s.pair || '').replace('/', '');
             const type = s.type;
-
-            // Use live EA price as reference — most accurate for validation
             const liveAsk = livePriceMap[pair + '_ask'] || livePriceMap[pair] || 0;
             const liveBid = livePriceMap[pair] || 0;
             const refPrice = type === 'BUY' ? (liveAsk || liveBid) : liveBid;
@@ -140,37 +192,19 @@ Deno.serve(async (req) => {
             let safeTP = s.take_profit || 0;
 
             if (refPrice > 0) {
-                // Validate SL direction
                 if (safeSL > 0) {
-                    if (type === 'BUY' && safeSL >= refPrice) {
-                        console.log(`[BRIDGE] Invalid BUY SL zeroed for ${pair}: SL=${safeSL} >= price=${refPrice}`);
-                        safeSL = 0;
-                    }
-                    if (type === 'SELL' && safeSL <= refPrice) {
-                        console.log(`[BRIDGE] Invalid SELL SL zeroed for ${pair}: SL=${safeSL} <= price=${refPrice}`);
-                        safeSL = 0;
-                    }
+                    if (type === 'BUY' && safeSL >= refPrice) safeSL = 0;
+                    if (type === 'SELL' && safeSL <= refPrice) safeSL = 0;
                 }
-                // Validate TP direction
                 if (safeTP > 0) {
-                    if (type === 'BUY' && safeTP <= refPrice) {
-                        console.log(`[BRIDGE] Invalid BUY TP zeroed for ${pair}: TP=${safeTP} <= price=${refPrice}`);
-                        safeTP = 0;
-                    }
-                    if (type === 'SELL' && safeTP >= refPrice) {
-                        console.log(`[BRIDGE] Invalid SELL TP zeroed for ${pair}: TP=${safeTP} >= price=${refPrice}`);
-                        safeTP = 0;
-                    }
+                    if (type === 'BUY' && safeTP <= refPrice) safeTP = 0;
+                    if (type === 'SELL' && safeTP >= refPrice) safeTP = 0;
                 }
-
-                // If SL/TP still set, cross-check they don't conflict with each other
                 if (safeSL > 0 && safeTP > 0) {
                     if (type === 'BUY' && safeSL >= safeTP) { safeSL = 0; safeTP = 0; }
                     if (type === 'SELL' && safeSL <= safeTP) { safeSL = 0; safeTP = 0; }
                 }
             } else {
-                // No live price available — zero out SL/TP to avoid Error 130
-                console.log(`[BRIDGE] No live price for ${pair} — zeroing SL/TP to be safe`);
                 safeSL = 0;
                 safeTP = 0;
             }
@@ -186,9 +220,6 @@ Deno.serve(async (req) => {
             };
         });
 
-        // NOTE: Do NOT mark signals as ACTIVE here — only confirmExecution does that
-        // This ensures ALL connected EAs (MT4 + MT5) can receive the same pending signals
-
         console.log('[BRIDGE] Returning', sanitizedSignals.length, 'signals to EA');
 
         return Response.json({
@@ -196,7 +227,7 @@ Deno.serve(async (req) => {
             message: 'Sync successful',
             account: account_number,
             timestamp: new Date().toISOString(),
-            price_update_ts: shouldUpdatePrices ? now : (body.last_price_update || now),
+            price_update_ts: shouldUpdatePrices ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
             last_risk_check: shouldCheckRisk ? now : lastRiskCheck,
             pending_signals: sanitizedSignals,
@@ -213,65 +244,61 @@ Deno.serve(async (req) => {
     }
 });
 
-// --- Helper: Reconcile trades (runs async, doesn't block response) ---
-async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number, connections) {
+async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
     const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
     const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
-    // Create new trades from EA
     const newEaTrades = eaTrades.filter(t => t.ticket && !!(t.pair || t.symbol) && !dbTickets.has(t.ticket));
     if (newEaTrades.length > 0) {
-        const ownerEmail = connections?.[0]?.created_by || null;
-        await Promise.all(newEaTrades.map(t =>
-            base44.asServiceRole.entities.Trade.create({
-                pair: t.pair || t.symbol,
-                type: t.type || 'BUY',
-                lot_size: t.lot_size || t.lots || 0.1,
-                open_price: t.open_price || t.price || 0,
-                pnl: t.pnl || t.profit || 0,
-                status: 'OPEN',
-                ticket: t.ticket,
-                is_auto: true,
-                owner_email: ownerEmail,
-            })
-        ));
+        for (let i = 0; i < newEaTrades.length; i += 3) {
+            await Promise.all(newEaTrades.slice(i, i + 3).map(t =>
+                base44.asServiceRole.entities.Trade.create({
+                    pair: t.pair || t.symbol,
+                    type: t.type || 'BUY',
+                    lot_size: t.lot_size || t.lots || 0.1,
+                    open_price: t.open_price || t.price || 0,
+                    pnl: t.pnl || t.profit || 0,
+                    status: 'OPEN',
+                    ticket: t.ticket,
+                    is_auto: true,
+                })
+            ));
+        }
         console.log('[BRIDGE] Created', newEaTrades.length, 'new trades');
     }
 
-    // Update PnL on existing open trades (only if changed > $0.10)
     const toUpdatePnl = dbOpenTrades.filter(t => {
         if (!t.ticket || !eaTicketSet.has(t.ticket)) return false;
         const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
         if (!eaTrade) return false;
         return Math.abs((t.pnl || 0) - (eaTrade.pnl || 0)) > 0.10;
     });
-    for (let i = 0; i < toUpdatePnl.length; i += 2) {
-        await Promise.all(toUpdatePnl.slice(i, i + 2).map(t => {
+    for (let i = 0; i < toUpdatePnl.length; i += 3) {
+        await Promise.all(toUpdatePnl.slice(i, i + 3).map(t => {
             const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
             return base44.asServiceRole.entities.Trade.update(t.id, { pnl: eaTrade.pnl || 0 });
         }));
     }
 
-    // Close DB trades no longer in EA
     const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
     if (closedTrades.length > 0) {
-        await Promise.all(closedTrades.map(t => {
-            const finalPnl = t.pnl || 0;
-            const pipValue = (t.open_price > 10) ? 0.001 : 0.0001;
-            const lotMultiplier = (t.lot_size || 0.1) * 100000;
-            const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
-            const closePrice = t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove;
-            return base44.asServiceRole.entities.Trade.update(t.id, {
-                status: 'CLOSED',
-                close_price: parseFloat(closePrice.toFixed(5)),
-                pnl: finalPnl
-            });
-        }));
+        for (let i = 0; i < closedTrades.length; i += 3) {
+            await Promise.all(closedTrades.slice(i, i + 3).map(t => {
+                const finalPnl = t.pnl || 0;
+                const lotMultiplier = (t.lot_size || 0.1) * 100000;
+                const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
+                const closePrice = t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove;
+                return base44.asServiceRole.entities.Trade.update(t.id, {
+                    status: 'CLOSED',
+                    close_price: parseFloat(closePrice.toFixed(5)),
+                    pnl: finalPnl
+                });
+            }));
+        }
         console.log('[BRIDGE] Closed', closedTrades.length, 'trades');
     }
 }
 
-// --- Helper: Update currency pair prices (runs async, doesn't block response) ---
 async function updateCurrencyPrices(base44, eaPrices) {
     const existingPairs = await base44.asServiceRole.entities.CurrencyPair.list('-created_date', 100);
     const pairMap = {};
@@ -294,13 +321,12 @@ async function updateCurrencyPrices(base44, eaPrices) {
         }
     }
 
-    for (let i = 0; i < ops.length; i += 10) {
-        await Promise.all(ops.slice(i, i + 10));
+    for (let i = 0; i < ops.length; i += 5) {
+        await Promise.all(ops.slice(i, i + 5));
     }
     console.log('[BRIDGE] Updated', ops.length, 'currency pair prices');
 }
 
-// --- Helper: Check daily profit target ---
 async function checkDailyProfitTarget(base44, riskSettings, balance, openTrades) {
     const today = new Date().toISOString().split('T')[0];
     const closedToday = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' });
@@ -312,8 +338,12 @@ async function checkDailyProfitTarget(base44, riskSettings, balance, openTrades)
 
     if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
         console.log(`[BRIDGE] Daily profit target reached: ${dailyProfitPercent.toFixed(2)}%`);
+        for (let i = 0; i < openTrades.length; i += 3) {
+            await Promise.all(openTrades.slice(i, i + 3).map(t =>
+                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
+            ));
+        }
         await Promise.all([
-            ...openTrades.map(t => base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })),
             base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true }),
             base44.asServiceRole.entities.Alert.create({
                 title: '🎯 Daily Profit Target Reached!',
