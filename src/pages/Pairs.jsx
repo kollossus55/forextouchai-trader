@@ -301,8 +301,7 @@ export default function Pairs() {
     const minorForex = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'AUDJPY', 'GBPCHF', 'EURAUD', 'EURCAD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPNZD', 'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'CADJPY', 'CHFJPY', 'NZDCAD', 'NZDCHF', 'NZDJPY'];
     if (majorForex.includes(sym)) return 'MAJOR';
     if (minorForex.includes(sym)) return 'MINOR';
-    // Non-forex instruments (indices, metals, crypto) go to MINOR
-    return 'MINOR';
+    return null; // Non-forex — exclude
   };
 
   // Merge Live Data with Static Data
@@ -330,6 +329,7 @@ export default function Pairs() {
   }, []);
 
   const filteredPairs = uniquePairs.filter(pair => 
+    getCategory(pair) !== null &&
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
