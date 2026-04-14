@@ -1,4 +1,19 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// Retry helper for rate-limited operations
+async function withRetry(fn, retries = 3, delayMs = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (err) {
+            if (err.message?.includes('Rate limit') && i < retries - 1) {
+                await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+            } else {
+                throw err;
+            }
+        }
+    }
+}
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -43,33 +58,31 @@ Deno.serve(async (req) => {
         const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
 
         // Check if trade with this ticket already exists to prevent duplicates
-        const existingTrades = await base44.asServiceRole.entities.Trade.filter({ ticket: ticket });
+        const existingTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ ticket: ticket }));
         if (existingTrades && existingTrades.length > 0) {
             console.log('[CONFIRM] Trade already exists for ticket:', ticket, '- skipping duplicate');
-            await base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' });
+            await withRetry(() => base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' }));
             return Response.json({ success: true, message: 'Already confirmed', ticket }, {
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-        // Update signal status + create trade record in parallel
-        await Promise.all([
-            base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' }),
-            base44.asServiceRole.entities.Trade.create({
-                pair: pair || signal?.pair,
-                type: type || signal?.type,
-                lot_size: lot_size || signal?.lot_size || 0.1,
-                open_price: open_price,
-                status: 'OPEN',
-                ticket: ticket,
-                pnl: 0,
-                is_auto: true,
-                bot_id: signal?.bot_id || null,
-                owner_email: tradeOwner,
-            }),
-        ]);
+        // Update signal status + create trade record sequentially to avoid rate limits
+        await withRetry(() => base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' }));
+        await withRetry(() => base44.asServiceRole.entities.Trade.create({
+            pair: pair || signal?.pair,
+            type: type || signal?.type,
+            lot_size: lot_size || signal?.lot_size || 0.1,
+            open_price: open_price,
+            status: 'OPEN',
+            ticket: ticket,
+            pnl: 0,
+            is_auto: true,
+            bot_id: signal?.bot_id || null,
+            owner_email: tradeOwner,
+        }));
 
-        console.log('[CONFIRM] Trade created for ticket:', ticket, 'signal:', signal_id, 'owner:', ownerEmail);
+        console.log('[CONFIRM] Trade created for ticket:', ticket, 'signal:', signal_id, 'owner:', tradeOwner);
 
         return Response.json({
             success: true,
