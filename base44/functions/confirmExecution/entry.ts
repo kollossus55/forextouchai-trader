@@ -37,7 +37,20 @@ Deno.serve(async (req) => {
         ]);
 
         const signal = signals?.[0];
-        const ownerEmail = connections?.[0]?.created_by || signal?.created_by || null;
+        // Use account_number as owner_email (matches bridge reconciliation key)
+        // Fall back to connection's account_number, then signal owner
+        const connAccountNumber = connections?.[0]?.account_number;
+        const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
+
+        // Check if trade with this ticket already exists to prevent duplicates
+        const existingTrades = await base44.asServiceRole.entities.Trade.filter({ ticket: ticket });
+        if (existingTrades && existingTrades.length > 0) {
+            console.log('[CONFIRM] Trade already exists for ticket:', ticket, '- skipping duplicate');
+            await base44.asServiceRole.entities.Signal.update(signal_id, { status: 'ACTIVE' });
+            return Response.json({ success: true, message: 'Already confirmed', ticket }, {
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
 
         // Update signal status + create trade record in parallel
         await Promise.all([
@@ -52,7 +65,7 @@ Deno.serve(async (req) => {
                 pnl: 0,
                 is_auto: true,
                 bot_id: signal?.bot_id || null,
-                owner_email: ownerEmail,
+                owner_email: tradeOwner,
             }),
         ]);
 
