@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // In-memory cache to reduce DB calls and avoid rate limits
 const cache = {
     signals: { data: null, ts: 0 },
-    trades: { data: null, ts: 0 },
+    trades: {},       // keyed by account_number, { data, ts }
     risk: { data: null, ts: 0 },
     connections: {},  // keyed by account_number, { data, ts }
 };
@@ -115,12 +115,13 @@ Deno.serve(async (req) => {
             signalsPromise = Promise.resolve(cache.signals.data);
         }
 
-        if (!isFresh(cache.trades, CACHE_TTL.trades)) {
-            tradesPromise = base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' })
-                .then(data => { cache.trades = { data, ts: now }; return data; });
+        const tradeCache = cache.trades[account_number] || { data: null, ts: 0 };
+        if (!isFresh(tradeCache, CACHE_TTL.trades)) {
+            tradesPromise = base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: String(account_number) })
+                .then(data => { cache.trades[account_number] = { data, ts: now }; return data; });
             fetchPromises.push(tradesPromise);
         } else {
-            tradesPromise = Promise.resolve(cache.trades.data);
+            tradesPromise = Promise.resolve(tradeCache.data);
         }
 
         if (!isFresh(cache.risk, CACHE_TTL.risk)) {
@@ -140,9 +141,9 @@ Deno.serve(async (req) => {
         const lastReconcile = body.last_reconcile || 0;
         const shouldReconcile = (now - lastReconcile) > 30000;
         if (shouldReconcile && Array.isArray(eaTrades)) {
-            // Invalidate cache after reconcile
+            // Invalidate per-account cache after reconcile
             reconcileTrades(base44, eaTrades, dbOpenTrades, account_number).then(() => {
-                cache.trades = { data: null, ts: 0 };
+                cache.trades[account_number] = { data: null, ts: 0 };
             }).catch(e => console.error('[BRIDGE] Trade reconcile error:', e.message));
         }
 

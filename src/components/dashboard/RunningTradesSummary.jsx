@@ -10,27 +10,21 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
   // If multiple connections, group trades by connection (account)
   // Each connection gets its own block; trades without a ticket match go to a "General" bucket
   const buildAccountMap = () => {
-    if (connections.length <= 1) {
-      // Single account — show all trades under that one connection
-      const key = connections[0]?.id || 'default';
-      return { [key]: trades };
-    }
-
-    // Multiple accounts — group by account_number stored in owner_email field
+    // Always group by account_number (stored in owner_email by bridge)
     const map = {};
     for (const conn of connections) {
       map[conn.id] = [];
     }
     for (const trade of trades) {
-      // owner_email holds the account_number string set by the bridge
-      const matchedConn = connections.find(c =>
-        c.account_number === trade.owner_email ||
-        c.created_by === trade.owner_email ||
-        c.created_by === trade.created_by
-      );
+      // owner_email stores the account_number set by the bridge
+      const matchedConn = connections.find(c => c.account_number === trade.owner_email);
       const key = matchedConn?.id || connections[0]?.id || 'default';
       if (!map[key]) map[key] = [];
       map[key].push(trade);
+    }
+    // If no connections, fallback bucket
+    if (connections.length === 0 && trades.length > 0) {
+      return { default: trades };
     }
     return map;
   };
