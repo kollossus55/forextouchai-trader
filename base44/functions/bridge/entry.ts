@@ -8,11 +8,15 @@ const cache = {
     connections: {},  // keyed by account_number, { data, ts }
 };
 
+// Persistent in-memory ticket sets per account — survive rate limit failures
+// This is the primary guard against duplicate trade creation
+const knownTickets = {}; // keyed by account_number, Set of ticket numbers
+
 const CACHE_TTL = {
-    signals: 15000,   // 15s — signals change infrequently
-    trades: 30000,    // 30s — trades change infrequently
-    risk: 60000,      // 60s — risk settings rarely change
-    connection: 8000, // 8s — always update connection heartbeat
+    signals: 20000,   // 20s — signals change infrequently
+    trades: 60000,    // 60s — increased to reduce rate limit pressure
+    risk: 120000,     // 2min — risk settings rarely change
+    connection: 15000, // 15s — throttle connection heartbeat more
 };
 
 function isFresh(entry, ttl) {
@@ -261,17 +265,31 @@ Deno.serve(async (req) => {
 });
 
 async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
+    const acctKey = String(account_number);
     const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
-    // Always do a fresh DB query for existing tickets to prevent duplicates across cache misses
-    const existingOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: String(account_number) }, '-created_date', 500);
-    const dbTickets = new Set(existingOpenTrades.map(t => t.ticket).filter(Boolean));
+    // Initialize persistent ticket set for this account if not present
+    if (!knownTickets[acctKey]) knownTickets[acctKey] = new Set();
+    const memTickets = knownTickets[acctKey];
 
-    const newEaTrades = eaTrades.filter(t => t.ticket && !!(t.pair || t.symbol) && !dbTickets.has(t.ticket));
+    // Fetch fresh DB tickets — fall back to memory-only if rate limited
+    let existingOpenTrades = [];
+    try {
+        existingOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acctKey }, '-created_date', 500);
+        const dbTickets = new Set(existingOpenTrades.map(t => t.ticket).filter(Boolean));
+        // Merge DB tickets into memory set (keeps growing, preventing re-creation)
+        dbTickets.forEach(t => memTickets.add(t));
+    } catch (e) {
+        console.warn('[BRIDGE] DB fetch failed (rate limit?), using memory ticket set only:', e.message);
+    }
+
+    // Only create trades whose ticket is NOT in memory (DB-backed + in-flight guard)
+    const newEaTrades = eaTrades.filter(t => t.ticket && !!(t.pair || t.symbol) && !memTickets.has(t.ticket));
     if (newEaTrades.length > 0) {
         console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades for account', account_number);
         for (let i = 0; i < newEaTrades.length; i += 3) {
-            await Promise.all(newEaTrades.slice(i, i + 3).map(t =>
+            const batch = newEaTrades.slice(i, i + 3);
+            await Promise.all(batch.map(t =>
                 base44.asServiceRole.entities.Trade.create({
                     pair: t.pair || t.symbol,
                     type: t.type || 'BUY',
@@ -281,15 +299,23 @@ async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
                     status: 'OPEN',
                     ticket: t.ticket,
                     is_auto: true,
-                    owner_email: String(account_number),
+                    owner_email: acctKey,
+                }).then(created => {
+                    // Immediately add to memory set so concurrent requests don't re-create
+                    memTickets.add(t.ticket);
+                    return created;
                 })
             ));
         }
         console.log('[BRIDGE] Created', newEaTrades.length, 'new trades');
     }
 
-    // Use fresh DB data for the rest of reconciliation
+    // Also add all EA tickets to memory set (including ones already in DB)
+    eaTicketSet.forEach(t => memTickets.add(t));
+
+    // Use fresh DB data for PnL updates and close detection (skip if empty due to rate limit)
     const allDbTrades = existingOpenTrades;
+    if (allDbTrades.length === 0) return; // nothing to update/close if we couldn't fetch
 
     const toUpdatePnl = allDbTrades.filter(t => {
         if (!t.ticket || !eaTicketSet.has(t.ticket)) return false;
