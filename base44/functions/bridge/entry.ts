@@ -117,8 +117,17 @@ Deno.serve(async (req) => {
 
         const tradeCache = cache.trades[account_number] || { data: null, ts: 0 };
         if (!isFresh(tradeCache, CACHE_TTL.trades)) {
-            tradesPromise = base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: String(account_number) })
-                .then(data => { cache.trades[account_number] = { data, ts: now }; return data; });
+            // Fetch all OPEN trades and filter by account_number OR any ownership (catches legacy trades)
+            tradesPromise = base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200)
+                .then(data => {
+                    // Keep trades for this account (by account_number stored in owner_email) OR unmatched orphans
+                    const filtered = data.filter(t =>
+                        t.owner_email === String(account_number) ||
+                        !data.some(other => other.owner_email === String(account_number)) // include all if no account match yet
+                    );
+                    cache.trades[account_number] = { data: filtered, ts: now };
+                    return filtered;
+                });
             fetchPromises.push(tradesPromise);
         } else {
             tradesPromise = Promise.resolve(tradeCache.data);
