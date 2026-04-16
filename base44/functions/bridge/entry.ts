@@ -190,6 +190,17 @@ Deno.serve(async (req) => {
 
         const freshSignals = (allPendingSignals || []).filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
 
+        // Immediately mark dispatched signals as SKIPPED to prevent duplicate execution on other EAs
+        // This is fire-and-forget but happens before returning so the next EA won't get them
+        if (freshSignals.length > 0) {
+            freshSignals.forEach(s => {
+                base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
+                    .catch(e => console.error('[BRIDGE] Signal lock error:', e.message));
+            });
+            // Invalidate signals cache so next EA gets fresh state
+            cache.signals = { data: null, ts: 0 };
+        }
+
         // Sanitize SL/TP using live price from EA
         const sanitizedSignals = freshSignals.map(s => {
             const pair = (s.pair || '').replace('/', '');
@@ -255,11 +266,15 @@ Deno.serve(async (req) => {
 });
 
 async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
-    const dbTickets = new Set(dbOpenTrades.map(t => t.ticket).filter(Boolean));
     const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
+
+    // Always do a fresh DB query for existing tickets to prevent duplicates across cache misses
+    const existingOpenTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: String(account_number) }, '-created_date', 500);
+    const dbTickets = new Set(existingOpenTrades.map(t => t.ticket).filter(Boolean));
 
     const newEaTrades = eaTrades.filter(t => t.ticket && !!(t.pair || t.symbol) && !dbTickets.has(t.ticket));
     if (newEaTrades.length > 0) {
+        console.log('[BRIDGE] Creating', newEaTrades.length, 'new trades for account', account_number);
         for (let i = 0; i < newEaTrades.length; i += 3) {
             await Promise.all(newEaTrades.slice(i, i + 3).map(t =>
                 base44.asServiceRole.entities.Trade.create({
@@ -271,14 +286,17 @@ async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
                     status: 'OPEN',
                     ticket: t.ticket,
                     is_auto: true,
-                    owner_email: account_number, // store account_number so UI can group trades per broker
+                    owner_email: String(account_number),
                 })
             ));
         }
         console.log('[BRIDGE] Created', newEaTrades.length, 'new trades');
     }
 
-    const toUpdatePnl = dbOpenTrades.filter(t => {
+    // Use fresh DB data for the rest of reconciliation
+    const allDbTrades = existingOpenTrades;
+
+    const toUpdatePnl = allDbTrades.filter(t => {
         if (!t.ticket || !eaTicketSet.has(t.ticket)) return false;
         const eaTrade = eaTrades.find(et => et.ticket === t.ticket);
         if (!eaTrade) return false;
@@ -291,7 +309,7 @@ async function reconcileTrades(base44, eaTrades, dbOpenTrades, account_number) {
         }));
     }
 
-    const closedTrades = dbOpenTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
+    const closedTrades = allDbTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
     if (closedTrades.length > 0) {
         for (let i = 0; i < closedTrades.length; i += 3) {
             await Promise.all(closedTrades.slice(i, i + 3).map(t => {
