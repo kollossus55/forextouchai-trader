@@ -15,10 +15,13 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No risk settings configured' });
         }
 
-        // Get primary broker connection for balance/equity
-        const activeConn = brokerConnections.find(c => c.connection_status === 'CONNECTED') || brokerConnections[0];
-        const balance = activeConn?.balance || 0;
-        const equity = activeConn?.equity || 0;
+        // Aggregate balance/equity across ALL connected accounts (prevents cross-account peak_equity mismatch)
+        const connectedAccounts = brokerConnections.filter(c => c.connection_status === 'CONNECTED');
+        if (connectedAccounts.length === 0) {
+            return Response.json({ success: true, message: 'No connected broker accounts — skipping' });
+        }
+        const balance = connectedAccounts.reduce((sum, c) => sum + (c.balance || 0), 0);
+        const equity = connectedAccounts.reduce((sum, c) => sum + (c.equity || 0), 0);
 
         if (!balance) {
             return Response.json({ success: true, message: 'No broker balance available — skipping' });
