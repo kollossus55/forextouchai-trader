@@ -30,8 +30,9 @@ Deno.serve(async (req) => {
         const alerts = [];
         const today = new Date().toISOString().split('T')[0];
 
-        // Reset daily loss counter if it's a new day
-        if (riskSettings.last_reset_date !== today) {
+        // Reset daily loss counter if it's a new day (handle both date and ISO timestamp formats)
+        const lastResetDate = riskSettings.last_reset_date ? riskSettings.last_reset_date.split('T')[0] : null;
+        if (lastResetDate !== today) {
             await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
                 daily_loss_current: 0,
                 last_reset_date: today,
