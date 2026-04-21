@@ -126,6 +126,8 @@ Deno.serve(async (req) => {
         }
 
         // ── 5. Risk / daily profit check (throttled) ─────────────────────────
+        // NOTE: peak_equity is managed by monitorRiskLimits (which sees ALL accounts combined).
+        // The bridge must NOT update peak_equity — doing so from a single account would corrupt the combined total.
         const riskSettings = riskSettingsList?.[0];
         const lastRiskCheck = body.last_risk_check || 0;
         if ((now - lastRiskCheck) > 60_000 && riskSettings?.daily_profit_target_percent > 0 && !riskSettings?.is_trading_paused && balance > 0) {
