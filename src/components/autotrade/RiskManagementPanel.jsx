@@ -132,7 +132,7 @@ export default function RiskManagementPanel() {
 
   // Build per-account stats (daily loss and open trades remain per-account; drawdown is combined)
   const accountStats = (connections || []).map(conn => {
-    const ownerEmail = conn.created_by;
+    const ownerEmail = conn.account_number;
     const balance = conn.balance || 0;
     const equity = conn.equity || 0;
 
