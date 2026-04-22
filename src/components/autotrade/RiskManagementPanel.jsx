@@ -157,10 +157,13 @@ export default function RiskManagementPanel() {
   const avgDailyLossPercent = accountStats.length > 0 ? accountStats.reduce((s, a) => s + a.dailyLossPercent, 0) / accountStats.length : 0;
   const avgDrawdown = combinedDrawdown;
 
-  // Risk status (based on averages / totals)
+  // Risk status — trades risk is the worst single account vs per-account limit
   const dailyLossRisk = (avgDailyLossPercent / formData.max_daily_loss_percent) * 100;
   const drawdownRisk = (avgDrawdown / formData.max_drawdown_percent) * 100;
-  const tradesRisk = (totalOpenTrades / formData.max_concurrent_trades) * 100;
+  const worstAccountTradesRisk = accountStats.length > 0
+    ? Math.max(...accountStats.map(a => (a.openCount / formData.max_concurrent_trades) * 100))
+    : 0;
+  const tradesRisk = worstAccountTradesRisk;
 
   const isAtRisk = dailyLossRisk >= formData.alert_threshold_percent || 
                    drawdownRisk >= formData.alert_threshold_percent ||
