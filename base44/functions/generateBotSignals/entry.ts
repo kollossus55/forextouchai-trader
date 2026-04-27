@@ -303,9 +303,10 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     if (userOpenTrades.length + allSignalsToCreate.filter(s => s.owner_email === ownerEmail).length >= maxGlobal) break;
 
                     const pairRaw = pair.replace('/', '');
-                    if (userOpenTrades.some(t => t.bot_id === bot.id && (t.pair === pair || t.pair === pairRaw))) continue;
-                    if (userPendingSignals.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw))) continue;
-                    if (allSignalsToCreate.some(s => s.bot_id === bot.id && (s.pair === pair || s.pair === pairRaw))) continue;
+                    // Cross-bot check: skip if ANY bot already has an open trade or pending signal on this pair for this user
+                    if (userOpenTrades.some(t => t.pair === pair || t.pair === pairRaw)) continue;
+                    if (userPendingSignals.some(s => s.pair === pair || s.pair === pairRaw)) continue;
+                    if (allSignalsToCreate.some(s => s.pair === pair || s.pair === pairRaw)) continue;
 
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
