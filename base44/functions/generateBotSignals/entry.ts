@@ -73,52 +73,183 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No pairs with live prices', signals_created: 0 });
         }
 
-        // Single AI call for all pairs (efficient — reuse analysis across users)
-        const priceContext = allPairs.map(pair => {
-            const price = priceMap[pair] || priceMap[pair.replace('/', '')];
-            return `${pair}: ${price}`;
-        }).join(', ');
+        // Build strategy groups — each unique strategy type gets its own AI prompt
+        const strategyGroups = {};
+        for (const bot of bots) {
+            const strategy = bot.strategy_type || 'AI_PREDICTIVE';
+            if (!strategyGroups[strategy]) strategyGroups[strategy] = new Set();
+            for (const pair of (bot.pairs || [])) {
+                if (priceMap[pair] || priceMap[pair.replace('/', '')]) strategyGroups[strategy].add(pair);
+            }
+        }
 
-        console.log(`[generateBotSignals] Calling AI for ${allPairs.length} pairs across ${Object.keys(botsByOwner).length} user(s)`);
+        // Strategy-specific AI prompts
+        function buildPrompt(strategy, pairs, priceMap) {
+            const priceContext = pairs.map(pair => {
+                const price = priceMap[pair] || priceMap[pair.replace('/', '')];
+                return `${pair}: ${price}`;
+            }).join(', ');
+            const now = new Date().toUTCString();
 
-        const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: `You are a professional forex trading analyst. Analyze these currency pairs and their current prices, then provide a trading recommendation for EACH pair.
+            const prompts = {
+                AI_PREDICTIVE: `You are an elite multi-timeframe forex analyst. Analyze each currency pair using a confluence approach across M15, H1, H4, and D1 timeframes.
 
 Current Prices: ${priceContext}
-Timeframe: H1
-Analysis time: ${new Date().toUTCString()}
+Analysis time: ${now}
 
-For each pair, determine whether to BUY, SELL, or stay NEUTRAL based on technical analysis principles (RSI levels, EMA crossovers, momentum, overbought/oversold conditions).
+For EACH pair, evaluate ALL of the following and only signal when they ALIGN across at least 3 timeframes:
+1. PRICE ACTION: Higher highs/lows (uptrend) or lower highs/lows (downtrend), key support/resistance levels, breakouts or rejections.
+2. CHART PATTERNS: Head & Shoulders, Double Top/Bottom, Triangles (ascending/descending/symmetrical), Flags, Wedges, Channels.
+3. CANDLESTICK PATTERNS: Engulfing (bullish/bearish), Pin Bars, Doji at key levels, Morning/Evening Star, Hammer, Shooting Star.
+4. MULTI-TIMEFRAME CONFLUENCE: Higher timeframe (H4/D1) sets the bias; lower timeframe (M15/H1) provides the entry trigger.
 
-Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to NEUTRAL.`,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    signals: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                pair: { type: "string" },
-                                type: { type: "string", enum: ["BUY", "SELL", "NEUTRAL"] },
-                                confidence: { type: "number", minimum: 0, maximum: 100 },
-                                rsi: { type: "number" },
-                                ema_trend: { type: "string" },
-                                momentum: { type: "string" },
-                                reason: { type: "string" }
+Only recommend BUY or SELL when ALL three analysis types (price action, chart pattern, candlestick pattern) align with the higher timeframe trend. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                SCALPING: `You are a scalping forex specialist focused on short-term momentum and tight range movements.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, analyze on M1 and M5 timeframes:
+- Momentum bursts and micro-trend direction
+- RSI extremes (above 70 = overbought/SELL, below 30 = oversold/BUY)
+- Bollinger Band touches and squeezes
+- MACD histogram direction on M5
+- Bid/ask spread suitability for scalping
+
+Only signal BUY or SELL on strong short-term momentum with tight risk. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                SWING: `You are a swing trading forex analyst focused on multi-day moves.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, analyze on H4 and D1 timeframes:
+- Major trend direction (200 EMA position)
+- Fibonacci retracement levels (38.2%, 50%, 61.8%) as entry zones
+- RSI divergence (price makes new high/low but RSI does not)
+- Key weekly support/resistance levels
+- Volume-confirmed breakouts
+
+Only signal BUY or SELL on high-probability swing setups with clear risk/reward of at least 1:2. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                DAY_TRADING: `You are a day trading forex analyst focused on intraday opportunities.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, analyze on M30 and H1 timeframes:
+- London/New York session breakouts and trends
+- EMA 9/21 crossovers on H1
+- VWAP position (price above = bullish bias, below = bearish)
+- Inside bar breakouts and range expansions
+- News-driven momentum (economic session timing)
+
+Only signal BUY or SELL on clear intraday setups with defined session context. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                PRICE_ACTION: `You are a pure price action forex trader. No indicators — only what the chart shows.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, analyze on H1 and H4 timeframes using ONLY price action:
+- Key horizontal support and resistance levels
+- Trendline breaks and retests
+- Pin bars, engulfing candles, and inside bars at key levels
+- Market structure: trending (HH/HL or LH/LL) vs ranging
+- Order blocks and fair value gaps
+
+Only signal BUY or SELL when price is at a key level with a confirmed price action trigger. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                PATTERN_TRADING: `You are a chart pattern specialist forex analyst.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, scan for high-probability chart patterns on H1 and H4:
+- Continuation patterns: Flags, Pennants, Rectangles, Triangles
+- Reversal patterns: Head & Shoulders, Double/Triple Tops & Bottoms, Rounding Bottom
+- Breakout confirmation: volume surge, candle close beyond pattern boundary
+- Pattern measured move targets for TP calculation
+- Failed pattern signals (traps) to avoid
+
+Only signal BUY or SELL on confirmed pattern breakouts with clear measured move targets. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                CANDLESTICK: `You are a candlestick pattern expert and price action forex analyst.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, analyze candlestick formations on M30 and H1 at key levels:
+- Single candle patterns: Pin Bar, Hammer, Shooting Star, Marubozu, Doji
+- Multi-candle patterns: Engulfing (bullish/bearish), Morning/Evening Star, Three White Soldiers/Black Crows, Harami
+- Context: pattern must form at key support/resistance, trendline, or Fibonacci level
+- Confirmation: next candle must confirm the pattern direction
+- Candle body-to-wick ratio for signal strength
+
+Only signal BUY or SELL when a high-probability candlestick pattern forms at a significant level with context confirmation. Otherwise NEUTRAL. Minimum confidence 75%.`,
+
+                HYBRID_ALL: `You are a comprehensive forex analyst using ALL available technical analysis methods.
+
+Current Prices: ${priceContext}
+Analysis time: ${now}
+
+For EACH pair, use a full confluence approach:
+- Trend: EMA 50/200 alignment across H1 and H4
+- Momentum: RSI, MACD, Stochastic across timeframes
+- Price Action: Support/resistance, trendlines, market structure
+- Chart Patterns: Any forming or completed patterns
+- Candlestick Patterns: Confirmation candles at key levels
+- Volume: Breakout volume confirmation
+
+Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Minimum confidence 80% for this strategy.`,
+            };
+
+            return prompts[strategy] || prompts['AI_PREDICTIVE'];
+        }
+
+        // Run AI calls per strategy group in parallel
+        console.log(`[generateBotSignals] Running ${Object.keys(strategyGroups).length} strategy-specific AI calls`);
+
+        const strategyAiMaps = {};
+        await Promise.all(Object.entries(strategyGroups).map(async ([strategy, pairSet]) => {
+            const pairs = [...pairSet];
+            if (!pairs.length) return;
+            try {
+                const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                    prompt: buildPrompt(strategy, pairs, priceMap),
+                    response_json_schema: {
+                        type: "object",
+                        properties: {
+                            signals: {
+                                type: "array",
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        pair: { type: "string" },
+                                        type: { type: "string", enum: ["BUY", "SELL", "NEUTRAL"] },
+                                        confidence: { type: "number", minimum: 0, maximum: 100 },
+                                        rsi: { type: "number" },
+                                        ema_trend: { type: "string" },
+                                        momentum: { type: "string" },
+                                        reason: { type: "string" }
+                                    }
+                                }
                             }
                         }
                     }
+                });
+                const map = {};
+                for (const s of (result?.signals || [])) {
+                    if (s.pair) map[s.pair.replace('/', '')] = s;
                 }
+                strategyAiMaps[strategy] = map;
+                console.log(`[generateBotSignals] ${strategy}: AI analyzed ${Object.keys(map).length} pairs`);
+            } catch (e) {
+                console.error(`[generateBotSignals] AI call failed for ${strategy}:`, e.message);
+                strategyAiMaps[strategy] = {};
             }
-        });
-
-        const aiSignals = aiResult?.signals || [];
-        const aiMap = {};
-        for (const s of aiSignals) {
-            if (s.pair) aiMap[s.pair.replace('/', '')] = s;
-        }
-        console.log(`[generateBotSignals] AI returned analysis for: ${Object.keys(aiMap).join(', ')}`);
+        }));
 
         // Process each user's bots in isolation — signals are scoped to that user's account
         const allSignalsToCreate = [];
@@ -179,7 +310,8 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
 
-                    const analysis = aiMap[pairRaw];
+                    const strategyMap = strategyAiMaps[bot.strategy_type || 'AI_PREDICTIVE'] || {};
+                    const analysis = strategyMap[pairRaw];
                     if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis`); continue; }
                     if (analysis.type === 'NEUTRAL') continue;
                     if ((analysis.confidence || 0) < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${analysis.confidence} < ${minConf}`); continue; }
