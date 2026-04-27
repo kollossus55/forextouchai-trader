@@ -144,6 +144,23 @@ Only recommend BUY or SELL when confidence is above 70%. Otherwise set type to N
             }
 
             for (const bot of ownerBots) {
+                // --- Trading hours check (UTC) ---
+                if (bot.trading_start_time && bot.trading_end_time) {
+                    const nowUtc = new Date();
+                    const [startH, startM] = bot.trading_start_time.split(':').map(Number);
+                    const [endH, endM] = bot.trading_end_time.split(':').map(Number);
+                    const nowMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes();
+                    const startMins = startH * 60 + startM;
+                    const endMins = endH * 60 + endM;
+                    const inWindow = startMins <= endMins
+                        ? nowMins >= startMins && nowMins < endMins   // same-day window e.g. 07:00–23:00
+                        : nowMins >= startMins || nowMins < endMins;  // overnight window e.g. 22:00–06:00
+                    if (!inWindow) {
+                        console.log(`[generateBotSignals] Bot "${bot.name}" outside trading hours (${bot.trading_start_time}–${bot.trading_end_time} UTC, now ${nowUtc.getUTCHours()}:${String(nowUtc.getUTCMinutes()).padStart(2,'0')} UTC) — skipping`);
+                        continue;
+                    }
+                }
+
                 const botOpenTrades = userOpenTrades.filter(t => t.bot_id === bot.id);
                 const maxOpen = bot.max_open_trades || 5;
                 if (botOpenTrades.length >= maxOpen) continue;
