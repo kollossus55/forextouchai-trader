@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
         // ── 2. Fetch signals + risk (cached) ─────────────────────────────────
         const signalsPromise = isFresh(cache.signals, TTL.signals)
             ? Promise.resolve(cache.signals.data)
-            : base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 20)
+            : base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50)
                 .then(data => { cache.signals = { data, ts: now }; return data; })
                 .catch(() => cache.signals.data || []);
 
@@ -146,7 +146,34 @@ Deno.serve(async (req) => {
               .catch(e => console.error('[BRIDGE] Expire error:', e.message));
         }
 
-        const freshSignals = (allPendingSignals || []).filter(s => s.created_date >= fiveMinutesAgo).slice(0, 5);
+        // Fetch this account's current open trades for cross-pair dedup check
+        let acctOpenTrades = [];
+        try {
+            acctOpenTrades = await base44.asServiceRole.entities.Trade.filter(
+                { status: 'OPEN', owner_email: acctKey }, '-created_date', 200
+            );
+        } catch (e) {
+            console.warn('[BRIDGE] Could not fetch open trades for signal filter:', e.message);
+        }
+        const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
+
+        // Only dispatch signals for this account's owner AND pairs not already open
+        const [connRecords] = await Promise.all([
+            base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey })
+        ]).catch(() => [[]]);
+        const ownerEmail = connRecords?.[0]?.created_by || null;
+
+        const freshSignals = (allPendingSignals || [])
+            .filter(s => {
+                if (s.created_date < fiveMinutesAgo) return false;
+                // If we know the owner, only dispatch signals for that owner
+                if (ownerEmail && s.owner_email && s.owner_email !== ownerEmail) return false;
+                // Skip if a trade on this pair is already open on this account
+                const pairRaw = (s.pair || '').replace('/', '');
+                if (openPairs.has(pairRaw)) return false;
+                return true;
+            })
+            .slice(0, 5);
 
         // SYNCHRONOUSLY lock signals before returning — prevents duplicate execution
         if (freshSignals.length > 0) {
@@ -156,7 +183,6 @@ Deno.serve(async (req) => {
                 ));
             } catch (e) {
                 console.error('[BRIDGE] Signal lock error:', e.message);
-                // Still return signals — EA idempotency handles it via ticket checks
             }
             cache.signals = { data: null, ts: 0 };
         }
