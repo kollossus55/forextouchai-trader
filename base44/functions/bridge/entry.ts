@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
         const shouldReconcile = (now - lastReconcile) > 30_000 && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
-            reconcileTrades(base44, eaTrades, acctKey)
+            reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
                 .finally(() => { reconcileLock[acctKey] = false; });
         }
@@ -258,7 +258,7 @@ function sanitizeSignal(s, livePriceMap) {
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
-async function reconcileTrades(base44, eaTrades, acctKey) {
+async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
     // Ensure memory ticket set exists
@@ -278,23 +278,34 @@ async function reconcileTrades(base44, eaTrades, acctKey) {
     }
 
     // ── Create new trades (guarded by memory set) ────────────────────────────
-    const toCreate = eaTrades.filter(t => t.ticket && (t.pair || t.symbol) && (t.open_price || t.price || 0) > 0 && !memTickets.has(t.ticket));
+    // For MT5: open_price may be 0 — fall back to live bid price from EA heartbeat
+    const toCreate = eaTrades.filter(t => {
+        if (!t.ticket || !(t.pair || t.symbol)) return false;
+        if (memTickets.has(t.ticket)) return false;
+        const rawPrice = t.open_price || t.price || 0;
+        const sym = (t.pair || t.symbol || '').replace('/', '');
+        const livePrice = livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
+        // Accept if we have either a reported price or a live fallback price
+        return rawPrice > 0 || livePrice > 0;
+    });
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
         for (let i = 0; i < toCreate.length; i += 3) {
-            await Promise.all(toCreate.slice(i, i + 3).map(t =>
-                base44.asServiceRole.entities.Trade.create({
+            await Promise.all(toCreate.slice(i, i + 3).map(t => {
+                const sym = (t.pair || t.symbol || '').replace('/', '');
+                const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
+                return base44.asServiceRole.entities.Trade.create({
                     pair: t.pair || t.symbol,
                     type: t.type || 'BUY',
                     lot_size: t.lot_size || t.lots || 0.1,
-                    open_price: t.open_price || t.price || 0,
+                    open_price: resolvedPrice,
                     pnl: t.pnl || t.profit || 0,
                     status: 'OPEN',
                     ticket: t.ticket,
                     is_auto: true,
                     owner_email: acctKey,
-                }).then(() => memTickets.add(t.ticket)) // lock immediately
-            ));
+                }).then(() => memTickets.add(t.ticket)); // lock immediately
+            }));
         }
     }
 
