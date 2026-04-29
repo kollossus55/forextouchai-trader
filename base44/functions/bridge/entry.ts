@@ -278,7 +278,7 @@ async function reconcileTrades(base44, eaTrades, acctKey) {
     }
 
     // ── Create new trades (guarded by memory set) ────────────────────────────
-    const toCreate = eaTrades.filter(t => t.ticket && (t.pair || t.symbol) && !memTickets.has(t.ticket));
+    const toCreate = eaTrades.filter(t => t.ticket && (t.pair || t.symbol) && (t.open_price || t.price || 0) > 0 && !memTickets.has(t.ticket));
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
         for (let i = 0; i < toCreate.length; i += 3) {
