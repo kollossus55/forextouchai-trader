@@ -148,20 +148,18 @@ Deno.serve(async (req) => {
 
         // Fetch this account's current open trades for cross-pair dedup check
         let acctOpenTrades = [];
+        let ownerEmail = null;
         try {
-            acctOpenTrades = await base44.asServiceRole.entities.Trade.filter(
-                { status: 'OPEN', owner_email: acctKey }, '-created_date', 200
-            );
+            const [openTradesResult, connRecords] = await Promise.all([
+                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acctKey }, '-created_date', 200),
+                base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey })
+            ]);
+            acctOpenTrades = openTradesResult || [];
+            ownerEmail = connRecords?.[0]?.created_by || null;
         } catch (e) {
-            console.warn('[BRIDGE] Could not fetch open trades for signal filter:', e.message);
+            console.warn('[BRIDGE] Could not fetch open trades/connection for signal filter:', e.message);
         }
         const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
-
-        // Only dispatch signals for this account's owner AND pairs not already open
-        const [connRecords] = await Promise.all([
-            base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey })
-        ]).catch(() => [[]]);
-        const ownerEmail = connRecords?.[0]?.created_by || null;
 
         const freshSignals = (allPendingSignals || [])
             .filter(s => {
