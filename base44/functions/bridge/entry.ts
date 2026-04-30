@@ -278,15 +278,11 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     }
 
     // ── Create new trades (guarded by memory set) ────────────────────────────
-    // For MT5: open_price may be 0 — fall back to live bid price from EA heartbeat
+    // For MT5: open_price may be 0 — fall back to live bid price, or store 0 and let PnL updates fill it in
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         if (memTickets.has(t.ticket)) return false;
-        const rawPrice = t.open_price || t.price || 0;
-        const sym = (t.pair || t.symbol || '').replace('/', '');
-        const livePrice = livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
-        // Accept if we have either a reported price or a live fallback price
-        return rawPrice > 0 || livePrice > 0;
+        return true; // Always create — never block on open_price
     });
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
