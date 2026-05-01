@@ -238,23 +238,49 @@ function sanitizeSignal(s, livePriceMap) {
     const liveBid = livePriceMap[pair] || 0;
     const refPrice = type === 'BUY' ? (liveAsk || liveBid) : liveBid;
 
+    // Use the live price as reference, fall back to signal's entry price
+    const basePrice = refPrice > 0 ? refPrice : (s.entry_price || 0);
+
     let safeSL = s.stop_loss || 0;
     let safeTP = s.take_profit || 0;
 
-    if (refPrice > 0) {
-        if (type === 'BUY' && safeSL >= refPrice) safeSL = 0;
-        if (type === 'SELL' && safeSL <= refPrice) safeSL = 0;
-        if (type === 'BUY' && safeTP <= refPrice) safeTP = 0;
-        if (type === 'SELL' && safeTP >= refPrice) safeTP = 0;
+    if (basePrice > 0) {
+        // Determine pip size based on price magnitude
+        const pipSize = basePrice > 50 ? 0.01 : 0.0001;
+
+        // Validate SL direction — reset if wrong side of price
+        if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
+        if (type === 'SELL' && safeSL <= basePrice) safeSL = 0;
+        if (type === 'BUY' && safeTP <= basePrice) safeTP = 0;
+        if (type === 'SELL' && safeTP >= basePrice) safeTP = 0;
         if (safeSL > 0 && safeTP > 0) {
             if (type === 'BUY' && safeSL >= safeTP) { safeSL = 0; safeTP = 0; }
             if (type === 'SELL' && safeSL <= safeTP) { safeSL = 0; safeTP = 0; }
         }
+
+        // CRITICAL: If SL is still 0 after validation, calculate a default SL (30 pips)
+        // This ensures MT5 always receives a valid stop loss — never trades without one
+        if (safeSL === 0) {
+            const defaultSlPips = 30;
+            safeSL = type === 'BUY'
+                ? parseFloat((basePrice - defaultSlPips * pipSize).toFixed(5))
+                : parseFloat((basePrice + defaultSlPips * pipSize).toFixed(5));
+        }
+
+        // If TP is still 0, calculate a default TP (60 pips)
+        if (safeTP === 0) {
+            const defaultTpPips = 60;
+            safeTP = type === 'BUY'
+                ? parseFloat((basePrice + defaultTpPips * pipSize).toFixed(5))
+                : parseFloat((basePrice - defaultTpPips * pipSize).toFixed(5));
+        }
     } else {
+        // No price available at all — log and send 0s (EA will reject the signal anyway)
+        console.warn(`[BRIDGE] sanitizeSignal: no price for ${pair} — signal ${s.id} sent without SL/TP`);
         safeSL = 0; safeTP = 0;
     }
 
-    return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: refPrice || s.entry_price || 0 };
+    return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0 };
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
