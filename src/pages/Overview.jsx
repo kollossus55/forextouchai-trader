@@ -26,6 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColoredSlider } from '@/components/ui/colored-slider';
 import SignalCard from '@/components/dashboard/SignalCard';
 import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
@@ -138,21 +139,30 @@ export default function Overview() {
     }
   });
 
+  const [selectedAccountNumber, setSelectedAccountNumber] = useState(null);
+
+  // Set default account on first load
+  useEffect(() => {
+    if (connections?.length > 0 && !selectedAccountNumber) {
+      setSelectedAccountNumber(connections[0].account_number);
+    }
+  }, [connections]);
+
   const executeSignalMutation = useMutation({
     mutationFn: async (signal) => {
-      // Just mark the signal as PENDING — the bridge delivers it to ALL connected EAs automatically
+      const targetAccount = selectedAccountNumber || connections?.[0]?.account_number;
       return base44.entities.Signal.update(signal.id, { 
         status: 'PENDING',
         lot_size: signal.lot_size || 0.01,
-        strategy: signal.strategy || 'MANUAL_EXECUTION'
+        strategy: signal.strategy || 'MANUAL_EXECUTION',
+        owner_email: targetAccount  // Route to specific account
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['ai-signals']);
-      const count = connections?.filter(c => c.connection_status === 'CONNECTED').length || 1;
-      toast.success("Signal sent to MT4", { 
-        description: count > 1 ? `Sent to ${count} connected accounts` : "Waiting for execution..." 
-      });
+      const acct = connections?.find(c => c.account_number === selectedAccountNumber);
+      const label = acct ? `${acct.platform} — ${acct.server_name} #${acct.account_number}` : 'selected account';
+      toast.success("Signal dispatched", { description: `Sent to ${label}` });
     }
   });
 
@@ -226,10 +236,11 @@ export default function Overview() {
               take_profit: Number(aiSignal.take_profit),
               confidence: Number(aiSignal.confidence),
               lot_size: scanSettings.lotSize,
-              strategy: aiSignal.strategy, // AI generated strategy name
+              strategy: aiSignal.strategy,
               calculated_indicators: aiSignal.calculated_indicators,
               status: 'ANALYSIS',
-              result_pnl: 0
+              result_pnl: 0,
+              owner_email: selectedAccountNumber || connections?.[0]?.account_number
           });
           toast.success("AI Analysis Complete", { description: `Found setup for ${aiSignal.pair}` });
       } else if (aiSignal && aiSignal.error) {
@@ -442,7 +453,22 @@ export default function Overview() {
               Real-time market analysis and setup detection
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Account selector for signal execution */}
+            {activeConnections.length > 1 && (
+              <Select value={selectedAccountNumber || ''} onValueChange={setSelectedAccountNumber}>
+                <SelectTrigger className="w-52 bg-slate-900/50 border-slate-700 text-slate-300 hover:border-emerald-500/30 text-xs h-9">
+                  <SelectValue placeholder="Select account..." />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  {activeConnections.map(c => (
+                    <SelectItem key={c.account_number} value={c.account_number} className="text-slate-300 text-xs focus:bg-slate-800">
+                      {c.platform} — {c.server_name} #{c.account_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Popover>
                 <PopoverTrigger asChild>
                     <Button variant="outline" className="bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-emerald-500/30 transition-all">
