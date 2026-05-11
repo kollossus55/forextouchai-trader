@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         }
 
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
-        const fiveMinutesAgo = new Date(now - 5 * 60 * 1000).toISOString();
+        const fiveMinutesAgo = new Date(now - 15 * 60 * 1000).toISOString();
         const stale = (allPendingSignals || []).filter(s => s.created_date < fiveMinutesAgo);
         if (stale.length > 0) {
             Promise.all(stale.map(s =>
