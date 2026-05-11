@@ -146,26 +146,34 @@ Deno.serve(async (req) => {
               .catch(e => console.error('[BRIDGE] Expire error:', e.message));
         }
 
-        // Fetch this account's current open trades for cross-pair dedup check
+        // Only do the expensive open-trades + connection lookup if there are actually signals to dispatch
+        const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= fiveMinutesAgo);
+
         let acctOpenTrades = [];
         let ownerEmail = null;
-        try {
-            const [openTradesResult, connRecords] = await Promise.all([
-                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acctKey }, '-created_date', 200),
-                base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey })
-            ]);
-            acctOpenTrades = openTradesResult || [];
-            ownerEmail = connRecords?.[0]?.created_by || null;
-        } catch (e) {
-            console.warn('[BRIDGE] Could not fetch open trades/connection for signal filter:', e.message);
+
+        if (candidateSignals.length > 0) {
+            try {
+                const [openTradesResult, connRecords] = await Promise.all([
+                    base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acctKey }, '-created_date', 200),
+                    base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey })
+                ]);
+                acctOpenTrades = openTradesResult || [];
+                ownerEmail = connRecords?.[0]?.created_by || null;
+            } catch (e) {
+                console.warn('[BRIDGE] Could not fetch open trades/connection for signal filter:', e.message);
+            }
         }
+
         const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
 
-        const freshSignals = (allPendingSignals || [])
+        // Route signals: if signal has owner_email set, only dispatch to matching account number
+        const freshSignals = candidateSignals
             .filter(s => {
-                if (s.created_date < fiveMinutesAgo) return false;
-                // If we know the owner, only dispatch signals for that owner
-                if (ownerEmail && s.owner_email && s.owner_email !== ownerEmail) return false;
+                // If signal is targeted to a specific account number, respect that
+                if (s.owner_email) return s.owner_email === acctKey;
+                // Un-targeted signal: only dispatch if owner's email matches (legacy flow)
+                if (ownerEmail && s.created_by && s.created_by !== ownerEmail) return false;
                 // Skip if a trade on this pair is already open on this account
                 const pairRaw = (s.pair || '').replace('/', '');
                 if (openPairs.has(pairRaw)) return false;
