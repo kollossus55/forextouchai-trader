@@ -1,5 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
+const lastCallTs = {}; // keyed by account_number → timestamp
+const MIN_CALL_INTERVAL_MS = 10_000; // 10 seconds minimum between calls per account
+
 // ─── In-memory state (survives across requests within same isolate) ───────────
 const cache = {
     signals: { data: null, ts: 0 },
@@ -56,6 +60,20 @@ Deno.serve(async (req) => {
         }
 
         const acctKey = String(account_number);
+
+        // ── Rate limit: reject if called too frequently ───────────────────────
+        const lastCall = lastCallTs[acctKey] || 0;
+        if (now - lastCall < MIN_CALL_INTERVAL_MS) {
+            return Response.json({
+                success: true,
+                account: acctKey,
+                message: 'rate_limited',
+                retry_after_ms: MIN_CALL_INTERVAL_MS - (now - lastCall),
+                heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
+                pending_signals: [],
+            }, { status: 200, headers: corsHeaders() });
+        }
+        lastCallTs[acctKey] = now;
 
         // Build live price map from EA heartbeat
         const eaPrices = body.prices || acct.prices;
