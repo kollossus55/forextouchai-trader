@@ -1,0 +1,129 @@
+{
+  "name": "Signal",
+  "type": "object",
+  "properties": {
+    "pair": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "BUY",
+        "SELL"
+      ]
+    },
+    "entry_price": {
+      "type": "number"
+    },
+    "stop_loss": {
+      "type": "number"
+    },
+    "take_profit": {
+      "type": "number"
+    },
+    "lot_size": {
+      "type": "number",
+      "description": "Optional custom lot size for execution"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "strategy": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ANALYSIS",
+        "ACTIVE",
+        "PENDING",
+        "CLOSED",
+        "EXPIRED",
+        "SKIPPED"
+      ],
+      "default": "ANALYSIS"
+    },
+    "result_pnl": {
+      "type": "number"
+    },
+    "bot_id": {
+      "type": "string",
+      "description": "ID of the bot that generated this signal"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Target account number for MT4/MT5 routing (set to account_number to route to a specific account)"
+    },
+    "calculated_indicators": {
+      "type": "object",
+      "description": "Technical indicator values at time of signal generation"
+    }
+  },
+  "required": [
+    "pair",
+    "type",
+    "entry_price"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {}
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "write": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
