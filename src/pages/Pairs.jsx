@@ -11,7 +11,10 @@ import {
   BrainCircuit,
   CheckCircle2,
   Activity,
-  Clock
+  Clock,
+  AlertTriangle,
+  ShieldAlert,
+  ShieldCheck
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,6 +52,7 @@ export default function Pairs() {
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   const [showAdvancedChart, setShowAdvancedChart] = useState(false);
+  const [aiSuggestedLot, setAiSuggestedLot] = useState(null);
   
   // Real-time State
   const [liveData, setLiveData] = useState({});
@@ -65,6 +69,12 @@ export default function Pairs() {
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
     initialData: []
+  });
+
+  const { data: riskSettings } = useQuery({
+    queryKey: ['risk-settings'],
+    queryFn: () => base44.entities.RiskManagementSettings.list('-created_date', 1).then(d => d[0] || null),
+    initialData: null
   });
 
   // Initialize Market Data
@@ -196,11 +206,58 @@ export default function Pairs() {
   const handleTradeClick = (pair, type) => {
     setSelectedPair(pair);
     setTradeType(type);
+
     // Pre-select all connected accounts
     const connectedAccounts = (connections || [])
       .filter(c => c.connection_status === 'CONNECTED')
       .map(c => c.account_number);
     setSelectedAccounts(connectedAccounts.length > 0 ? connectedAccounts : (connections || []).map(c => c.account_number));
+
+    // AI-suggested SL/TP: use indicator-based values if available, else defaults
+    const live = liveData[pair.id];
+    const indicators = pairIndicators[pair.id];
+    const price = live?.current_price || pair.current_price || 0;
+    const pipSize = (pair.symbol || '').toUpperCase().includes('JPY') ? 0.01 : 0.0001;
+
+    let suggestedSL = 30;
+    let suggestedTP = 60;
+
+    if (indicators && price > 0) {
+      // Use ATR-based suggestion if available (ATR in price units → convert to pips)
+      const atr = indicators.atr?.value;
+      if (atr && atr > 0) {
+        suggestedSL = Math.round(atr * 1.5 / pipSize);
+        suggestedTP = Math.round(atr * 3.0 / pipSize);
+      } else {
+        // Fallback: use Bollinger Band width as volatility proxy
+        const bbUpper = indicators.bollingerBands?.upper;
+        const bbLower = indicators.bollingerBands?.lower;
+        if (bbUpper && bbLower) {
+          const bbRange = (bbUpper - bbLower) / 2;
+          suggestedSL = Math.max(20, Math.round(bbRange * 0.8 / pipSize));
+          suggestedTP = Math.max(40, Math.round(bbRange * 1.6 / pipSize));
+        }
+      }
+    }
+
+    setStopLossPips(String(suggestedSL));
+    setTakeProfitPips(String(suggestedTP));
+
+    // AI-suggested lot size based on risk % of account balance
+    if (riskSettings?.risk_per_trade_percent && price > 0) {
+      const totalBalance = (connections || []).reduce((sum, c) => sum + (c.balance || 0), 0);
+      if (totalBalance > 0) {
+        const riskAmount = totalBalance * (riskSettings.risk_per_trade_percent / 100);
+        const slInPrice = suggestedSL * pipSize;
+        const rawLot = slInPrice > 0 ? riskAmount / (slInPrice * 100000) : 0.1;
+        const clampedLot = Math.min(Math.max(parseFloat(rawLot.toFixed(2)), 0.01), 10);
+        setVolume(String(clampedLot));
+        setAiSuggestedLot(clampedLot);
+      }
+    } else {
+      setAiSuggestedLot(null);
+    }
+
     setTradeModalOpen(true);
   };
 
@@ -277,6 +334,16 @@ export default function Pairs() {
   const executeTrade = () => {
     if (!selectedPair) return;
     const { slPrice, tpPrice, executionPrice } = calcSLTP();
+
+    // Block if trading against AI signal direction
+    const aiSignal = liveData[selectedPair.id]?.ai_signal;
+    if (aiSignal && aiSignal !== 'NEUTRAL' && aiSignal !== tradeType) {
+      toast.error('AI Signal Conflict', {
+        description: `AI signals ${aiSignal} for ${selectedPair.symbol}. Trading against the AI signal is blocked for your protection.`,
+        duration: 6000
+      });
+      return;
+    }
 
     // Hard validation: reject if SL/TP are on the wrong side of entry
     if (slPrice > 0) {
@@ -594,6 +661,36 @@ export default function Pairs() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* AI Signal Confirmation Banner */}
+            {selectedPair && (() => {
+              const aiSignal = liveData[selectedPair.id]?.ai_signal;
+              const aiConf = liveData[selectedPair.id]?.ai_confidence || 0;
+              const isAligned = !aiSignal || aiSignal === 'NEUTRAL' || aiSignal === tradeType;
+              const isNeutral = !aiSignal || aiSignal === 'NEUTRAL';
+              return (
+                <div className={`rounded-lg px-3 py-2.5 flex items-start gap-2.5 border text-sm ${
+                  isNeutral ? 'bg-slate-800/50 border-slate-700 text-slate-400' :
+                  isAligned ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' :
+                  'bg-rose-500/10 border-rose-500/40 text-rose-300'
+                }`}>
+                  {isNeutral ? <AlertTriangle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" /> :
+                   isAligned ? <ShieldCheck className="w-4 h-4 mt-0.5 text-emerald-400 shrink-0" /> :
+                   <ShieldAlert className="w-4 h-4 mt-0.5 text-rose-400 shrink-0" />}
+                  <div>
+                    <div className="font-semibold">
+                      {isNeutral ? 'AI: No Signal' :
+                       isAligned ? `AI Confirmed: ${aiSignal} (${aiConf}% confidence)` :
+                       `⛔ Blocked: AI signals ${aiSignal} — cannot trade ${tradeType}`}
+                    </div>
+                    <div className="text-xs mt-0.5 opacity-75">
+                      {isNeutral ? 'AI has no directional bias. Proceed with caution.' :
+                       isAligned ? 'Your trade direction matches the AI signal.' :
+                       'Trading against the AI signal is blocked for your protection.'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {/* Account selector */}
             {connections && connections.length > 0 && (
               <div className="grid grid-cols-4 items-start gap-4">
@@ -625,13 +722,20 @@ export default function Pairs() {
             )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right text-slate-400">Volume</Label>
-              <Input 
-                value={volume}
-                onChange={(e) => setVolume(e.target.value)}
-                className="col-span-3 bg-slate-950 border-slate-800" 
-                type="number"
-                step="0.01"
-              />
+              <div className="col-span-3 flex items-center gap-2">
+                <Input 
+                  value={volume}
+                  onChange={(e) => setVolume(e.target.value)}
+                  className="bg-slate-950 border-slate-800" 
+                  type="number"
+                  step="0.01"
+                />
+                {aiSuggestedLot && (
+                  <span className="text-[10px] text-purple-400 whitespace-nowrap font-semibold">
+                    AI: {aiSuggestedLot}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right text-slate-400">Price</Label>
@@ -688,13 +792,20 @@ export default function Pairs() {
             <Button variant="outline" onClick={() => setTradeModalOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
               Cancel
             </Button>
-            <Button 
-              onClick={executeTrade}
-              disabled={selectedAccounts.length === 0 || sendSignal.isPending}
-              className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}
-            >
-              {sendSignal.isPending ? 'Sending...' : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
-            </Button>
+            {(() => {
+              const aiSignal = selectedPair ? liveData[selectedPair.id]?.ai_signal : null;
+              const isBlocked = aiSignal && aiSignal !== 'NEUTRAL' && aiSignal !== tradeType;
+              return (
+                <Button 
+                  onClick={executeTrade}
+                  disabled={selectedAccounts.length === 0 || sendSignal.isPending || isBlocked}
+                  title={isBlocked ? `Blocked: AI signals ${aiSignal}` : ''}
+                  className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40' : 'bg-rose-600 hover:bg-rose-700 disabled:opacity-40'}
+                >
+                  {sendSignal.isPending ? 'Sending...' : isBlocked ? `Blocked by AI` : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+                </Button>
+              );
+            })()}
           </DialogFooter>
         </DialogContent>
       </Dialog>
