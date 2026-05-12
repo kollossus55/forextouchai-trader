@@ -46,6 +46,7 @@ export default function Pairs() {
   const [volume, setVolume] = useState('0.10');
   const [stopLossPips, setStopLossPips] = useState('30');
   const [takeProfitPips, setTakeProfitPips] = useState('60');
+  const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   const [showAdvancedChart, setShowAdvancedChart] = useState(false);
   
@@ -57,6 +58,12 @@ export default function Pairs() {
   const { data: pairs, isLoading } = useQuery({
     queryKey: ['pairs'],
     queryFn: () => base44.entities.CurrencyPair.list(),
+    initialData: []
+  });
+
+  const { data: connections } = useQuery({
+    queryKey: ['broker-connections'],
+    queryFn: () => base44.entities.BrokerConnection.list(),
     initialData: []
   });
 
@@ -169,9 +176,16 @@ export default function Pairs() {
   }, [pairs, timeframe]);
 
   const sendSignal = useMutation({
-    mutationFn: (data) => base44.entities.Signal.create(data),
+    mutationFn: async (signalBase) => {
+      // Send one signal per selected account
+      const targets = selectedAccounts.length > 0 ? selectedAccounts : [null];
+      await Promise.all(targets.map(acct =>
+        base44.entities.Signal.create({ ...signalBase, ...(acct ? { owner_email: acct } : {}) })
+      ));
+    },
     onSuccess: () => {
-      toast.success("Order Sent to Bridge", { description: "Waiting for MT4 execution..." });
+      const count = selectedAccounts.length;
+      toast.success("Order Sent to Bridge", { description: `Dispatched to ${count} account${count !== 1 ? 's' : ''}` });
       setTradeModalOpen(false);
     },
     onError: (err) => {
@@ -182,6 +196,11 @@ export default function Pairs() {
   const handleTradeClick = (pair, type) => {
     setSelectedPair(pair);
     setTradeType(type);
+    // Pre-select all connected accounts
+    const connectedAccounts = (connections || [])
+      .filter(c => c.connection_status === 'CONNECTED')
+      .map(c => c.account_number);
+    setSelectedAccounts(connectedAccounts.length > 0 ? connectedAccounts : (connections || []).map(c => c.account_number));
     setTradeModalOpen(true);
   };
 
@@ -575,6 +594,35 @@ export default function Pairs() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Account selector */}
+            {connections && connections.length > 0 && (
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label className="text-right text-slate-400 pt-2">Accounts</Label>
+                <div className="col-span-3 space-y-2">
+                  {connections.map(conn => (
+                    <label key={conn.account_number} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedAccounts.includes(conn.account_number)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAccounts(prev => [...prev, conn.account_number]);
+                          } else {
+                            setSelectedAccounts(prev => prev.filter(a => a !== conn.account_number));
+                          }
+                        }}
+                        className="accent-emerald-500"
+                      />
+                      <span className="text-sm text-slate-300 font-mono">{conn.account_number}</span>
+                      <span className="text-xs text-slate-500">{conn.platform || 'MT4'} · {conn.server_name}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${conn.connection_status === 'CONNECTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                        {conn.connection_status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right text-slate-400">Volume</Label>
               <Input 
@@ -642,9 +690,10 @@ export default function Pairs() {
             </Button>
             <Button 
               onClick={executeTrade}
+              disabled={selectedAccounts.length === 0 || sendSignal.isPending}
               className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}
             >
-              {tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+              {sendSignal.isPending ? 'Sending...' : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
             </Button>
           </DialogFooter>
         </DialogContent>
