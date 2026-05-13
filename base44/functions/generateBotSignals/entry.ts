@@ -34,22 +34,16 @@ Deno.serve(async (req) => {
             }
         }
 
-        // Build price map from CurrencyPair table (live prices only, updated within 10 min)
+        // Build price map from CurrencyPair table — use all available prices
+        // Note: bridge updates these periodically; we trust whatever is in the DB
         const priceMap = {};
-        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-        let staleCount = 0;
         for (const p of pairsList) {
             if (p.symbol && p.current_price) {
-                const isLive = !p.updated_date || p.updated_date >= tenMinutesAgo;
-                if (isLive) {
-                    priceMap[p.symbol] = p.current_price;
-                    priceMap[p.symbol.replace('/', '')] = p.current_price;
-                } else {
-                    staleCount++;
-                }
+                priceMap[p.symbol] = p.current_price;
+                priceMap[p.symbol.replace('/', '')] = p.current_price;
             }
         }
-        if (staleCount > 0) console.log(`[generateBotSignals] Skipped ${staleCount} stale pairs`);
+        console.log(`[generateBotSignals] Loaded ${Object.keys(priceMap).length / 2} pairs from DB`);
 
         // Group bots by owner for isolated per-user processing
         const botsByOwner = {};
