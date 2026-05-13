@@ -14,6 +14,15 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
 
+        // Build map: owner email → list of connected account numbers
+        const ownerAccountMap = {};
+        for (const conn of brokerConnections) {
+            const email = conn.created_by;
+            if (!email || !conn.account_number) continue;
+            if (!ownerAccountMap[email]) ownerAccountMap[email] = [];
+            ownerAccountMap[email].push(conn.account_number);
+        }
+
         if (!bots.length) {
             return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
         }
@@ -325,28 +334,37 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const sl = analysis.type === 'BUY' ? currentPrice - (slPips * pipValue) : currentPrice + (slPips * pipValue);
                     const tp = analysis.type === 'BUY' ? currentPrice + (tpPips * pipValue) : currentPrice - (tpPips * pipValue);
 
-                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%)`);
+                    // Get account numbers for this owner — create one signal per account
+                    const accountNumbers = ownerAccountMap[ownerEmail] || [];
+                    if (accountNumbers.length === 0) {
+                        console.log(`[Skip] ${bot.name} ${pair}: no broker account for ${ownerEmail}`);
+                        continue;
+                    }
 
-                    allSignalsToCreate.push({
-                        pair,
-                        type: analysis.type,
-                        entry_price: currentPrice,
-                        stop_loss: parseFloat(sl.toFixed(5)),
-                        take_profit: parseFloat(tp.toFixed(5)),
-                        confidence: analysis.confidence,
-                        lot_size: bot.lot_size || 0.01,
-                        strategy: bot.strategy_type || 'AUTO',
-                        bot_id: bot.id,
-                        status: 'PENDING',
-                        result_pnl: 0,
-                        owner_email: ownerEmail,
-                        calculated_indicators: {
-                            rsi: analysis.rsi,
-                            ema_trend: analysis.ema_trend,
-                            momentum: analysis.momentum,
-                            reason: analysis.reason
-                        }
-                    });
+                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) → ${accountNumbers.length} account(s)`);
+
+                    for (const acctNum of accountNumbers) {
+                        allSignalsToCreate.push({
+                            pair,
+                            type: analysis.type,
+                            entry_price: currentPrice,
+                            stop_loss: parseFloat(sl.toFixed(5)),
+                            take_profit: parseFloat(tp.toFixed(5)),
+                            confidence: analysis.confidence,
+                            lot_size: bot.lot_size || 0.01,
+                            strategy: bot.strategy_type || 'AUTO',
+                            bot_id: bot.id,
+                            status: 'PENDING',
+                            result_pnl: 0,
+                            owner_email: acctNum,  // Bridge matches on account_number
+                            calculated_indicators: {
+                                rsi: analysis.rsi,
+                                ema_trend: analysis.ema_trend,
+                                momentum: analysis.momentum,
+                                reason: analysis.reason
+                            }
+                        });
+                    }
                 }
             }
         }
