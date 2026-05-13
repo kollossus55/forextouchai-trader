@@ -110,10 +110,18 @@ Deno.serve(async (req) => {
         }
 
         // ── 2. Fetch signals + risk (cached) ─────────────────────────────────
+        // Fetch both PENDING and ACTIVE signals — ACTIVE means bridge locked them but MT4 hasn't confirmed yet
         const signalsPromise = isFresh(cache.signals, TTL.signals)
             ? Promise.resolve(cache.signals.data)
-            : base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50)
-                .then(data => { cache.signals = { data, ts: now }; return data; })
+            : Promise.all([
+                base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50),
+                base44.asServiceRole.entities.Signal.filter({ status: 'ACTIVE' }, '-created_date', 50),
+              ])
+                .then(([pending, active]) => {
+                    const combined = [...(pending || []), ...(active || [])];
+                    cache.signals = { data: combined, ts: now };
+                    return combined;
+                })
                 .catch(() => cache.signals.data || []);
 
         const riskPromise = isFresh(cache.risk, TTL.risk)
@@ -199,12 +207,15 @@ Deno.serve(async (req) => {
             })
             .slice(0, 5);
 
-        // SYNCHRONOUSLY lock signals before returning — prevents duplicate execution
+        // Lock PENDING signals to ACTIVE before returning — skip ones already ACTIVE
         if (freshSignals.length > 0) {
             try {
-                await Promise.all(freshSignals.map(s =>
-                    base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
-                ));
+                const toLock = freshSignals.filter(s => s.status === 'PENDING');
+                if (toLock.length > 0) {
+                    await Promise.all(toLock.map(s =>
+                        base44.asServiceRole.entities.Signal.update(s.id, { status: 'ACTIVE' })
+                    ));
+                }
             } catch (e) {
                 console.error('[BRIDGE] Signal lock error:', e.message);
             }
