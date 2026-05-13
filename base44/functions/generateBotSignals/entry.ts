@@ -331,7 +331,9 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const analysis = strategyMap[pairRaw];
                     if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis`); continue; }
                     if (analysis.type === 'NEUTRAL') continue;
-                    if ((analysis.confidence || 0) < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${analysis.confidence} < ${minConf}`); continue; }
+                    // Normalize confidence: AI sometimes returns 0-1 decimal instead of 0-100
+                    const normalizedConf = (analysis.confidence || 0) <= 1 ? (analysis.confidence || 0) * 100 : (analysis.confidence || 0);
+                    if (normalizedConf < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${normalizedConf} < ${minConf}`); continue; }
 
                     // Calculate SL/TP
                     let slPips = bot.stop_loss_pips || 30;
@@ -363,7 +365,7 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                             entry_price: currentPrice,
                             stop_loss: parseFloat(sl.toFixed(5)),
                             take_profit: parseFloat(tp.toFixed(5)),
-                            confidence: analysis.confidence,
+                            confidence: normalizedConf,
                             lot_size: bot.lot_size || 0.01,
                             strategy: bot.strategy_type || 'AUTO',
                             bot_id: bot.id,
