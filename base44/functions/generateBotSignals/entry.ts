@@ -14,25 +14,30 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
 
-        // Build map: owner email → list of connected account numbers
-        const ownerAccountMap = {};
+        if (!bots.length) {
+            return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
+        }
+
+        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+        // Build map: owner email → list of connected account numbers (only live connections)
+        const ownerAccountMap = {};      // email → [account_number, ...]
+        const ownerHasLiveConn = {};     // email → boolean
         for (const conn of brokerConnections) {
             const email = conn.created_by;
             if (!email || !conn.account_number) continue;
             if (!ownerAccountMap[email]) ownerAccountMap[email] = [];
             ownerAccountMap[email].push(conn.account_number);
+            if (conn.connection_status === 'CONNECTED' && conn.last_sync >= fiveMinsAgo) {
+                ownerHasLiveConn[email] = true;
+            }
         }
 
-        if (!bots.length) {
-            return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
-        }
-
-        // Check at least one broker connection is live (updated within last 5 minutes)
-        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const hasLiveConnection = brokerConnections.some(c => c.connection_status === 'CONNECTED' && c.last_sync >= fiveMinsAgo);
-        if (!hasLiveConnection) {
-            console.log('[generateBotSignals] No live MT4/MT5 connection — skipping signal generation');
-            return Response.json({ success: true, message: 'No live broker connection', signals_created: 0 });
+        // Build set of all account numbers per owner (for open trade lookup)
+        // Trades use account_number as owner_email
+        const ownerAccountSet = {};  // email → Set<account_number>
+        for (const [email, accts] of Object.entries(ownerAccountMap)) {
+            ownerAccountSet[email] = new Set(accts);
         }
 
         // Build a map of owner_email -> riskSettings for per-user risk checks
@@ -258,18 +263,26 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
         const allSignalsToCreate = [];
 
         for (const [ownerEmail, ownerBots] of Object.entries(botsByOwner)) {
+            // Per-user: skip if no live broker connection
+            if (!ownerHasLiveConn[ownerEmail]) {
+                console.log(`[generateBotSignals] No live connection for ${ownerEmail} — skipping`);
+                continue;
+            }
+
             // Per-user risk settings
             const riskSettings = riskByOwner[ownerEmail] || {};
-            // Explicitly check for boolean true to avoid string/number coercion issues
             if (riskSettings.is_trading_paused === true) {
                 console.log(`[generateBotSignals] Trading paused for ${ownerEmail} — skipping`);
                 continue;
             }
 
+            // Open trades: match by account numbers owned by this user (bridge stores account_number as owner_email on trades)
+            const acctSet = ownerAccountSet[ownerEmail] || new Set();
+            const userOpenTrades = openTrades.filter(t => acctSet.has(t.owner_email));
 
-            // Only this user's open trades and pending signals
-            const userOpenTrades = openTrades.filter(t => t.owner_email === ownerEmail || t.created_by === ownerEmail);
-            const userPendingSignals = pendingSignals.filter(s => s.created_by === ownerEmail);
+            // Pending signals: match by account numbers (owner_email on signals = account_number)
+            const userPendingSignals = pendingSignals.filter(s => acctSet.has(s.owner_email));
+
             const maxGlobal = riskSettings.max_concurrent_trades || 100;
 
             if (userOpenTrades.length >= maxGlobal) {
@@ -303,13 +316,13 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
 
                 for (const pair of (bot.pairs || [])) {
                     if (botOpenTrades.length + allSignalsToCreate.filter(s => s.bot_id === bot.id).length >= maxOpen) break;
-                    if (userOpenTrades.length + allSignalsToCreate.filter(s => s.owner_email === ownerEmail).length >= maxGlobal) break;
+                    if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= maxGlobal) break;
 
                     const pairRaw = pair.replace('/', '');
                     // Cross-bot check: skip if ANY bot already has an open trade or pending signal on this pair for this user
                     if (userOpenTrades.some(t => t.pair === pair || t.pair === pairRaw)) continue;
                     if (userPendingSignals.some(s => s.pair === pair || s.pair === pairRaw)) continue;
-                    if (allSignalsToCreate.some(s => s.pair === pair || s.pair === pairRaw)) continue;
+                    if (allSignalsToCreate.some(s => acctSet.has(s.owner_email) && (s.pair === pair || s.pair === pairRaw))) continue;
 
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
