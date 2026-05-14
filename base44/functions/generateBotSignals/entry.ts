@@ -18,18 +18,57 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
         }
 
-        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-        // Build map: owner email → list of connected account numbers (only live connections)
+        // Build a set of all account numbers that are live (regardless of who created the connection)
+        // A connection is live if it is CONNECTED and last_sync is within 5 minutes
+        const liveAccountNumbers = new Set();
+        for (const conn of brokerConnections) {
+            if (!conn.account_number) continue;
+            const isConnected = conn.connection_status === 'CONNECTED';
+            const lastSync = conn.last_sync ? new Date(conn.last_sync) : null;
+            const isRecent = lastSync && lastSync >= fiveMinsAgo;
+            if (isConnected && isRecent) {
+                liveAccountNumbers.add(conn.account_number);
+            }
+        }
+        console.log(`[generateBotSignals] Live accounts: ${[...liveAccountNumbers].join(', ')}`);
+
+        // Build map: bot owner email → list of ALL broker account numbers across ALL connections
+        // We look at ALL broker connections and assign them to the user based on connection's created_by,
+        // BUT the MT4 account may have been created by service role — so we also look at the Trade/Signal
+        // history to associate it. Simpler fix: include ALL live accounts for the user whose bots are running.
+        // Since there is only one user, map ALL live accounts to ALL bot owners that have live connections.
         const ownerAccountMap = {};      // email → [account_number, ...]
         const ownerHasLiveConn = {};     // email → boolean
         for (const conn of brokerConnections) {
-            const email = conn.created_by;
-            if (!email || !conn.account_number) continue;
+            if (!conn.account_number) continue;
+            // Use created_by if it's a real user email (not a service account)
+            const email = conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null;
+            if (!email) continue;
             if (!ownerAccountMap[email]) ownerAccountMap[email] = [];
             ownerAccountMap[email].push(conn.account_number);
-            if (conn.connection_status === 'CONNECTED' && conn.last_sync >= fiveMinsAgo) {
+            if (liveAccountNumbers.has(conn.account_number)) {
                 ownerHasLiveConn[email] = true;
+            }
+        }
+
+        // For any bot owner who has at least one live connection, also include ALL live accounts
+        // (this handles the case where MT4 was connected via service role but belongs to the same user)
+        for (const email of Object.keys(ownerHasLiveConn)) {
+            const currentAccts = new Set(ownerAccountMap[email] || []);
+            // Add all live accounts that aren't already mapped to another real user
+            for (const acctNum of liveAccountNumbers) {
+                if (!currentAccts.has(acctNum)) {
+                    // Check if this account is already claimed by another real user
+                    const claimedByOther = Object.entries(ownerAccountMap).some(
+                        ([otherEmail, accts]) => otherEmail !== email && accts.includes(acctNum)
+                    );
+                    if (!claimedByOther) {
+                        ownerAccountMap[email].push(acctNum);
+                        console.log(`[generateBotSignals] Associating orphan account ${acctNum} to ${email}`);
+                    }
+                }
             }
         }
 
