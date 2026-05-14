@@ -62,7 +62,9 @@ export default function Settings() {
     const fetchUser = async () => {
       try {
         const u = await base44.auth.me();
-        setUser(u);
+        // Get the auth token — Base44 stores it as base44_access_token
+        const token = localStorage.getItem('base44_access_token') || '';
+        setUser({ ...u, token });
       } catch (e) { console.error(e); }
     };
     fetchUser();
@@ -351,6 +353,7 @@ export default function Settings() {
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
+input string ApiKey            = "";  // Paste your API Key from Settings page
 input double FixedLotSize      = 0.01;
 input int    MaxOpenTrades     = 5;
 input int    MaxDailyTrades    = 0;       // 0 = unlimited
@@ -496,7 +499,7 @@ string BuildJson() {
 void SendPost(string json) {
    char data[], res[];
    StringToCharArray(json, data, 0, StringLen(json));
-   string headers = "Content-Type: application/json\\r\\n";
+   string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
    string resHeaders;
    ResetLastError();
    int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resHeaders);
@@ -974,9 +977,9 @@ string GetJsonValue(string json, string key) {
          char data[];
          StringToCharArray(json, data, 0, StringLen(json));
          char res[];
-         string headers = "Content-Type: application/json\\r\\n";
+         string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
          string resH;
-         
+
          ResetLastError();
          int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resH);
          
@@ -1442,6 +1445,26 @@ string GetJsonValue(string json, string key) {
                 </div>
               )}
 
+              {/* API Key Display */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Key className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold text-amber-300 mb-1">Your EA API Key (Required)</h4>
+                    <p className="text-xs text-amber-200/70 mb-2">Paste this token into the <strong>ApiKey</strong> field when attaching the EA in MT4/MT5.</p>
+                    <div className="flex gap-2 items-center">
+                      <code className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-emerald-400 font-mono break-all select-all">
+                        {user?.token || (user ? 'Loading token...' : 'Please wait...')}
+                      </code>
+                      <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                        onClick={() => { navigator.clipboard.writeText(user?.token || ''); toast.success('API Key copied!'); }}>
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 space-y-3">
                 <h4 className="text-sm font-medium text-slate-200">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside text-xs text-slate-400 space-y-2">
@@ -1453,6 +1476,7 @@ string GetJsonValue(string json, string key) {
                   <li className="text-white font-mono bg-slate-900 p-1.5 mt-1 block text-center select-all rounded">https://forex-ai-trader-cc744e2a.base44.app</li>
                   <li className="text-amber-400 font-bold">Do NOT include a trailing slash "/" at the end of the URL.</li>
                   <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
+                  <li className="text-amber-300 font-semibold">In the EA inputs, paste your <strong>API Key</strong> (shown above) into the <code>ApiKey</code> field.</li>
                   <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
                   <li className="text-emerald-400 font-medium">If setup is correct, you'll see "SUCCESS: Connected to server successfully" in the Experts tab.</li>
                   <li><strong>Common Errors:</strong>

@@ -3,11 +3,12 @@
 //|                                          ForexTouchAI Bridge EA  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 
 // --- INPUTS ---
 input string BridgeURL    = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
+input string ApiKey       = "";  // Paste your API Key from ForexTouchAI Settings page
 input int    HeartbeatSec = 30;  // How often to poll bridge (seconds)
 input int    MagicNumber  = 12345;
 input int    Slippage     = 3;
@@ -17,6 +18,9 @@ datetime lastHeartbeat = 0;
 
 //+------------------------------------------------------------------+
 int OnInit() {
+    if (StringLen(ApiKey) == 0) {
+        Print("[ForexTouchAI] WARNING: ApiKey is empty! Get your API Key from the Settings page.");
+    }
     Print("[ForexTouchAI] EA started. Bridge: ", BridgeURL);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
@@ -96,13 +100,18 @@ void SendHeartbeat() {
     string resultHeaders;
     StringToCharArray(payload, postData, 0, StringLen(payload));
 
-    string headers = "Content-Type: application/json\r\n";
+    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + ApiKey + "\r\n";
     int timeout = 5000;
 
     int res = WebRequest("POST", BridgeURL, headers, timeout, postData, result, resultHeaders);
 
     if (res == -1) {
         Print("[ForexTouchAI] WebRequest failed. Error: ", GetLastError(), " - Add URL to: Tools > Options > Expert Advisors > Allow WebRequest");
+        return;
+    }
+
+    if (res == 403) {
+        Print("[ForexTouchAI] ERROR 403: Invalid or missing ApiKey. Get your API Key from the Settings page.");
         return;
     }
 
@@ -236,7 +245,7 @@ void ConfirmExecution(string signalId, int ticket, string pair, string type, dou
     string resultHeaders;
     StringToCharArray(payload, postData, 0, StringLen(payload));
 
-    string headers = "Content-Type: application/json\r\n";
+    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + ApiKey + "\r\n";
     WebRequest("POST", confirmUrl, headers, 5000, postData, result, resultHeaders);
     Print("[ForexTouchAI] Execution confirmed to bridge for ticket ", ticket);
 }
