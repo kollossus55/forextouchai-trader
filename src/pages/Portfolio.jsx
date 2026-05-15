@@ -15,14 +15,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function Portfolio() {
-  const { data: trades } = useQuery({
+  const { data: tradesRaw } = useQuery({
     queryKey: ['trades-all'],
     queryFn: () => base44.entities.Trade.list('-created_date', 100),
     refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
-    initialData: []
   });
+  const trades = tradesRaw ?? [];
 
   const openTrades = trades.filter(t => t.status === 'OPEN');
   const closedTrades = trades.filter(t => t.status === 'CLOSED');

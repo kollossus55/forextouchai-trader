@@ -95,18 +95,18 @@ export default function Overview() {
     }
   }, [activeConnection]);
 
-  const { data: trades, refetch: refetchTrades } = useQuery({
+  const { data: tradesRaw, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home'],
     queryFn: async () => {
       const result = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
       console.log('[Overview] Fetched trades:', result.length, result);
       return result;
     },
-    refetchInterval: 10000, // Poll every 10 seconds
+    refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
-    initialData: []
   });
+  const trades = tradesRaw ?? [];
 
   const { data: events } = useQuery({
     queryKey: ['economic-events'],
