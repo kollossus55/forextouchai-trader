@@ -19,6 +19,8 @@ export default function Portfolio() {
     queryKey: ['trades-all'],
     queryFn: () => base44.entities.Trade.list('-created_date', 100),
     refetchInterval: 10000,
+    staleTime: 0,
+    gcTime: 0,
     initialData: []
   });
 

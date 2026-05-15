@@ -375,7 +375,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     // Add all EA tickets to memory (even already-existing ones)
     eaTicketSet.forEach(t => memTickets.add(t));
 
-    if (existingDbTrades.length === 0) return; // rate limited — skip updates/closes
+    if (existingDbTrades.length === 0 && eaTicketSet.size === 0) return; // nothing to do
+    if (existingDbTrades.length === 0) return; // DB fetch rate-limited — skip updates/closes
 
     // ── Update PnL (only if changed by >$1 to reduce DB writes) ─────────────
     const toUpdatePnl = existingDbTrades.filter(t => {
