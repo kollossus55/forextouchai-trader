@@ -340,11 +340,14 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         console.warn('[BRIDGE] DB fetch rate-limited, using memory tickets only');
     }
 
-    // ── Create new trades (guarded by memory set) ────────────────────────────
+    // ── Create new trades (guarded by memory set + DB check) ─────────────────
     // For MT5: open_price may be 0 — fall back to live bid price, or store 0 and let PnL updates fill it in
+    // Also check DB tickets to catch trades already created by confirmExecution (survives isolate restarts)
+    const dbTicketSet = new Set(existingDbTrades.map(t => t.ticket).filter(Boolean));
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         if (memTickets.has(t.ticket)) return false;
+        if (dbTicketSet.has(t.ticket)) { memTickets.add(t.ticket); return false; } // already in DB
         return true; // Always create — never block on open_price
     });
     if (toCreate.length > 0) {
