@@ -57,10 +57,8 @@ Deno.serve(async (req) => {
         // (this handles the case where MT4 was connected via service role but belongs to the same user)
         for (const email of Object.keys(ownerHasLiveConn)) {
             const currentAccts = new Set(ownerAccountMap[email] || []);
-            // Add all live accounts that aren't already mapped to another real user
             for (const acctNum of liveAccountNumbers) {
                 if (!currentAccts.has(acctNum)) {
-                    // Check if this account is already claimed by another real user
                     const claimedByOther = Object.entries(ownerAccountMap).some(
                         ([otherEmail, accts]) => otherEmail !== email && accts.includes(acctNum)
                     );
@@ -105,6 +103,19 @@ Deno.serve(async (req) => {
             if (!owner) continue;
             if (!botsByOwner[owner]) botsByOwner[owner] = [];
             botsByOwner[owner].push(bot);
+        }
+
+        // FALLBACK: If no real-user connections found (all created by service role),
+        // assign all live accounts to every bot owner so bots can still execute.
+        if (Object.keys(ownerHasLiveConn).length === 0 && liveAccountNumbers.size > 0) {
+            console.log(`[generateBotSignals] No user-owned connections found — assigning all live accounts to all bot owners`);
+            const liveAcctList = [...liveAccountNumbers];
+            for (const email of Object.keys(botsByOwner)) {
+                ownerAccountMap[email] = liveAcctList;
+                ownerHasLiveConn[email] = true;
+                ownerAccountSet[email] = new Set(liveAcctList);
+                console.log(`[generateBotSignals] Assigned ${liveAcctList.join(', ')} to ${email}`);
+            }
         }
 
         // Collect all unique pairs across ALL bots that have a live price (for single AI call)
