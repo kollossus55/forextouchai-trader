@@ -138,7 +138,8 @@ Deno.serve(async (req) => {
         const shouldReconcile = (now - lastReconcile) > 30_000 && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
-            reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
+            // Run reconcile synchronously (awaited) to prevent race conditions with concurrent requests
+            await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
                 .finally(() => { reconcileLock[acctKey] = false; });
         }
