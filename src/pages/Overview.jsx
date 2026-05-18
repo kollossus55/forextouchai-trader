@@ -96,17 +96,20 @@ export default function Overview() {
   }, [activeConnection]);
 
   const { data: tradesRaw, refetch: refetchTrades } = useQuery({
-    queryKey: ['trades-home'],
+    queryKey: ['trades-home', connections?.map(c => c.account_number).join(',')],
     queryFn: async () => {
       const result = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
-      console.log('[Overview] Fetched trades:', result.length, result);
       return result;
     },
     refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
+    enabled: true,
   });
-  const trades = tradesRaw ?? [];
+
+  // Only show trades belonging to the current user's broker accounts
+  const myAccountNumbers = new Set((connections || []).map(c => c.account_number).filter(Boolean));
+  const trades = (tradesRaw ?? []).filter(t => myAccountNumbers.size === 0 || myAccountNumbers.has(t.owner_email));
 
   const { data: events } = useQuery({
     queryKey: ['economic-events'],
@@ -703,7 +706,7 @@ export default function Overview() {
                 await new Promise(resolve => setTimeout(resolve, 6000));
                 queryClient.removeQueries(['trades-home']);
                 const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
-                queryClient.setQueryData(['trades-home'], freshTrades);
+                queryClient.setQueryData(['trades-home', connections?.map(c => c.account_number).join(',')], freshTrades);
                 toast.success(`Synced - ${freshTrades.length} open trade${freshTrades.length !== 1 ? 's' : ''}`, { id: toastId });
               } catch (e) {
                 toast.error('Sync failed: ' + e.message, { id: toastId });

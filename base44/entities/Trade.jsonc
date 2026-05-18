@@ -57,21 +57,7 @@
   ],
   "rls": {
     "create": {},
-    "read": {
-      "$or": [
-        {
-          "owner_email": "{{user.email}}"
-        },
-        {
-          "created_by": "{{user.email}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
-    },
+    "read": {},
     "update": {
       "$or": [
         {
