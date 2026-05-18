@@ -24,33 +24,15 @@ import { Input } from '@/components/ui/input';
 import { createPageUrl } from '@/utils';
 import { Toaster, toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Layout({ children }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+  const { user, isLoadingAuth } = useAuth();
   
   // Don't show layout chrome on Home page (landing page)
   const isHomePage = location.pathname === '/' || location.pathname === '/Home';
-
-  useEffect(() => {
-    // Skip auth check on Home page (landing page)
-    if (isHomePage) return;
-    
-    const fetchUser = async () => {
-      try {
-        const userData = await base44.auth.me();
-        setUser(userData);
-      } catch (e) {
-        console.error("Not logged in - redirecting to login");
-        base44.auth.redirectToLogin(window.location.pathname);
-      } finally {
-        setUserLoaded(true);
-      }
-    };
-    fetchUser();
-  }, []);
 
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
@@ -193,7 +175,7 @@ export default function Layout({ children }) {
   }, [isConnected]);
 
   const navItems = useMemo(() => {
-    if (!userLoaded) return [];
+    if (isLoadingAuth) return [];
     return [
       { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
       { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
@@ -206,10 +188,9 @@ export default function Layout({ children }) {
       { label: 'Profile', icon: User, path: '/Profile' },
       ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
     ];
-  }, [user?.role, userLoaded]);
+  }, [user?.role, isLoadingAuth]);
 
   const handleLogout = async () => {
-    setUser(null);
     await base44.auth.logout('/');
   };
 
