@@ -189,7 +189,7 @@ export default function Layout({ children }) {
     };
   }, [isConnected]);
 
-  const navItems = [
+  const navItems = React.useMemo(() => [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
     { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
     { label: 'Auto Trade', icon: Bot, path: '/AutoTrade' },
@@ -200,7 +200,7 @@ export default function Layout({ children }) {
     { label: 'Settings', icon: Settings, path: '/Settings' },
     { label: 'Profile', icon: User, path: '/Profile' },
     ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
-  ];
+  ], [user?.role]);
 
   const handleLogout = async () => {
     setUser(null);
