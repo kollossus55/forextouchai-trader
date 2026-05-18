@@ -199,7 +199,7 @@ export default function Layout({ children }) {
     { label: 'Alerts', icon: Bell, path: '/Alerts' },
     { label: 'Settings', icon: Settings, path: '/Settings' },
     { label: 'Profile', icon: User, path: '/Profile' },
-    { label: 'Admin', icon: Shield, path: '/Admin' },
+    ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
   ];
 
   const handleLogout = async () => {

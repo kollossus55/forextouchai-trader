@@ -1,0 +1,237 @@
+{
+  "name": "BotConfig",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "strategy_type": {
+      "type": "string",
+      "enum": [
+        "SCALPING",
+        "SWING",
+        "DAY_TRADING",
+        "AI_PREDICTIVE",
+        "PRICE_ACTION",
+        "PATTERN_TRADING",
+        "CANDLESTICK",
+        "HYBRID_ALL"
+      ]
+    },
+    "timeframe": {
+      "type": "string",
+      "enum": [
+        "M1",
+        "M5",
+        "M15",
+        "M30",
+        "H1",
+        "H4",
+        "D1",
+        "W1"
+      ],
+      "default": "H1",
+      "description": "Trading timeframe for analysis and signals"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RUNNING",
+        "STOPPED",
+        "PAUSED"
+      ],
+      "default": "STOPPED"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH"
+      ],
+      "default": "MEDIUM"
+    },
+    "pairs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lot_size": {
+      "type": "number",
+      "default": 0.1
+    },
+    "min_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 75
+    },
+    "trading_start_time": {
+      "type": "string",
+      "default": "00:00",
+      "description": "Daily trading start time (HH:MM)"
+    },
+    "trading_end_time": {
+      "type": "string",
+      "default": "23:59",
+      "description": "Daily trading end time (HH:MM)"
+    },
+    "stop_loss_pips": {
+      "type": "number",
+      "default": 30
+    },
+    "take_profit_pips": {
+      "type": "number",
+      "default": 60
+    },
+    "max_open_trades": {
+      "type": "number",
+      "default": 5,
+      "description": "Maximum number of concurrent open trades"
+    },
+    "max_daily_trades": {
+      "type": "number",
+      "default": 0,
+      "description": "Maximum trades per day (0 = unlimited)"
+    },
+    "sl_tp_mode": {
+      "type": "string",
+      "enum": [
+        "FIXED",
+        "ATR"
+      ],
+      "default": "FIXED"
+    },
+    "atr_period": {
+      "type": "number",
+      "default": 14
+    },
+    "atr_multiplier_sl": {
+      "type": "number",
+      "default": 1.5
+    },
+    "atr_multiplier_tp": {
+      "type": "number",
+      "default": 3
+    },
+    "money_management": {
+      "type": "string",
+      "enum": [
+        "FIXED",
+        "MARTINGALE"
+      ],
+      "default": "FIXED"
+    },
+    "martingale_multiplier": {
+      "type": "number",
+      "default": 2
+    },
+    "enable_trailing_stop": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable trailing stop loss"
+    },
+    "trailing_stop_pips": {
+      "type": "number",
+      "default": 20,
+      "description": "Distance in pips for trailing stop"
+    },
+    "trailing_start_pips": {
+      "type": "number",
+      "default": 30,
+      "description": "Start trailing after this many pips in profit"
+    },
+    "hide_sl_tp": {
+      "type": "boolean",
+      "default": false,
+      "description": "Hide SL/TP from broker (managed internally)"
+    },
+    "close_all_at_profit_percent": {
+      "type": "number",
+      "default": 0,
+      "description": "Close all trades when total profit reaches % (0 = disabled)"
+    },
+    "close_all_at_loss_percent": {
+      "type": "number",
+      "default": 0,
+      "description": "Close all trades when total loss reaches % (0 = disabled)"
+    },
+    "max_spread_pips": {
+      "type": "number",
+      "default": 3,
+      "description": "Don't open trades if spread exceeds this"
+    },
+    "enable_news_filter": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pause trading during high-impact news"
+    },
+    "auto_execution": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allow AI to open/close trades on MT4/MT5 directly"
+    },
+    "use_ai_risk": {
+      "type": "boolean",
+      "default": false,
+      "description": "Auto-adjust Stop Loss & Lot Size based on volatility"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the user who owns this bot"
+    }
+  },
+  "required": [
+    "name",
+    "strategy_type"
+  ],
+  "rls": {
+    "create": {},
+    "read": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
