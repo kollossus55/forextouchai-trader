@@ -29,6 +29,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [userLoaded, setUserLoaded] = useState(false);
   
   // Don't show layout chrome on Home page (landing page)
   const isHomePage = location.pathname === '/' || location.pathname === '/Home';
@@ -44,10 +45,12 @@ export default function Layout({ children }) {
       } catch (e) {
         console.error("Not logged in - redirecting to login");
         base44.auth.redirectToLogin(window.location.pathname);
+      } finally {
+        setUserLoaded(true);
       }
     };
     fetchUser();
-  }, [isHomePage]);
+  }, []);
 
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
@@ -189,18 +192,21 @@ export default function Layout({ children }) {
     };
   }, [isConnected]);
 
-  const navItems = useMemo(() => [
-    { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
-    { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
-    { label: 'Auto Trade', icon: Bot, path: '/AutoTrade' },
-    { label: 'Analytics', icon: LineChart, path: '/Analytics' },
-    { label: 'Portfolio', icon: Wallet, path: '/Portfolio' },
-    { label: 'Social', icon: Users, path: '/Social' },
-    { label: 'Alerts', icon: Bell, path: '/Alerts' },
-    { label: 'Settings', icon: Settings, path: '/Settings' },
-    { label: 'Profile', icon: User, path: '/Profile' },
-    ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
-  ], [user?.role]);
+  const navItems = useMemo(() => {
+    if (!userLoaded) return [];
+    return [
+      { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
+      { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
+      { label: 'Auto Trade', icon: Bot, path: '/AutoTrade' },
+      { label: 'Analytics', icon: LineChart, path: '/Analytics' },
+      { label: 'Portfolio', icon: Wallet, path: '/Portfolio' },
+      { label: 'Social', icon: Users, path: '/Social' },
+      { label: 'Alerts', icon: Bell, path: '/Alerts' },
+      { label: 'Settings', icon: Settings, path: '/Settings' },
+      { label: 'Profile', icon: User, path: '/Profile' },
+      ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
+    ];
+  }, [user?.role, userLoaded]);
 
   const handleLogout = async () => {
     setUser(null);
