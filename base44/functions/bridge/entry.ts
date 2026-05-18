@@ -364,16 +364,16 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
         // Sequential creation to prevent race-condition duplicates
         for (const t of toCreate) {
-            // Double-check memory set before each create (handles concurrent requests)
-            if (memTickets.has(t.ticket)) continue;
+            // Double-check BOTH memory set AND allDbTickets before each create
+            if (memTickets.has(t.ticket) || allDbTickets.has(t.ticket)) continue;
             memTickets.add(t.ticket); // lock BEFORE async create
+            allDbTickets.add(t.ticket); // also lock in DB set to block concurrent iterations
 
             // Final DB-level check: verify ticket truly doesn't exist (catches cold-start races)
             try {
                 const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: t.ticket, owner_email: acctKey });
                 if (existing && existing.length > 0) {
                     console.log('[BRIDGE] Skipping ticket', t.ticket, '— already exists in DB (cold-start guard)');
-                    allDbTickets.add(t.ticket);
                     continue;
                 }
             } catch (e) {
