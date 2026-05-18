@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -189,7 +189,7 @@ export default function Layout({ children }) {
     };
   }, [isConnected]);
 
-  const navItems = React.useMemo(() => [
+  const navItems = useMemo(() => [
     { label: 'Overview', icon: LayoutDashboard, path: '/Overview' },
     { label: 'Pairs', icon: ArrowLeftRight, path: '/Pairs' },
     { label: 'Auto Trade', icon: Bot, path: '/AutoTrade' },
