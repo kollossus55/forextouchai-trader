@@ -10,30 +10,33 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
   // If multiple connections, group trades by connection (account)
   // Each connection gets its own block; trades without a ticket match go to a "General" bucket
   const buildAccountMap = () => {
-    // Always group by account_number (stored in owner_email by bridge)
+    // Group by account_number (stored in owner_email by bridge)
     const map = {};
+    // Pre-populate all known connection buckets
     for (const conn of connections) {
-      map[conn.id] = [];
+      map[conn.account_number || conn.id] = { conn, trades: [] };
     }
     for (const trade of trades) {
-      // owner_email stores the account_number set by the bridge
-      const matchedConn = connections.find(c => c.account_number === trade.owner_email);
-      const key = matchedConn?.id || connections[0]?.id || 'default';
-      if (!map[key]) map[key] = [];
-      map[key].push(trade);
+      const key = trade.owner_email || 'unknown';
+      if (!map[key]) {
+        // Trade belongs to an account not in connections list — create a bucket for it
+        const matchedConn = connections.find(c => c.account_number === key);
+        map[key] = { conn: matchedConn || null, trades: [] };
+      }
+      map[key].trades.push(trade);
     }
-    // If no connections, fallback bucket
-    if (connections.length === 0 && trades.length > 0) {
-      return { default: trades };
+    // Remove empty connection buckets (no trades)
+    for (const key of Object.keys(map)) {
+      if (map[key].trades.length === 0) delete map[key];
+    }
+    // If no connections, fallback
+    if (Object.keys(map).length === 0 && trades.length > 0) {
+      return { default: { conn: null, trades } };
     }
     return map;
   };
 
   const accountMap = buildAccountMap();
-
-  const getConnectionInfo = (connId) => {
-    return connections.find(c => c.id === connId) || connections[0] || null;
-  };
 
   const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const totalTrades = trades.length;
@@ -86,8 +89,7 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
             )}
 
             {/* Per-account blocks */}
-            {Object.entries(accountMap).map(([connId, acctTrades]) => {
-              const conn = getConnectionInfo(connId);
+            {Object.entries(accountMap).map(([acctKey, { conn, trades: acctTrades }]) => {
               const accountPnl = acctTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
               const buys = acctTrades.filter(t => t.type === 'BUY').length;
               const sells = acctTrades.filter(t => t.type === 'SELL').length;
@@ -100,12 +102,12 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                 pairSummary[t.pair].pnl += t.pnl || 0;
               }
 
-              const isCollapsed = collapsed[connId];
+              const isCollapsed = collapsed[acctKey];
               return (
-                <div key={connId} className="border border-slate-700/50 rounded-xl overflow-hidden">
+                <div key={acctKey} className="border border-slate-700/50 rounded-xl overflow-hidden">
                   {/* Account header — clickable to toggle */}
                   <button
-                    onClick={() => setCollapsed(prev => ({ ...prev, [connId]: !prev[connId] }))}
+                    onClick={() => setCollapsed(prev => ({ ...prev, [acctKey]: !prev[acctKey] }))}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-800/50 border-b border-slate-700/40 hover:bg-slate-800/70 transition-colors"
                   >
                     <div className="flex items-center gap-2">
@@ -113,7 +115,7 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                       <span className="text-sm font-semibold text-slate-200">
                         {conn?.platform || 'MT4'} — {conn?.server_name || 'Account'}
                       </span>
-                      <span className="text-xs text-slate-500 font-mono">#{conn?.account_number || connId.slice(0, 8)}</span>
+                      <span className="text-xs text-slate-500 font-mono">#{conn?.account_number || acctKey}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-slate-400">{acctTrades.length} trades</span>
@@ -126,6 +128,7 @@ export default function RunningTradesSummary({ trades, connections, onRefresh, l
                         {accountPnl >= 0 ? '+' : ''}${accountPnl.toFixed(2)}
                       </span>
                       {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400 ml-1" /> : <ChevronUp className="w-4 h-4 text-slate-400 ml-1" />}
+
                     </div>
                   </button>
 
