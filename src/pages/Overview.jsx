@@ -98,8 +98,15 @@ export default function Overview() {
   const { data: tradesRaw, refetch: refetchTrades } = useQuery({
     queryKey: ['trades-home', connections?.map(c => c.account_number).join(',')],
     queryFn: async () => {
-      const result = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
-      return result;
+      const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
+      if (myAccountNumbers.length === 0) return [];
+      // Fetch trades for all user's accounts
+      const result = await Promise.all(
+        myAccountNumbers.map(acctNum =>
+          base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 100)
+        )
+      );
+      return result.flat();
     },
     refetchInterval: 10000,
     staleTime: 0,
@@ -107,9 +114,7 @@ export default function Overview() {
     enabled: true,
   });
 
-  // Only show trades belonging to the current user's broker accounts
-  const myAccountNumbers = new Set((connections || []).map(c => c.account_number).filter(Boolean));
-  const trades = (tradesRaw ?? []).filter(t => myAccountNumbers.size === 0 || myAccountNumbers.has(t.owner_email));
+  const trades = tradesRaw ?? [];
 
   const { data: events } = useQuery({
     queryKey: ['economic-events'],
