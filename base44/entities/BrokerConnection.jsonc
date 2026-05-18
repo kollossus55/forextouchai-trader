@@ -65,6 +65,10 @@
     "currency": {
       "type": "string",
       "default": "USD"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the user who owns this broker connection"
     }
   },
   "required": [
@@ -75,6 +79,9 @@
     "create": {},
     "read": {
       "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
         {
           "created_by": "{{user.email}}"
         },
@@ -88,6 +95,9 @@
     "update": {
       "$or": [
         {
+          "owner_email": "{{user.email}}"
+        },
+        {
           "created_by": "{{user.email}}"
         },
         {
@@ -99,6 +109,9 @@
     },
     "delete": {
       "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
         {
           "created_by": "{{user.email}}"
         },

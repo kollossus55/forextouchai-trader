@@ -342,33 +342,47 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     }
 
     // ── Create new trades (guarded by memory set + DB check) ─────────────────
-    // For MT5: open_price may be 0 — fall back to live bid price, or store 0 and let PnL updates fill it in
-    // Also check DB tickets to catch trades already created by confirmExecution (survives isolate restarts)
+    // Also do a broader DB check (no status filter) to catch any pre-existing records with this ticket
     const dbTicketSet = new Set(existingDbTrades.map(t => t.ticket).filter(Boolean));
+
+    // Extra safety: fetch ALL trades for this account (open+closed) to catch any ticket already stored
+    let allDbTickets = new Set(dbTicketSet);
+    try {
+        const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 1000);
+        allTrades.forEach(t => { if (t.ticket) { allDbTickets.add(t.ticket); memTickets.add(t.ticket); } });
+    } catch (e) {
+        console.warn('[BRIDGE] allTrades fetch error:', e.message);
+    }
+
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         if (memTickets.has(t.ticket)) return false;
-        if (dbTicketSet.has(t.ticket)) { memTickets.add(t.ticket); return false; } // already in DB
-        return true; // Always create — never block on open_price
+        if (allDbTickets.has(t.ticket)) { memTickets.add(t.ticket); return false; } // already in DB
+        return true;
     });
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
-        for (let i = 0; i < toCreate.length; i += 3) {
-            await Promise.all(toCreate.slice(i, i + 3).map(t => {
-                const sym = (t.pair || t.symbol || '').replace('/', '');
-                const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
-                return base44.asServiceRole.entities.Trade.create({
-                    pair: t.pair || t.symbol,
-                    type: t.type || 'BUY',
-                    lot_size: t.lot_size || t.lots || 0.1,
-                    open_price: resolvedPrice,
-                    pnl: t.pnl || t.profit || 0,
-                    status: 'OPEN',
-                    ticket: t.ticket,
-                    is_auto: true,
-                    owner_email: acctKey,
-                }).then(() => memTickets.add(t.ticket)); // lock immediately
-            }));
+        // Sequential creation to prevent race-condition duplicates
+        for (const t of toCreate) {
+            // Double-check memory set before each create (handles concurrent requests)
+            if (memTickets.has(t.ticket)) continue;
+            memTickets.add(t.ticket); // lock BEFORE async create
+            const sym = (t.pair || t.symbol || '').replace('/', '');
+            const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
+            await base44.asServiceRole.entities.Trade.create({
+                pair: t.pair || t.symbol,
+                type: t.type || 'BUY',
+                lot_size: t.lot_size || t.lots || 0.1,
+                open_price: resolvedPrice,
+                pnl: t.pnl || t.profit || 0,
+                status: 'OPEN',
+                ticket: t.ticket,
+                is_auto: true,
+                owner_email: acctKey,
+            }).catch(e => {
+                console.error('[BRIDGE] Trade create error ticket', t.ticket, e.message);
+                memTickets.delete(t.ticket); // unlock on failure so it can retry
+            });
         }
     }
 
