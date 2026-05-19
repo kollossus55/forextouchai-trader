@@ -377,7 +377,8 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
 
                 for (const pair of (bot.pairs || [])) {
                     if (botOpenTrades.length + allSignalsToCreate.filter(s => s.bot_id === bot.id).length >= maxOpen) break;
-                    if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= maxGlobal) break;
+                    const globalMax = Math.max(...activeAcctNums.map(a => getRiskForAccount(a).max_concurrent_trades || 100));
+                    if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= globalMax) break;
 
                     const pairRaw = pair.replace('/', '');
                     // Cross-bot check: skip if ANY bot already has an open trade or pending signal on this pair for this user
