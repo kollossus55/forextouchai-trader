@@ -26,6 +26,9 @@ const initPromise = {}; // keyed by account_number → Promise<void> | null
 // Per-ticket create lock: prevents concurrent creates for the same ticket across requests
 const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 
+// In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
+const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
+
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
     signals:    20_000,  // 20s  — signals rarely change
@@ -204,6 +207,8 @@ Deno.serve(async (req) => {
         // Route signals: if signal has owner_email set, only dispatch to matching account number
         const freshSignals = candidateSignals
             .filter(s => {
+                // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
+                if (dispatchedSignalIds.has(s.id)) return false;
                 // If signal is targeted to a specific account number, respect that
                 if (s.owner_email) return s.owner_email === acctKey;
                 // Un-targeted signal: only dispatch if owner's email matches (legacy flow)
@@ -216,7 +221,10 @@ Deno.serve(async (req) => {
             .slice(0, 5);
 
         // Lock PENDING signals to ACTIVE before returning — skip ones already ACTIVE
+        // Also register all dispatched IDs immediately to block any concurrent/rapid re-dispatch
         if (freshSignals.length > 0) {
+            // Mark as dispatched BEFORE the async DB write to block any concurrent requests
+            freshSignals.forEach(s => dispatchedSignalIds.add(s.id));
             try {
                 const toLock = freshSignals.filter(s => s.status === 'PENDING');
                 if (toLock.length > 0) {
@@ -226,6 +234,8 @@ Deno.serve(async (req) => {
                 }
             } catch (e) {
                 console.error('[BRIDGE] Signal lock error:', e.message);
+                // On failure, remove from dispatched set so they can retry
+                freshSignals.forEach(s => dispatchedSignalIds.delete(s.id));
             }
             cache.signals = { data: null, ts: 0 };
         }

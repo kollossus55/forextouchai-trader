@@ -106,15 +106,22 @@ Deno.serve(async (req) => {
         }
 
         // FALLBACK: If no real-user connections found (all created by service role),
-        // assign all live accounts to every bot owner so bots can still execute.
-        if (Object.keys(ownerHasLiveConn).length === 0 && liveAccountNumbers.size > 0) {
-            console.log(`[generateBotSignals] No user-owned connections found — assigning all live accounts to all bot owners`);
-            const liveAcctList = [...liveAccountNumbers];
-            for (const email of Object.keys(botsByOwner)) {
-                ownerAccountMap[email] = liveAcctList;
+        // assign orphan live accounts (not claimed by anyone) to bot owners — but ONLY if there's exactly one bot owner.
+        // With multiple users, never assign cross-user accounts to prevent signal cross-contamination.
+        const unclaimedLiveAccounts = [...liveAccountNumbers].filter(acctNum =>
+            !Object.values(ownerAccountMap).some(accts => accts.includes(acctNum))
+        );
+        if (Object.keys(ownerHasLiveConn).length === 0 && unclaimedLiveAccounts.length > 0) {
+            const botOwnerEmails = Object.keys(botsByOwner);
+            if (botOwnerEmails.length === 1) {
+                // Only one bot owner — safe to assign all unclaimed accounts
+                const email = botOwnerEmails[0];
+                ownerAccountMap[email] = unclaimedLiveAccounts;
                 ownerHasLiveConn[email] = true;
-                ownerAccountSet[email] = new Set(liveAcctList);
-                console.log(`[generateBotSignals] Assigned ${liveAcctList.join(', ')} to ${email}`);
+                ownerAccountSet[email] = new Set(unclaimedLiveAccounts);
+                console.log(`[generateBotSignals] Single-user fallback: assigned ${unclaimedLiveAccounts.join(', ')} to ${email}`);
+            } else {
+                console.log(`[generateBotSignals] Multiple bot owners with no claimed connections — skipping fallback to prevent cross-user signal contamination`);
             }
         }
 
