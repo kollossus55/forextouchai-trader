@@ -22,6 +22,10 @@ const knownTickets = {}; // keyed by account_number → Set<ticket>
 // Per-account reconcile lock: prevents concurrent reconcile runs
 const reconcileLock = {}; // keyed by account_number → boolean
 
+// Cold-start guard: first reconcile per account populates knownTickets from DB.
+// Subsequent concurrent requests wait on this promise instead of racing.
+const initPromise = {}; // keyed by account_number → Promise<void> | null
+
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
     signals:    20_000,  // 20s  — signals rarely change
@@ -328,61 +332,48 @@ function sanitizeSignal(s, livePriceMap) {
 async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
 
-    // Ensure memory ticket set exists
-    if (!knownTickets[acctKey]) knownTickets[acctKey] = new Set();
+    // ── Cold-start init: populate knownTickets from DB exactly once per isolate ──
+    // All concurrent requests await the same promise — no races.
+    if (!knownTickets[acctKey]) {
+        if (!initPromise[acctKey]) {
+            initPromise[acctKey] = (async () => {
+                knownTickets[acctKey] = new Set();
+                try {
+                    const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 1000);
+                    allTrades.forEach(t => { if (t.ticket) knownTickets[acctKey].add(t.ticket); });
+                    console.log('[BRIDGE] Cold-start init: loaded', knownTickets[acctKey].size, 'tickets for', acctKey);
+                } catch (e) {
+                    console.warn('[BRIDGE] Cold-start init failed:', e.message);
+                    knownTickets[acctKey] = new Set(); // empty but set — won't re-init
+                }
+            })();
+        }
+        await initPromise[acctKey];
+    }
+
     const memTickets = knownTickets[acctKey];
 
-    // Fetch fresh DB state — fall back to memory-only if rate limited
+    // Fetch fresh open-trade DB state for PnL updates and close detection
     let existingDbTrades = [];
     try {
         existingDbTrades = await base44.asServiceRole.entities.Trade.filter(
             { status: 'OPEN', owner_email: acctKey }, '-created_date', 500
         );
-        // Sync DB tickets into memory set
         existingDbTrades.forEach(t => { if (t.ticket) memTickets.add(t.ticket); });
     } catch (e) {
         console.warn('[BRIDGE] DB fetch rate-limited, using memory tickets only');
     }
 
-    // ── Create new trades (guarded by memory set + DB check) ─────────────────
-    // Also do a broader DB check (no status filter) to catch any pre-existing records with this ticket
-    const dbTicketSet = new Set(existingDbTrades.map(t => t.ticket).filter(Boolean));
-
-    // Extra safety: fetch ALL trades for this account (open+closed) to catch any ticket already stored
-    let allDbTickets = new Set(dbTicketSet);
-    try {
-        const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 1000);
-        allTrades.forEach(t => { if (t.ticket) { allDbTickets.add(t.ticket); memTickets.add(t.ticket); } });
-    } catch (e) {
-        console.warn('[BRIDGE] allTrades fetch error:', e.message);
-    }
-
+    // ── Create new trades (guarded by memTickets — fully populated at cold-start) ─
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
-        if (memTickets.has(t.ticket)) return false;
-        if (allDbTickets.has(t.ticket)) { memTickets.add(t.ticket); return false; } // already in DB
-        return true;
+        return !memTickets.has(t.ticket);
     });
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
-        // Sequential creation to prevent race-condition duplicates
         for (const t of toCreate) {
-            // Double-check BOTH memory set AND allDbTickets before each create
-            if (memTickets.has(t.ticket) || allDbTickets.has(t.ticket)) continue;
-            memTickets.add(t.ticket); // lock BEFORE async create
-            allDbTickets.add(t.ticket); // also lock in DB set to block concurrent iterations
-
-            // Final DB-level check: verify ticket truly doesn't exist (catches cold-start races)
-            try {
-                const existing = await base44.asServiceRole.entities.Trade.filter({ ticket: t.ticket, owner_email: acctKey });
-                if (existing && existing.length > 0) {
-                    console.log('[BRIDGE] Skipping ticket', t.ticket, '— already exists in DB (cold-start guard)');
-                    continue;
-                }
-            } catch (e) {
-                console.warn('[BRIDGE] Pre-create DB check failed for ticket', t.ticket, e.message);
-            }
-
+            if (memTickets.has(t.ticket)) continue; // re-check (concurrent iteration safety)
+            memTickets.add(t.ticket); // lock BEFORE async create to block any concurrent requests
             const sym = (t.pair || t.symbol || '').replace('/', '');
             const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
             await base44.asServiceRole.entities.Trade.create({
