@@ -1,8 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-// ─── Global cold-start lock: blocks ALL reconcile runs until first full DB scan completes ──
-const coldStartComplete = {}; // keyed by account_number → boolean
-
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
 const MIN_CALL_INTERVAL_MS = 10_000; // 10 seconds minimum between calls per account
@@ -16,15 +13,18 @@ const cache = {
     pairMap: { data: null, ts: 0 }, // CurrencyPair symbol → record
 };
 
-// Primary duplicate-trade guard: ticket sets persist even when DB calls fail
+// Primary duplicate-trade guard: ticket sets persist across requests in same isolate
 const knownTickets = {}; // keyed by account_number → Set<ticket>
 
-// Per-account reconcile lock: prevents concurrent reconcile runs
+// Per-account reconcile lock: prevents concurrent reconcile runs within same isolate
 const reconcileLock = {}; // keyed by account_number → boolean
 
-// Cold-start guard: first reconcile per account populates knownTickets from DB.
-// Subsequent concurrent requests wait on this promise instead of racing.
+// Cold-start init: first reconcile per isolate per account loads all tickets from DB.
+// All concurrent requests await the SAME promise — prevents any races.
 const initPromise = {}; // keyed by account_number → Promise<void> | null
+
+// Per-ticket create lock: prevents concurrent creates for the same ticket across requests
+const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
@@ -364,7 +364,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         console.warn('[BRIDGE] DB fetch rate-limited, using memory tickets only');
     }
 
-    // ── Create new trades (guarded by memTickets — fully populated at cold-start) ─
+    // ── Create new trades ────────────────────────────────────────────────────────
+    // Triple-guarded: (1) in-memory set, (2) per-ticket create lock, (3) DB existence check
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         return !memTickets.has(t.ticket);
@@ -372,24 +373,51 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
         for (const t of toCreate) {
-            if (memTickets.has(t.ticket)) continue; // re-check (concurrent iteration safety)
-            memTickets.add(t.ticket); // lock BEFORE async create to block any concurrent requests
-            const sym = (t.pair || t.symbol || '').replace('/', '');
-            const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
-            await base44.asServiceRole.entities.Trade.create({
-                pair: t.pair || t.symbol,
-                type: t.type || 'BUY',
-                lot_size: t.lot_size || t.lots || 0.1,
-                open_price: resolvedPrice,
-                pnl: t.pnl || t.profit || 0,
-                status: 'OPEN',
-                ticket: t.ticket,
-                is_auto: true,
-                owner_email: acctKey,
-            }).catch(e => {
+            const lockKey = `${acctKey}:${t.ticket}`;
+
+            // Guard 1: in-memory ticket set (fast path)
+            if (memTickets.has(t.ticket)) continue;
+
+            // Guard 2: per-ticket create lock (blocks concurrent requests in same isolate)
+            if (ticketCreateLock[lockKey]) {
+                console.log('[BRIDGE] Ticket', t.ticket, 'already being created — skipping');
+                continue;
+            }
+            ticketCreateLock[lockKey] = true;
+
+            try {
+                // Guard 3: DB existence check — the final safety net that survives isolate restarts
+                const existing = await base44.asServiceRole.entities.Trade.filter(
+                    { ticket: t.ticket, owner_email: acctKey }, '-created_date', 1
+                );
+                if (existing && existing.length > 0) {
+                    console.log('[BRIDGE] Ticket', t.ticket, 'already in DB — skipping (isolate restart guard)');
+                    memTickets.add(t.ticket); // sync memory with DB reality
+                    continue;
+                }
+
+                // Safe to create — add to memory BEFORE the async create call
+                memTickets.add(t.ticket);
+                const sym = (t.pair || t.symbol || '').replace('/', '');
+                const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
+                await base44.asServiceRole.entities.Trade.create({
+                    pair: t.pair || t.symbol,
+                    type: t.type || 'BUY',
+                    lot_size: t.lot_size || t.lots || 0.1,
+                    open_price: resolvedPrice,
+                    pnl: t.pnl || t.profit || 0,
+                    status: 'OPEN',
+                    ticket: t.ticket,
+                    is_auto: true,
+                    owner_email: acctKey,
+                });
+                console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey);
+            } catch (e) {
                 console.error('[BRIDGE] Trade create error ticket', t.ticket, e.message);
-                memTickets.delete(t.ticket); // unlock on failure so it can retry
-            });
+                memTickets.delete(t.ticket); // unlock so it can retry next cycle
+            } finally {
+                delete ticketCreateLock[lockKey]; // always release lock
+            }
         }
     }
 
