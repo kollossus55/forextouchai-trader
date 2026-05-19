@@ -10,9 +10,18 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
             base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 200),
             base44.asServiceRole.entities.CurrencyPair.list('-updated_date', 100),
-            base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 50),
+            base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 100),
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
+
+        // Build per-account risk map: account_number → risk settings (account-specific preferred, then global fallback)
+        const globalRiskSettings = riskSettingsList.find(r => !r.account_number) || null;
+        const accountRiskMap = {};
+        for (const r of riskSettingsList) {
+            if (r.account_number) accountRiskMap[r.account_number] = r;
+        }
+        // Helper: get effective risk settings for an account
+        const getRiskForAccount = (acctNum) => accountRiskMap[acctNum] || globalRiskSettings || {};
 
         if (!bots.length) {
             return Response.json({ success: true, message: 'No running bots', signals_created: 0 });
@@ -77,13 +86,7 @@ Deno.serve(async (req) => {
             ownerAccountSet[email] = new Set(accts);
         }
 
-        // Build a map of owner_email -> riskSettings for per-user risk checks
-        const riskByOwner = {};
-        for (const r of riskSettingsList) {
-            if (r.created_by && !riskByOwner[r.created_by]) {
-                riskByOwner[r.created_by] = r;
-            }
-        }
+        // (riskByOwner no longer used — risk is now checked per account via getRiskForAccount)
 
         // Build price map from CurrencyPair table — use all available prices
         // Note: bridge updates these periodically; we trust whatever is in the DB
@@ -326,13 +329,6 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                 continue;
             }
 
-            // Per-user risk settings
-            const riskSettings = riskByOwner[ownerEmail] || {};
-            if (riskSettings.is_trading_paused === true) {
-                console.log(`[generateBotSignals] Trading paused for ${ownerEmail} — skipping`);
-                continue;
-            }
-
             // Open trades: match by account numbers owned by this user (bridge stores account_number as owner_email on trades)
             const acctSet = ownerAccountSet[ownerEmail] || new Set();
             const userOpenTrades = openTrades.filter(t => acctSet.has(t.owner_email));
@@ -340,10 +336,18 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
             // Pending signals: match by account numbers (owner_email on signals = account_number)
             const userPendingSignals = pendingSignals.filter(s => acctSet.has(s.owner_email));
 
-            const maxGlobal = riskSettings.max_concurrent_trades || 100;
+            // Filter out accounts that are paused — only skip the paused account, not all accounts
+            const activeAcctNums = [...acctSet].filter(acctNum => {
+                const risk = getRiskForAccount(acctNum);
+                if (risk.is_trading_paused === true) {
+                    console.log(`[generateBotSignals] Trading paused for account ${acctNum} — skipping this account only`);
+                    return false;
+                }
+                return true;
+            });
 
-            if (userOpenTrades.length >= maxGlobal) {
-                console.log(`[generateBotSignals] User ${ownerEmail} at global trade limit (${userOpenTrades.length}/${maxGlobal})`);
+            if (activeAcctNums.length === 0) {
+                console.log(`[generateBotSignals] All accounts paused for ${ownerEmail} — skipping`);
                 continue;
             }
 
@@ -406,16 +410,25 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const sl = analysis.type === 'BUY' ? currentPrice - (slPips * pipValue) : currentPrice + (slPips * pipValue);
                     const tp = analysis.type === 'BUY' ? currentPrice + (tpPips * pipValue) : currentPrice - (tpPips * pipValue);
 
-                    // Get account numbers for this owner — create one signal per account
-                    const accountNumbers = ownerAccountMap[ownerEmail] || [];
+                    // Get active (non-paused) account numbers for this owner
+                    const accountNumbers = activeAcctNums;
                     if (accountNumbers.length === 0) {
-                        console.log(`[Skip] ${bot.name} ${pair}: no broker account for ${ownerEmail}`);
+                        console.log(`[Skip] ${bot.name} ${pair}: no active accounts for ${ownerEmail}`);
                         continue;
                     }
 
-                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) → ${accountNumbers.length} account(s)`);
+                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) → ${accountNumbers.length} active account(s)`);
 
                     for (const acctNum of accountNumbers) {
+                        // Per-account max trades check
+                        const acctRisk = getRiskForAccount(acctNum);
+                        const acctMaxTrades = acctRisk.max_concurrent_trades || 100;
+                        const acctOpenCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const acctPendingCount = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
+                        if (acctOpenCount + acctPendingCount >= acctMaxTrades) {
+                            console.log(`[Skip] ${acctNum} at max concurrent trades (${acctOpenCount + acctPendingCount}/${acctMaxTrades})`);
+                            continue;
+                        }
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,

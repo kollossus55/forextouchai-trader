@@ -1,0 +1,124 @@
+{
+  "name": "RiskManagementSettings",
+  "type": "object",
+  "properties": {
+    "account_number": {
+      "type": "string",
+      "description": "Broker account number this risk setting applies to. Empty = global default."
+    },
+    "max_daily_loss_percent": {
+      "type": "number",
+      "default": 5,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Maximum allowed loss per day as % of account balance"
+    },
+    "max_drawdown_percent": {
+      "type": "number",
+      "default": 20,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Maximum allowed drawdown from peak equity as %"
+    },
+    "max_position_size_percent": {
+      "type": "number",
+      "default": 10,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Maximum position size as % of account balance"
+    },
+    "max_concurrent_trades": {
+      "type": "number",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Maximum number of open trades for this account"
+    },
+    "risk_per_trade_percent": {
+      "type": "number",
+      "default": 2,
+      "minimum": 0.1,
+      "maximum": 10,
+      "description": "Maximum risk per individual trade as % of balance"
+    },
+    "alert_threshold_percent": {
+      "type": "number",
+      "default": 80,
+      "minimum": 50,
+      "maximum": 100,
+      "description": "Alert when risk reaches this % of limit"
+    },
+    "stop_trading_on_limit": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically stop this account's bots when limits are breached"
+    },
+    "daily_profit_target_percent": {
+      "type": "number",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Close all trades and pause when daily profit reaches this % of balance (0 = disabled)"
+    },
+    "daily_loss_current": {
+      "type": "number",
+      "default": 0,
+      "description": "Current daily loss tracking"
+    },
+    "peak_equity": {
+      "type": "number",
+      "default": 0,
+      "description": "Peak account equity for drawdown calculation"
+    },
+    "last_reset_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Last date daily loss was reset"
+    },
+    "is_trading_paused": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicating if trading is paused for this account due to risk limits"
+    }
+  },
+  "required": [],
+  "rls": {
+    "create": {},
+    "read": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
