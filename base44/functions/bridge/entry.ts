@@ -1,5 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ─── Global cold-start lock: blocks ALL reconcile runs until first full DB scan completes ──
+const coldStartComplete = {}; // keyed by account_number → boolean
+
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
 const MIN_CALL_INTERVAL_MS = 10_000; // 10 seconds minimum between calls per account
