@@ -100,23 +100,13 @@ export default function Overview() {
     queryFn: async () => {
       const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
       if (myAccountNumbers.length === 0) return [];
-      // Fetch from bridge function (source of truth for EA-synced trades)
-      try {
-        const response = await base44.functions.invoke('bridge', {
-          action: 'get_trades',
-          accounts: myAccountNumbers
-        });
-        return response.data?.trades || [];
-      } catch (error) {
-        console.error('[Overview] Bridge call failed, falling back to database:', error);
-        // Fallback to database if bridge is unavailable
-        const result = await Promise.all(
-          myAccountNumbers.map(acctNum =>
-            base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 100)
-          )
-        );
-        return result.flat();
-      }
+      // Read directly from DB — bridge reconcile keeps this up to date
+      const result = await Promise.all(
+        myAccountNumbers.map(acctNum =>
+          base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 100)
+        )
+      );
+      return result.flat();
     },
     refetchInterval: 10000,
     staleTime: 0,

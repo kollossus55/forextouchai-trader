@@ -160,12 +160,12 @@ Deno.serve(async (req) => {
         const [allPendingSignals, riskSettingsList] = await Promise.all([signalsPromise, riskPromise]);
 
         // ── 3. Reconcile trades (server-driven throttle, locked per account) ─
+        // NOTE: Reconcile runs ALWAYS even when trading is paused, so DB stays in sync with EA
         const eaTrades = body.trades || acct.trades;
         const lastReconcile = body.last_reconcile || 0;
         const shouldReconcile = (now - lastReconcile) > 30_000 && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
-            // Run reconcile synchronously (awaited) to prevent race conditions with concurrent requests
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
                 .finally(() => { reconcileLock[acctKey] = false; });
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
         }
 
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
-        // ── Guard: if this account's trading is paused, return no signals ────
+        // Guard: if trading is paused, skip signal dispatch but return success (reconcile already ran above)
         if (riskSettings?.is_trading_paused === true) {
             console.log(`[BRIDGE] Trading paused for ${acctKey} — returning no signals`);
             return Response.json({
