@@ -1,0 +1,18 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "default": "user"
+    },
+    "ea_api_key": {
+      "type": "string",
+      "description": "Unique EA API key for authenticating MT4/MT5 bridge requests"
+    }
+  }
+}

@@ -44,6 +44,7 @@ export default function Settings() {
   });
   
   const [isResetting, setIsResetting] = useState(false);
+  const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
 
   const [dataSources, setDataSources] = useState({
     crypto: 'coincap',
@@ -62,13 +63,25 @@ export default function Settings() {
     const fetchUser = async () => {
       try {
         const u = await base44.auth.me();
-        // Get the auth token — Base44 stores it as base44_access_token
-        const token = localStorage.getItem('base44_access_token') || '';
-        setUser({ ...u, token });
+        setUser(u);
       } catch (e) { console.error(e); }
     };
     fetchUser();
   }, []);
+
+  const handleRegenerateKey = async () => {
+    setIsRegeneratingKey(true);
+    try {
+      const res = await base44.functions.invoke('generateEaApiKey', {});
+      const newKey = res.data?.ea_api_key;
+      setUser(prev => ({ ...prev, ea_api_key: newKey }));
+      toast.success('New EA API Key generated! Update it in your MT4/MT5 EA inputs.');
+    } catch (e) {
+      toast.error('Failed to generate key. Please try again.');
+    } finally {
+      setIsRegeneratingKey(false);
+    }
+  };
 
   // Connection list state
   const [allConnections, setAllConnections] = React.useState([]);
@@ -1451,16 +1464,32 @@ string GetJsonValue(string json, string key) {
                   <Key className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-semibold text-amber-300 mb-1">Your EA API Key (Required)</h4>
-                    <p className="text-xs text-amber-200/70 mb-2">Paste this token into the <strong>ApiKey</strong> field when attaching the EA in MT4/MT5.</p>
-                    <div className="flex gap-2 items-center">
-                      <code className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-emerald-400 font-mono break-all select-all">
-                        {user?.token || (user ? 'Loading token...' : 'Please wait...')}
-                      </code>
-                      <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
-                        onClick={() => { navigator.clipboard.writeText(user?.token || ''); toast.success('API Key copied!'); }}>
-                        Copy
-                      </Button>
-                    </div>
+                    <p className="text-xs text-amber-200/70 mb-2">Paste this token into the <strong>ApiKey</strong> field when attaching the EA in MT4/MT5. This key is unique to your account.</p>
+                    {!user?.ea_api_key ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-amber-300/80">No API key generated yet. Click below to create your unique key.</p>
+                        <Button size="sm" onClick={handleRegenerateKey} disabled={isRegeneratingKey}
+                          className="bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:bg-amber-500/30">
+                          {isRegeneratingKey ? 'Generating...' : '⚡ Generate My API Key'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex gap-2 items-center">
+                          <code className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-emerald-400 font-mono break-all select-all">
+                            {user.ea_api_key}
+                          </code>
+                          <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                            onClick={() => { navigator.clipboard.writeText(user.ea_api_key); toast.success('API Key copied!'); }}>
+                            Copy
+                          </Button>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={handleRegenerateKey} disabled={isRegeneratingKey}
+                          className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs">
+                          {isRegeneratingKey ? 'Regenerating...' : '🔄 Regenerate Key (invalidates old key)'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1489,9 +1518,6 @@ string GetJsonValue(string json, string key) {
                   </ol>
                   </div>
                   <div className="flex items-center gap-4">
-                <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all">
-                  <Key className="w-4 h-4 mr-2" /> Generate Bridge Token
-                </Button>
                 <div className="flex gap-2 ml-auto">
                   <Button 
                     onClick={handleDownloadBridge}
