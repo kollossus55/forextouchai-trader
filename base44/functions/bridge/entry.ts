@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
 
         const riskPromise = isFresh(cache.risk, TTL.risk)
             ? Promise.resolve(cache.risk.data)
-            : base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 1)
+            : base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 100)
                 .then(data => { cache.risk = { data, ts: now }; return data; })
                 .catch(() => cache.risk.data || []);
 
@@ -170,7 +170,10 @@ Deno.serve(async (req) => {
         // ── 5. Risk / daily profit check (throttled) ─────────────────────────
         // NOTE: peak_equity is managed by monitorRiskLimits (which sees ALL accounts combined).
         // The bridge must NOT update peak_equity — doing so from a single account would corrupt the combined total.
-        const riskSettings = riskSettingsList?.[0];
+        // Find account-specific risk settings first, fall back to global (no account_number)
+        const riskSettings = (riskSettingsList || []).find(r => r.account_number === acctKey)
+            || (riskSettingsList || []).find(r => !r.account_number)
+            || null;
         const lastRiskCheck = body.last_risk_check || 0;
         if ((now - lastRiskCheck) > 60_000 && riskSettings?.daily_profit_target_percent > 0 && !riskSettings?.is_trading_paused && balance > 0) {
             const dbTrades = cache.trades[acctKey]?.data || [];
@@ -179,8 +182,24 @@ Deno.serve(async (req) => {
         }
 
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
-        const fiveMinutesAgo = new Date(now - 15 * 60 * 1000).toISOString();
-        const stale = (allPendingSignals || []).filter(s => s.created_date < fiveMinutesAgo);
+        // ── Guard: if this account's trading is paused, return no signals ────
+        if (riskSettings?.is_trading_paused === true) {
+            console.log(`[BRIDGE] Trading paused for ${acctKey} — returning no signals`);
+            return Response.json({
+                success: true,
+                account: acctKey,
+                timestamp: new Date().toISOString(),
+                heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
+                price_update_ts: body.last_price_update || 0,
+                last_reconcile: body.last_reconcile || 0,
+                last_risk_check: body.last_risk_check || 0,
+                pending_signals: [],
+                trading_paused: true,
+            }, { headers: corsHeaders() });
+        }
+
+        const fiveMinutesAgo = new Date(now - 30 * 60 * 1000).toISOString(); // 30min expiry window
+        const stale = (allPendingSignals || []).filter(s => s.created_date < fiveMinutesAgo); // expire after 30min
         if (stale.length > 0) {
             Promise.all(stale.map(s =>
                 base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
