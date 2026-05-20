@@ -5,10 +5,11 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
 
         // Fetch all running bots, open trades, pending signals, pairs, risk settings in parallel
-        const [bots, openTrades, pendingSignals, pairsList, riskSettingsList, brokerConnections] = await Promise.all([
+        const [bots, openTrades, pendingSignals, activeSignals, pairsList, riskSettingsList, brokerConnections] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50),
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
             base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 200),
+            base44.asServiceRole.entities.Signal.filter({ status: 'ACTIVE' }, '-created_date', 200),
             base44.asServiceRole.entities.CurrencyPair.list('-updated_date', 100),
             base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 100),
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
@@ -340,8 +341,12 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
             const acctSet = ownerAccountSet[ownerEmail] || new Set();
             const userOpenTrades = openTrades.filter(t => acctSet.has(t.owner_email));
 
-            // Pending signals: match by account numbers (owner_email on signals = account_number)
-            const userPendingSignals = pendingSignals.filter(s => acctSet.has(s.owner_email));
+            // Pending + Active signals: match by account numbers (owner_email on signals = account_number)
+            // We check BOTH statuses to prevent firing a new signal for a pair that already has one in-flight
+            const userPendingSignals = [
+                ...pendingSignals.filter(s => acctSet.has(s.owner_email)),
+                ...activeSignals.filter(s => acctSet.has(s.owner_email)),
+            ];
 
             // Filter out accounts that are paused — only skip the paused account, not all accounts
             const activeAcctNums = [...acctSet].filter(acctNum => {
@@ -388,10 +393,10 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= globalMax) break;
 
                     const pairRaw = pair.replace('/', '');
-                    // Cross-bot check: skip if ANY bot already has an open trade or pending signal on this pair for this user
-                    if (userOpenTrades.some(t => t.pair === pair || t.pair === pairRaw)) continue;
-                    if (userPendingSignals.some(s => s.pair === pair || s.pair === pairRaw)) continue;
-                    if (allSignalsToCreate.some(s => acctSet.has(s.owner_email) && (s.pair === pair || s.pair === pairRaw))) continue;
+                    // Cross-bot check: skip if ANY bot already has an open trade, pending/active signal on this pair
+                    if (userOpenTrades.some(t => (t.pair || '').replace('/', '') === pairRaw)) continue;
+                    if (userPendingSignals.some(s => (s.pair || '').replace('/', '') === pairRaw)) continue;
+                    if (allSignalsToCreate.some(s => acctSet.has(s.owner_email) && (s.pair || '').replace('/', '') === pairRaw)) continue;
 
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
