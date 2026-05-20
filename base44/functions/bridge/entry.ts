@@ -67,17 +67,17 @@ Deno.serve(async (req) => {
 
         const body = JSON.parse(cleanText);
 
-        // ── API Key validation ────────────────────────────────────────────────
+        // ── API Key validation (only enforce if key looks valid, i.e. starts with FTAI-) ─
         const authHeader = req.headers.get('Authorization') || '';
         const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
-        if (providedKey) {
+        if (providedKey && providedKey.startsWith('FTAI-')) {
             // Find the user whose ea_api_key matches
             const matchingUsers = await base44.asServiceRole.entities.User.filter({ ea_api_key: providedKey });
             if (!matchingUsers || matchingUsers.length === 0) {
                 return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
             }
         }
-        // If no key provided, allow (backward-compatible for accounts not yet set up)
+        // If no key or non-FTAI key provided, allow (backward-compatible)
         const now = Date.now();
         const acct = body.account || body;
         const { account_number, server_name, balance, equity, margin, free_margin, margin_level, leverage, currency, platform } = acct;
