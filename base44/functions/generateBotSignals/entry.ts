@@ -109,22 +109,29 @@ Deno.serve(async (req) => {
         }
 
         // FALLBACK: If no real-user connections found (all created by service role),
-        // assign orphan live accounts (not claimed by anyone) to bot owners — but ONLY if there's exactly one bot owner.
-        // With multiple users, never assign cross-user accounts to prevent signal cross-contamination.
+        // assign orphan live accounts (not claimed by anyone) to the ADMIN bot owner only.
+        // Never assign to non-admin users to prevent cross-user signal contamination.
         const unclaimedLiveAccounts = [...liveAccountNumbers].filter(acctNum =>
             !Object.values(ownerAccountMap).some(accts => accts.includes(acctNum))
         );
-        if (Object.keys(ownerHasLiveConn).length === 0 && unclaimedLiveAccounts.length > 0) {
+        if (unclaimedLiveAccounts.length > 0) {
+            // Find admin bot owner (prefer admin over regular users for unclaimed accounts)
+            const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 50).catch(() => []);
+            const adminEmails = new Set(allUsers.filter(u => u.role === 'admin').map(u => u.email));
             const botOwnerEmails = Object.keys(botsByOwner);
-            if (botOwnerEmails.length === 1) {
-                // Only one bot owner — safe to assign all unclaimed accounts
-                const email = botOwnerEmails[0];
-                ownerAccountMap[email] = unclaimedLiveAccounts;
-                ownerHasLiveConn[email] = true;
-                ownerAccountSet[email] = new Set(unclaimedLiveAccounts);
-                console.log(`[generateBotSignals] Single-user fallback: assigned ${unclaimedLiveAccounts.join(', ')} to ${email}`);
+            const adminBotOwners = botOwnerEmails.filter(e => adminEmails.has(e));
+            const targetOwner = adminBotOwners.length === 1 ? adminBotOwners[0] : (botOwnerEmails.length === 1 ? botOwnerEmails[0] : null);
+            if (targetOwner) {
+                if (!ownerAccountMap[targetOwner]) ownerAccountMap[targetOwner] = [];
+                for (const acctNum of unclaimedLiveAccounts) {
+                    ownerAccountMap[targetOwner].push(acctNum);
+                    if (!ownerAccountSet[targetOwner]) ownerAccountSet[targetOwner] = new Set();
+                    ownerAccountSet[targetOwner].add(acctNum);
+                }
+                ownerHasLiveConn[targetOwner] = true;
+                console.log(`[generateBotSignals] Orphan fallback: assigned ${unclaimedLiveAccounts.join(', ')} to admin ${targetOwner}`);
             } else {
-                console.log(`[generateBotSignals] Multiple bot owners with no claimed connections — skipping fallback to prevent cross-user signal contamination`);
+                console.log(`[generateBotSignals] Multiple bot owners with no clear admin — skipping orphan fallback`);
             }
         }
 
