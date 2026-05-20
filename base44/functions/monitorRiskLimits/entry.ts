@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
                 if (dailyLossPercent >= riskSettings.max_daily_loss_percent) {
                     alerts.push({
                         title: `🚨 Daily Loss Limit Breached! (Acct ${acctKey})`,
-                        message: `Account ${acctKey}: Daily loss of ${dailyLossPercent.toFixed(2)}% exceeded the ${riskSettings.max_daily_loss_percent}% limit. Trading paused for this account.`,
+                        message: `Account ${acctKey}: Daily loss of ${dailyLossPercent.toFixed(2)}% exceeded the ${riskSettings.max_daily_loss_percent}% limit.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
                         type: 'ERROR',
                     });
                     if (riskSettings.stop_trading_on_limit) {
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
                 if (drawdownPercent >= riskSettings.max_drawdown_percent) {
                     alerts.push({
                         title: `🚨 Max Drawdown Breached! (Acct ${acctKey})`,
-                        message: `Account ${acctKey}: Drawdown of ${drawdownPercent.toFixed(2)}% exceeded the ${riskSettings.max_drawdown_percent}% limit. Trading paused for this account.`,
+                        message: `Account ${acctKey}: Drawdown of ${drawdownPercent.toFixed(2)}% exceeded the ${riskSettings.max_drawdown_percent}% limit.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
                         type: 'ERROR',
                     });
                     if (riskSettings.stop_trading_on_limit) {
@@ -136,20 +136,25 @@ Deno.serve(async (req) => {
                 const dailyProfitPercent = ((todayProfit + acctFloatingPnl) / balance) * 100;
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
                     console.log(`[monitorRiskLimits] Account ${acctKey}: Daily profit target reached ${dailyProfitPercent.toFixed(2)}%`);
-                    const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
-                    for (let i = 0; i < acctOpenTrades.length; i += 3) {
-                        await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
-                            base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
-                        ));
-                    }
-                    await Promise.all([
-                        base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true }),
+                    const pauseOps = [
                         base44.asServiceRole.entities.Alert.create({
                             title: `🎯 Daily Profit Target Reached! (Acct ${acctKey})`,
-                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused for this account.`,
+                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
                             type: 'SUCCESS',
                         }),
-                    ]);
+                    ];
+                    if (riskSettings.stop_trading_on_limit) {
+                        const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
+                        for (let i = 0; i < acctOpenTrades.length; i += 3) {
+                            await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
+                                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
+                            ));
+                        }
+                        pauseOps.push(
+                            base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true })
+                        );
+                    }
+                    await Promise.all(pauseOps);
                 }
             }
 
