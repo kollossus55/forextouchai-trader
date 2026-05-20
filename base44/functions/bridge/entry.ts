@@ -29,6 +29,11 @@ const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 // In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
 const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
 
+// Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
+// keyed by "acctKey:pairRaw" → timestamp of last dispatch
+const pairDispatchCooldown = {}; // e.g. { "1511587:EURUSD": 1716200000000 }
+const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
     signals:    20_000,  // 20s  — signals rarely change
@@ -205,17 +210,31 @@ Deno.serve(async (req) => {
         const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
 
         // Route signals: if signal has owner_email set, only dispatch to matching account number
+        const dispatchedPairsThisCycle = new Set(); // prevent multi-signal same pair in one heartbeat
         const freshSignals = candidateSignals
             .filter(s => {
                 // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
                 if (dispatchedSignalIds.has(s.id)) return false;
                 // If signal is targeted to a specific account number, respect that
-                if (s.owner_email) return s.owner_email === acctKey;
-                // Un-targeted signal: only dispatch if owner's email matches (legacy flow)
-                if (ownerEmail && s.created_by && s.created_by !== ownerEmail) return false;
+                if (s.owner_email) {
+                    if (s.owner_email !== acctKey) return false;
+                } else {
+                    // Un-targeted signal: only dispatch if owner's email matches (legacy flow)
+                    if (ownerEmail && s.created_by && s.created_by !== ownerEmail) return false;
+                }
                 // Skip if a trade on this pair is already open on this account
                 const pairRaw = (s.pair || '').replace('/', '');
                 if (openPairs.has(pairRaw)) return false;
+                // Skip if we already queued a signal for this pair this heartbeat cycle
+                if (dispatchedPairsThisCycle.has(pairRaw)) return false;
+                // Skip if this pair was dispatched to this account within the last 5 minutes
+                const cooldownKey = `${acctKey}:${pairRaw}`;
+                const lastDispatch = pairDispatchCooldown[cooldownKey] || 0;
+                if (now - lastDispatch < PAIR_COOLDOWN_MS) {
+                    console.log(`[BRIDGE] Pair ${pairRaw} cooldown active for ${acctKey} — skipping`);
+                    return false;
+                }
+                dispatchedPairsThisCycle.add(pairRaw);
                 return true;
             })
             .slice(0, 5);
@@ -224,7 +243,12 @@ Deno.serve(async (req) => {
         // Also register all dispatched IDs immediately to block any concurrent/rapid re-dispatch
         if (freshSignals.length > 0) {
             // Mark as dispatched BEFORE the async DB write to block any concurrent requests
-            freshSignals.forEach(s => dispatchedSignalIds.add(s.id));
+            freshSignals.forEach(s => {
+                dispatchedSignalIds.add(s.id);
+                // Record per-pair cooldown to prevent re-dispatch of same pair on next heartbeat
+                const pairRaw = (s.pair || '').replace('/', '');
+                pairDispatchCooldown[`${acctKey}:${pairRaw}`] = now;
+            });
             try {
                 const toLock = freshSignals.filter(s => s.status === 'PENDING');
                 if (toLock.length > 0) {
