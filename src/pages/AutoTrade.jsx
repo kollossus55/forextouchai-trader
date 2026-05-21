@@ -360,7 +360,7 @@ export default function AutoTrade() {
 
                   {/* Live Signal Feed from Backend */}
                   {(() => {
-                    const botSignals = recentSignals.filter(s => s.bot_id === bot.id).slice(0, 8);
+                    const botSignals = recentSignals.filter(s => s.bot_id === bot.id && s.status !== 'EXPIRED' && s.status !== 'SKIPPED').slice(0, 8);
                     return (
                       <div className="bg-black/40 rounded-lg p-3 font-mono text-xs h-32 overflow-y-auto relative border border-slate-800">
                         <div className="absolute top-2 right-2 flex gap-1.5 z-10">
