@@ -52,8 +52,9 @@ Deno.serve(async (req) => {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
                     daily_loss_current: 0,
                     last_reset_date: today,
+                    is_trading_paused: false, // Auto-unpause at start of new trading day
                 });
-                console.log(`[monitorRiskLimits] Daily loss counter reset for account ${acctKey}`);
+                console.log(`[monitorRiskLimits] Daily reset for account ${acctKey} — counters cleared & trading unpaused`);
             }
 
             // Update peak equity per account

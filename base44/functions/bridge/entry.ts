@@ -608,13 +608,16 @@ async function checkDailyProfitTarget(base44, riskSettings, balance, openTrades)
                 base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
             ));
         }
-        await Promise.all([
-            base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true }),
+        const profitAlertOps = [
             base44.asServiceRole.entities.Alert.create({
                 title: '🎯 Daily Profit Target Reached!',
-                message: `Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused.`,
+                message: `Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
                 type: 'SUCCESS',
             }),
-        ]);
+        ];
+        if (riskSettings.stop_trading_on_limit) {
+            profitAlertOps.push(base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true }));
+        }
+        await Promise.all(profitAlertOps);
     }
 }
