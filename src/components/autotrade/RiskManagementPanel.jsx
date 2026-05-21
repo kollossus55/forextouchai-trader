@@ -51,7 +51,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
       queryClient.invalidateQueries(['risk-settings']);
       toast.success(`Risk settings saved for account ${acctKey}`);
       if (onSaved) onSaved();
-    }
+    },
+    onError: (err) => toast.error(`Failed to save: ${err.message}`)
   });
 
   const togglePauseMutation = useMutation({
@@ -62,7 +63,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
     onSuccess: (_, isPaused) => {
       queryClient.invalidateQueries(['risk-settings']);
       toast.success(isPaused ? `Account ${acctKey} trading paused` : `Account ${acctKey} trading resumed`);
-    }
+    },
+    onError: (err) => toast.error(`Failed to toggle: ${err.message}`)
   });
 
   const resetMutation = useMutation({
@@ -78,7 +80,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
     onSuccess: () => {
       queryClient.invalidateQueries(['risk-settings']);
       toast.success(`Counters reset for account ${acctKey}`);
-    }
+    },
+    onError: (err) => toast.error(`Reset failed: ${err.message}`)
   });
 
   const handleChange = (field, value) => {

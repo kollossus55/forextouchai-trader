@@ -9,6 +9,7 @@ import {
   Mail,
   UserCog
 } from 'lucide-react';
+import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -182,6 +183,9 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Risk Management Section for all accounts */}
+      <RiskManagementPanel />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-slate-900/50 border-slate-800">
