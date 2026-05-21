@@ -136,25 +136,26 @@ Deno.serve(async (req) => {
                 const dailyProfitPercent = ((todayProfit + acctFloatingPnl) / balance) * 100;
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
                     console.log(`[monitorRiskLimits] Account ${acctKey}: Daily profit target reached ${dailyProfitPercent.toFixed(2)}%`);
-                    const pauseOps = [
+                    const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
+                    for (let i = 0; i < acctOpenTrades.length; i += 3) {
+                        await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
+                            base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
+                        ));
+                    }
+                    const profitAlertUpdates = [
                         base44.asServiceRole.entities.Alert.create({
                             title: `🎯 Daily Profit Target Reached! (Acct ${acctKey})`,
-                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
+                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.`,
                             type: 'SUCCESS',
                         }),
                     ];
+                    // Only pause trading if stop_trading_on_limit is enabled
                     if (riskSettings.stop_trading_on_limit) {
-                        const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
-                        for (let i = 0; i < acctOpenTrades.length; i += 3) {
-                            await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
-                                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
-                            ));
-                        }
-                        pauseOps.push(
+                        profitAlertUpdates.push(
                             base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true })
                         );
                     }
-                    await Promise.all(pauseOps);
+                    await Promise.all(profitAlertUpdates);
                 }
             }
 
