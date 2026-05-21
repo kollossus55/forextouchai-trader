@@ -3,7 +3,7 @@
 //|                                          ForexTouchAI Bridge EA  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "2.10"
+#property version   "2.20"
 #property strict
 
 // --- INPUTS ---
@@ -21,7 +21,7 @@ int OnInit() {
     if (StringLen(ApiKey) == 0) {
         Print("[ForexTouchAI] WARNING: ApiKey is empty! Get your API Key from the Settings page.");
     }
-    Print("[ForexTouchAI] EA started. Bridge: ", BridgeURL);
+    Print("[ForexTouchAI] EA v2.20 started. Bridge: ", BridgeURL);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -42,24 +42,27 @@ void OnTick() {
 
 //+------------------------------------------------------------------+
 void SendHeartbeat() {
-    // Build trades array from currently open orders
+    // Build trades array from ALL currently open market orders (BUY/SELL only)
+    // This includes both EA-managed trades (MagicNumber) AND manual trades.
+    // Reporting manual trades prevents the bot from opening duplicate positions
+    // on pairs where the user already has a manual trade open.
     string tradesJson = "[";
     bool first = true;
     for (int i = 0; i < OrdersTotal(); i++) {
         if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-        // Report ALL open orders (including manual trades) so bridge knows about every position
-        // This prevents the bot from opening duplicate trades on pairs with manual positions
-        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue; // skip pending orders
+        // Only include open market orders (BUY/SELL), skip pending orders
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
         if (!first) tradesJson += ",";
         first = false;
         tradesJson += StringFormat(
-            "{\"ticket\":%d,\"pair\":\"%s\",\"type\":\"%s\",\"lot_size\":%.2f,\"open_price\":%.5f,\"pnl\":%.2f}",
+            "{\"ticket\":%d,\"pair\":\"%s\",\"type\":\"%s\",\"lot_size\":%.2f,\"open_price\":%.5f,\"pnl\":%.2f,\"magic\":%d}",
             OrderTicket(),
             OrderSymbol(),
             OrderType() == OP_BUY ? "BUY" : "SELL",
             OrderLots(),
             OrderOpenPrice(),
-            OrderProfit()
+            OrderProfit(),
+            OrderMagicNumber()
         );
     }
     tradesJson += "]";
