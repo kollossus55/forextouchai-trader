@@ -71,9 +71,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
     mutationFn: async () => {
       if (!existingRecord?.id) return;
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, {
-        daily_loss_current: 0,
-        peak_equity: 0,
-        is_trading_paused: false,
+        ...DEFAULT_SETTINGS,
+        account_number: acctKey,
         last_reset_date: new Date().toISOString()
       });
     },
