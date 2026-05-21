@@ -395,7 +395,31 @@ function sanitizeSignal(s, livePriceMap) {
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
 async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
-    const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
+    // ── Deduplication cleanup: remove duplicate DB records for same ticket ────
+    // This guards against multi-isolate race conditions where two server instances
+    // both pass the existence check before either completes the create.
+    try {
+        const allAcctTrades = await base44.asServiceRole.entities.Trade.filter(
+            { owner_email: acctKey, status: 'OPEN' }, '-created_date', 500
+        );
+        const seenTickets = {};
+        const toDelete = [];
+        for (const t of allAcctTrades) {
+            if (!t.ticket) continue;
+            if (seenTickets[t.ticket]) {
+                // Keep the first (newest by created_date desc), delete the rest
+                toDelete.push(t.id);
+            } else {
+                seenTickets[t.ticket] = true;
+            }
+        }
+        if (toDelete.length > 0) {
+            console.log('[BRIDGE] Dedup: removing', toDelete.length, 'duplicate trade records for', acctKey);
+            await Promise.all(toDelete.map(id => base44.asServiceRole.entities.Trade.delete(id)));
+        }
+    } catch (e) {
+        console.warn('[BRIDGE] Dedup cleanup error:', e.message);
+    }
 
     // ── Cold-start init: populate knownTickets from DB exactly once per isolate ──
     // All concurrent requests await the same promise — no races.
