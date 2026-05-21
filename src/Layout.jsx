@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   Search,
-  LogOut
+  LogOut,
+  Activity
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -186,7 +187,10 @@ export default function Layout({ children }) {
       { label: 'Alerts', icon: Bell, path: '/Alerts' },
       { label: 'Settings', icon: Settings, path: '/Settings' },
       { label: 'Profile', icon: User, path: '/Profile' },
-      ...(user?.role === 'admin' ? [{ label: 'Admin', icon: Shield, path: '/Admin' }] : []),
+      ...(user?.role === 'admin' ? [
+        { label: 'Admin', icon: Shield, path: '/Admin' },
+        { label: 'Admin Overview', icon: Activity, path: '/AdminOverview' },
+      ] : []),
     ];
   }, [user?.role, isLoadingAuth]);
 
