@@ -47,7 +47,9 @@ void SendHeartbeat() {
     bool first = true;
     for (int i = 0; i < OrdersTotal(); i++) {
         if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-        if (OrderMagicNumber() != MagicNumber) continue;
+        // Report ALL open orders (including manual trades) so bridge knows about every position
+        // This prevents the bot from opening duplicate trades on pairs with manual positions
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue; // skip pending orders
         if (!first) tradesJson += ",";
         first = false;
         tradesJson += StringFormat(
