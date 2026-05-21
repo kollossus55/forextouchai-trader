@@ -193,6 +193,7 @@ Provide helpful, concise advice. If suggesting parameter changes, explain WHY. I
                                 </p>
                               </div>
                               <Button
+                                type="button"
                                 size="sm"
                                 onClick={() => handleApplyRecommendation(rec)}
                                 className="bg-emerald-600 hover:bg-emerald-700 h-6 px-2 text-[10px] ml-2"
