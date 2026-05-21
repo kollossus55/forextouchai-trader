@@ -70,8 +70,11 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const resetMutation = useMutation({
     mutationFn: async () => {
       if (!existingRecord?.id) return;
+      // Reset limits/counters back to defaults but preserve is_trading_paused —
+      // pausing/resuming is a separate deliberate action via the Pause button
+      const { is_trading_paused: _keep, ...defaults } = DEFAULT_SETTINGS;
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, {
-        ...DEFAULT_SETTINGS,
+        ...defaults,
         account_number: acctKey,
         last_reset_date: new Date().toISOString()
       });
