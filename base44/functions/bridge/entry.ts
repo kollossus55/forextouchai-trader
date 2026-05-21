@@ -510,6 +510,9 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         }
     }
 
+    // Build EA ticket set for PnL updates and close detection
+    const eaTicketSet = new Set(eaTrades.map(t => t.ticket).filter(Boolean));
+
     // Add all EA tickets to memory (even already-existing ones)
     eaTicketSet.forEach(t => memTickets.add(t));
 
