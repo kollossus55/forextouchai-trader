@@ -90,6 +90,13 @@
       "default": 5,
       "description": "Maximum number of concurrent open trades"
     },
+    "max_trades_per_pair": {
+      "type": "number",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Maximum concurrent open trades on the same currency pair"
+    },
     "max_daily_trades": {
       "type": "number",
       "default": 0,

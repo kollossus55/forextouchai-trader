@@ -42,6 +42,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     stop_loss_pips: 30,
     take_profit_pips: 60,
     max_open_trades: 3,
+    max_trades_per_pair: 1,
     max_daily_trades: 0,
     pairs: ['EUR/USD'],
     auto_execution: false,
@@ -85,6 +86,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         stop_loss_pips: 30,
         take_profit_pips: 60,
         max_open_trades: 3,
+        max_trades_per_pair: 1,
         max_daily_trades: 0,
         pairs: ['EUR/USD'],
         sl_tp_mode: 'FIXED',
@@ -477,16 +479,32 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
                 <p className="text-xs text-slate-500">Only execute trades when AI prediction confidence exceeds this threshold.</p>
               </div>
 
-              <div className="space-y-2 pt-2">
-                <Label>Max Concurrent Trades</Label>
-                <Input 
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={formData.max_open_trades}
-                  onChange={e => setFormData({...formData, max_open_trades: parseInt(e.target.value)})}
-                  className="bg-slate-950 border-slate-800"
-                />
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Max Concurrent Trades</Label>
+                  <Input 
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={formData.max_open_trades}
+                    onChange={e => setFormData({...formData, max_open_trades: parseInt(e.target.value)})}
+                    className="bg-slate-950 border-slate-800"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center justify-between">
+                    Max Trades Per Pair
+                    <span className="text-[10px] text-amber-400 font-normal">per pair</span>
+                  </Label>
+                  <Input 
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.max_trades_per_pair || 1}
+                    onChange={e => setFormData({...formData, max_trades_per_pair: parseInt(e.target.value)})}
+                    className="bg-slate-950 border-slate-800"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2 pt-2">

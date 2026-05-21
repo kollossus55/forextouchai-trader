@@ -393,10 +393,15 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= globalMax) break;
 
                     const pairRaw = pair.replace('/', '');
-                    // Cross-bot check: skip if ANY bot already has an open trade, pending/active signal on this pair
-                    if (userOpenTrades.some(t => (t.pair || '').replace('/', '') === pairRaw)) continue;
-                    if (userPendingSignals.some(s => (s.pair || '').replace('/', '') === pairRaw)) continue;
-                    if (allSignalsToCreate.some(s => acctSet.has(s.owner_email) && (s.pair || '').replace('/', '') === pairRaw)) continue;
+                    // Per-pair trade limit check
+                    const maxPerPair = bot.max_trades_per_pair || 1;
+                    const openTradesOnPair = userOpenTrades.filter(t => (t.pair || '').replace('/', '') === pairRaw).length;
+                    const pendingSignalsOnPair = userPendingSignals.filter(s => (s.pair || '').replace('/', '') === pairRaw).length;
+                    const queuedSignalsOnPair = allSignalsToCreate.filter(s => acctSet.has(s.owner_email) && (s.pair || '').replace('/', '') === pairRaw).length;
+                    if (openTradesOnPair + pendingSignalsOnPair + queuedSignalsOnPair >= maxPerPair) {
+                        console.log(`[Skip] ${bot.name} ${pair}: at max_trades_per_pair (${openTradesOnPair + pendingSignalsOnPair + queuedSignalsOnPair}/${maxPerPair})`);
+                        continue;
+                    }
 
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
