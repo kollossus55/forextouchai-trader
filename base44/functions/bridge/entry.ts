@@ -32,7 +32,7 @@ const dispatchedSignalIds = new Set(); // signal IDs already dispatched this iso
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
 // keyed by "acctKey:pairRaw" → timestamp of last dispatch
 const pairDispatchCooldown = {}; // e.g. { "1511587:EURUSD": 1716200000000 }
-const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const PAIR_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
@@ -242,10 +242,22 @@ Deno.serve(async (req) => {
 
         // Route signals: if signal has owner_email set, only dispatch to matching account number
         const dispatchedPairsThisCycle = new Set(); // prevent multi-signal same pair in one heartbeat
+
+        // Build set of pairs that already have an ACTIVE signal in DB — isolate-restart-proof check
+        const activePairs = new Set(
+            (allPendingSignals || []).filter(s => s.status === 'ACTIVE').map(s => (s.pair || '').replace('/', ''))
+        );
+
         const freshSignals = candidateSignals
             .filter(s => {
                 // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
                 if (dispatchedSignalIds.has(s.id)) return false;
+                // If a signal for this pair is already ACTIVE in DB, skip — trade likely already open
+                const pairRaw = (s.pair || '').replace('/', '');
+                if (activePairs.has(pairRaw)) {
+                    console.log(`[BRIDGE] Pair ${pairRaw} already has ACTIVE signal — skipping`);
+                    return false;
+                }
                 // If signal is targeted to a specific account number, respect that
                 if (s.owner_email) {
                     if (s.owner_email !== acctKey) return false;
@@ -254,11 +266,10 @@ Deno.serve(async (req) => {
                     if (ownerEmail && s.created_by && s.created_by !== ownerEmail) return false;
                 }
                 // Skip if a trade on this pair is already open on this account
-                const pairRaw = (s.pair || '').replace('/', '');
                 if (openPairs.has(pairRaw)) return false;
                 // Skip if we already queued a signal for this pair this heartbeat cycle
                 if (dispatchedPairsThisCycle.has(pairRaw)) return false;
-                // Skip if this pair was dispatched to this account within the last 5 minutes
+                // Skip if this pair was dispatched to this account within the last 15 minutes
                 const cooldownKey = `${acctKey}:${pairRaw}`;
                 const lastDispatch = pairDispatchCooldown[cooldownKey] || 0;
                 if (now - lastDispatch < PAIR_COOLDOWN_MS) {
@@ -455,6 +466,7 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
 
     // ── Create new trades ────────────────────────────────────────────────────────
     // Triple-guarded: (1) in-memory set, (2) per-ticket create lock, (3) DB existence check
+    const createdTickets = [];
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         return !memTickets.has(t.ticket);
@@ -500,6 +512,7 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                     is_auto: true,
                     owner_email: acctKey,
                 });
+                createdTickets.push(t.ticket);
                 console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey);
             } catch (e) {
                 console.error('[BRIDGE] Trade create error ticket', t.ticket, e.message);
@@ -507,6 +520,24 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             } finally {
                 delete ticketCreateLock[lockKey]; // always release lock
             }
+        }
+    }
+
+    // ── Post-create dedup: immediately clean up any race-condition duplicates ──
+    if (createdTickets.length > 0) {
+        try {
+            for (const ticket of createdTickets) {
+                const dupes = await base44.asServiceRole.entities.Trade.filter(
+                    { ticket, owner_email: acctKey }, '-created_date', 10
+                );
+                if (dupes && dupes.length > 1) {
+                    const toDelete = dupes.slice(1).map(d => d.id); // keep newest (index 0)
+                    console.log('[BRIDGE] Post-create dedup: removing', toDelete.length, 'duplicate(s) for ticket', ticket);
+                    await Promise.all(toDelete.map(id => base44.asServiceRole.entities.Trade.delete(id)));
+                }
+            }
+        } catch (e) {
+            console.warn('[BRIDGE] Post-create dedup error:', e.message);
         }
     }
 
