@@ -112,6 +112,39 @@ export default function AutoTrade() {
     return performance;
   }, [bots, allTrades]);
 
+  // Fetch open trades to compute per-bot capacity status
+  const { data: openTrades } = useQuery({
+    queryKey: ['open-trades'],
+    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
+    initialData: [],
+    refetchInterval: 15000,
+  });
+
+  // Compute capacity status for each bot
+  const botCapacityStatus = React.useMemo(() => {
+    const status = {};
+    bots.forEach(bot => {
+      if (bot.status !== 'RUNNING') return;
+      const maxOpen = bot.max_open_trades || 5;
+      // Count all open trades (bot_id may be null on reconciled trades)
+      const openCount = openTrades.length;
+      if (openCount >= maxOpen) {
+        status[bot.id] = { blocked: true, reason: `Max open trades reached (${openCount}/${maxOpen})` };
+        return;
+      }
+      // Check if all configured pairs are already occupied
+      const openPairSet = new Set(openTrades.map(t => (t.pair || '').replace('/', '')));
+      const pairs = (bot.pairs || []);
+      const availablePairs = pairs.filter(p => !openPairSet.has(p.replace('/', '')));
+      if (pairs.length > 0 && availablePairs.length === 0) {
+        status[bot.id] = { blocked: true, reason: `All ${pairs.length} configured pair(s) already have open trades` };
+        return;
+      }
+      status[bot.id] = { blocked: false, availablePairs: availablePairs.length, openCount };
+    });
+    return status;
+  }, [bots, openTrades]);
+
   // Fetch recent signals to show in bot terminals (backend is the authoritative signal source)
   const { data: recentSignals } = useQuery({
     queryKey: ['recent-signals'],
@@ -357,6 +390,25 @@ export default function AutoTrade() {
                        <span className="text-slate-200 font-mono text-[10px]">{bot.trading_start_time || '08:00'} - {bot.trading_end_time || '17:00'}</span>
                     </div>
                   </div>
+
+                  {/* Capacity Status Banner */}
+                  {bot.status === 'RUNNING' && botCapacityStatus[bot.id]?.blocked && (
+                    <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                      <ShieldAlert className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-amber-400 text-xs font-semibold">No New Trades — Bot at Capacity</p>
+                        <p className="text-amber-300/70 text-[11px] mt-0.5">{botCapacityStatus[bot.id].reason}. New signals will resume when trades close.</p>
+                      </div>
+                    </div>
+                  )}
+                  {bot.status === 'RUNNING' && botCapacityStatus[bot.id] && !botCapacityStatus[bot.id].blocked && (
+                    <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <p className="text-emerald-400/80 text-[11px]">
+                        {botCapacityStatus[bot.id].availablePairs} pair(s) available · {botCapacityStatus[bot.id].openCount} trade(s) open
+                      </p>
+                    </div>
+                  )}
 
                   {/* Live Signal Feed from Backend */}
                   {(() => {
