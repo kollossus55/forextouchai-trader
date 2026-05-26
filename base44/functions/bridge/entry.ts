@@ -210,8 +210,13 @@ Deno.serve(async (req) => {
             }, { headers: corsHeaders() });
         }
 
-        const fiveMinutesAgo = new Date(now - 30 * 60 * 1000).toISOString(); // 30min expiry window
-        const stale = (allPendingSignals || []).filter(s => s.created_date < fiveMinutesAgo); // expire after 30min
+        const fiveMinutesAgo = new Date(now - 10 * 60 * 1000).toISOString(); // 10min expiry window
+        // Also expire ACTIVE signals older than 5 minutes (stuck signals that MT5 never acknowledged)
+        const fiveMinAgo = new Date(now - 5 * 60 * 1000).toISOString();
+        const stale = (allPendingSignals || []).filter(s =>
+            s.created_date < fiveMinutesAgo ||
+            (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < fiveMinAgo)
+        ); // expire stale signals
         if (stale.length > 0) {
             Promise.all(stale.map(s =>
                 base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
@@ -243,9 +248,10 @@ Deno.serve(async (req) => {
         // Route signals: if signal has owner_email set, only dispatch to matching account number
         const dispatchedPairsThisCycle = new Set(); // prevent multi-signal same pair in one heartbeat
 
-        // Build set of pairs that already have an ACTIVE signal in DB — isolate-restart-proof check
+        // Build set of pairs that already have an ACTIVE signal for THIS account — isolate-restart-proof check
+        // IMPORTANT: scoped to acctKey only, so account B is not blocked by account A's active signals
         const activePairs = new Set(
-            (allPendingSignals || []).filter(s => s.status === 'ACTIVE').map(s => (s.pair || '').replace('/', ''))
+            (allPendingSignals || []).filter(s => s.status === 'ACTIVE' && s.owner_email === acctKey).map(s => (s.pair || '').replace('/', ''))
         );
 
         const freshSignals = candidateSignals
