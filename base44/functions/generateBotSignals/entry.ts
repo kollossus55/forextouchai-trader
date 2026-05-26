@@ -381,9 +381,15 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     }
                 }
 
-                const botOpenTrades = userOpenTrades.filter(t => t.bot_id === bot.id);
+                // Count ALL open trades on this account against the bot's max_open_trades
+                // (bot_id is often null on reconciled trades so we count all user trades)
+                const botOpenTrades = userOpenTrades.filter(t => t.bot_id === bot.id || !t.bot_id);
+                const acctOpenCount2 = userOpenTrades.length;
                 const maxOpen = bot.max_open_trades || 5;
-                if (botOpenTrades.length >= maxOpen) continue;
+                if (acctOpenCount2 >= maxOpen) {
+                    console.log(`[Skip] ${bot.name}: at max_open_trades (${acctOpenCount2}/${maxOpen})`);
+                    continue;
+                }
 
                 const minConf = bot.min_confidence || 75;
 

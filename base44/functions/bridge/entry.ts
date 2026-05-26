@@ -506,7 +506,12 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 // Safe to create — add to memory BEFORE the async create call
                 memTickets.add(t.ticket);
                 const sym = (t.pair || t.symbol || '').replace('/', '');
-                const resolvedPrice = t.open_price || t.price || livePriceMap[sym] || livePriceMap[(t.pair || t.symbol)] || 0;
+                // Use explicit check (> 0) so we don't skip a valid open_price of 0
+                const resolvedPrice = (t.open_price > 0 ? t.open_price : null)
+                    ?? (t.price > 0 ? t.price : null)
+                    ?? livePriceMap[sym]
+                    ?? livePriceMap[(t.pair || t.symbol)]
+                    ?? 0;
                 await base44.asServiceRole.entities.Trade.create({
                     pair: t.pair || t.symbol,
                     type: t.type || 'BUY',
