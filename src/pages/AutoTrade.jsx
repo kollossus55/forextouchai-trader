@@ -123,13 +123,24 @@ export default function AutoTrade() {
   // Compute capacity status for each bot
   const botCapacityStatus = React.useMemo(() => {
     const status = {};
+    // Group open trades by account (owner_email on trades = account number)
+    const tradesByAccount = {};
+    openTrades.forEach(t => {
+      const acct = t.owner_email || 'unknown';
+      if (!tradesByAccount[acct]) tradesByAccount[acct] = 0;
+      tradesByAccount[acct]++;
+    });
+    const accountNumbers = Object.keys(tradesByAccount);
+
     bots.forEach(bot => {
       if (bot.status !== 'RUNNING') return;
       const maxOpen = bot.max_open_trades || 5;
-      // Count all open trades (bot_id may be null on reconciled trades)
-      const openCount = openTrades.length;
-      if (openCount >= maxOpen) {
-        status[bot.id] = { blocked: true, reason: `Max open trades reached (${openCount}/${maxOpen})` };
+      // Bot is only blocked if ALL known accounts are at/above maxOpen
+      const allAtCapacity = accountNumbers.length > 0 && accountNumbers.every(acct => (tradesByAccount[acct] || 0) >= maxOpen);
+      const totalOpen = openTrades.length;
+      if (allAtCapacity) {
+        const detail = accountNumbers.map(a => `${a}:${tradesByAccount[a]}`).join(', ');
+        status[bot.id] = { blocked: true, reason: `All accounts at max open trades (${maxOpen}) — [${detail}]` };
         return;
       }
       // Check if all configured pairs are already occupied
@@ -140,7 +151,7 @@ export default function AutoTrade() {
         status[bot.id] = { blocked: true, reason: `All ${pairs.length} configured pair(s) already have open trades` };
         return;
       }
-      status[bot.id] = { blocked: false, availablePairs: availablePairs.length, openCount };
+      status[bot.id] = { blocked: false, availablePairs: availablePairs.length, openCount: totalOpen };
     });
     return status;
   }, [bots, openTrades]);
