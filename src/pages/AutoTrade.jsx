@@ -123,35 +123,41 @@ export default function AutoTrade() {
   // Compute capacity status for each bot
   const botCapacityStatus = React.useMemo(() => {
     const status = {};
-    // Group open trades by account (owner_email on trades = account number)
-    const tradesByAccount = {};
-    openTrades.forEach(t => {
-      const acct = t.owner_email || 'unknown';
-      if (!tradesByAccount[acct]) tradesByAccount[acct] = 0;
-      tradesByAccount[acct]++;
-    });
-    const accountNumbers = Object.keys(tradesByAccount);
 
     bots.forEach(bot => {
       if (bot.status !== 'RUNNING') return;
       const maxOpen = bot.max_open_trades || 5;
-      // Bot is only blocked if ALL known accounts are at/above maxOpen
+      const botPairs = new Set((bot.pairs || []).map(p => p.replace('/', '')));
+
+      // Only count trades on pairs this bot is configured for
+      const botTrades = openTrades.filter(t => botPairs.has((t.pair || '').replace('/', '')));
+
+      // Group those trades by account
+      const tradesByAccount = {};
+      botTrades.forEach(t => {
+        const acct = t.owner_email || 'unknown';
+        tradesByAccount[acct] = (tradesByAccount[acct] || 0) + 1;
+      });
+      const accountNumbers = Object.keys(tradesByAccount);
+
+      // Blocked only if ALL accounts are at/above maxOpen for this bot's pairs
       const allAtCapacity = accountNumbers.length > 0 && accountNumbers.every(acct => (tradesByAccount[acct] || 0) >= maxOpen);
-      const totalOpen = openTrades.length;
       if (allAtCapacity) {
         const detail = accountNumbers.map(a => `${a}:${tradesByAccount[a]}`).join(', ');
         status[bot.id] = { blocked: true, reason: `All accounts at max open trades (${maxOpen}) — [${detail}]` };
         return;
       }
+
       // Check if all configured pairs are already occupied
-      const openPairSet = new Set(openTrades.map(t => (t.pair || '').replace('/', '')));
+      const openPairSet = new Set(botTrades.map(t => (t.pair || '').replace('/', '')));
       const pairs = (bot.pairs || []);
       const availablePairs = pairs.filter(p => !openPairSet.has(p.replace('/', '')));
       if (pairs.length > 0 && availablePairs.length === 0) {
         status[bot.id] = { blocked: true, reason: `All ${pairs.length} configured pair(s) already have open trades` };
         return;
       }
-      status[bot.id] = { blocked: false, availablePairs: availablePairs.length, openCount: totalOpen };
+
+      status[bot.id] = { blocked: false, availablePairs: availablePairs.length, openCount: botTrades.length };
     });
     return status;
   }, [bots, openTrades]);
