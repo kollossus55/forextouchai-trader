@@ -381,13 +381,17 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     }
                 }
 
-                // Count ALL open trades on this account against the bot's max_open_trades
-                // (bot_id is often null on reconciled trades so we count all user trades)
+                // Count open trades per-account — max_open_trades applies per account, not combined across all accounts
                 const botOpenTrades = userOpenTrades.filter(t => t.bot_id === bot.id || !t.bot_id);
-                const acctOpenCount2 = userOpenTrades.length;
                 const maxOpen = bot.max_open_trades || 5;
-                if (acctOpenCount2 >= maxOpen) {
-                    console.log(`[Skip] ${bot.name}: at max_open_trades (${acctOpenCount2}/${maxOpen})`);
+                // Only skip this bot if ALL active accounts are already at capacity
+                const allAccountsAtCapacity = activeAcctNums.every(acctNum => {
+                    const acctCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                    return acctCount >= maxOpen;
+                });
+                if (allAccountsAtCapacity) {
+                    const countsByAcct = activeAcctNums.map(a => `${a}:${openTrades.filter(t => t.owner_email === a).length}`).join(', ');
+                    console.log(`[Skip] ${bot.name}: all accounts at max_open_trades (${maxOpen}) — [${countsByAcct}]`);
                     continue;
                 }
 
