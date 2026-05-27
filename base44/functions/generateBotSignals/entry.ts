@@ -398,7 +398,13 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                 const minConf = bot.min_confidence || 75;
 
                 for (const pair of (bot.pairs || [])) {
-                    if (botOpenTrades.length + allSignalsToCreate.filter(s => s.bot_id === bot.id).length >= maxOpen) break;
+                    // Per-account capacity check: break only if ALL accounts are at/above maxOpen (including queued signals)
+                    const allAcctsFull = activeAcctNums.every(acctNum => {
+                        const acctOpen = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const acctQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
+                        return acctOpen + acctQueued >= maxOpen;
+                    });
+                    if (allAcctsFull) break;
                     const globalMax = Math.max(...activeAcctNums.map(a => getRiskForAccount(a).max_concurrent_trades || 100));
                     if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= globalMax) break;
 
