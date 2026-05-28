@@ -237,19 +237,48 @@ For EACH pair, analyze on H1 and H4 timeframes using ONLY price action:
 
 Only signal BUY or SELL when price is at a key level with a confirmed price action trigger. Otherwise NEUTRAL. Minimum confidence 75%.`,
 
-                PATTERN_TRADING: `You are a chart pattern specialist forex analyst.
+                PATTERN_TRADING: `You are an expert chart pattern recognition analyst specialising in high-probability pattern setups.
 
 Current Prices: ${priceContext}
 Analysis time: ${now}
 
-For EACH pair, scan for high-probability chart patterns on H1 and H4:
-- Continuation patterns: Flags, Pennants, Rectangles, Triangles
-- Reversal patterns: Head & Shoulders, Double/Triple Tops & Bottoms, Rounding Bottom
-- Breakout confirmation: volume surge, candle close beyond pattern boundary
-- Pattern measured move targets for TP calculation
-- Failed pattern signals (traps) to avoid
+For EACH pair, scan H1 and H4 timeframes for ALL of the following patterns:
 
-Only signal BUY or SELL on confirmed pattern breakouts with clear measured move targets. Otherwise NEUTRAL. Minimum confidence 75%.`,
+REVERSAL PATTERNS (against the prevailing trend):
+- Head & Shoulders (3 peaks, middle highest) → SELL on neckline break
+- Inverse Head & Shoulders (3 troughs, middle lowest) → BUY on neckline break
+- Double Top (two peaks at similar price) → SELL on support break
+- Double Bottom (two troughs at similar price) → BUY on resistance break
+- Triple Top (three peaks at resistance) → SELL on confirmed breakdown
+- Triple Bottom (three troughs at support) → BUY on confirmed breakout
+- Rising Wedge (converging upward trendlines) → SELL (bearish reversal or continuation)
+- Falling Wedge (converging downward trendlines) → BUY (bullish reversal or continuation)
+- Rounding Bottom / Cup (gradual U-shape accumulation) → BUY on breakout above rim
+- Cup and Handle (cup followed by shallow handle consolidation) → BUY on handle breakout
+- Rounding Top (gradual arc distribution) → SELL on breakdown below rim
+
+CONTINUATION PATTERNS (with the prevailing trend):
+- Bull Flag (sharp rally then tight downward channel) → BUY on upper boundary break
+- Bear Flag (sharp drop then tight upward channel) → SELL on lower boundary break
+- Bull Pennant (rally then symmetrical triangle) → BUY on breakout
+- Bear Pennant (drop then symmetrical triangle) → SELL on breakdown
+- Ascending Triangle (flat resistance, rising support) → BUY on resistance breakout
+- Descending Triangle (flat support, falling resistance) → SELL on support breakdown
+- Symmetrical Triangle (converging trendlines, direction from prevailing trend) → signal in trend direction
+- Rectangle / Trading Range (horizontal support & resistance) → signal on breakout direction
+- Rising Channel (parallel upward trendlines) → BUY on lower channel touch, SELL on upper
+- Falling Channel (parallel downward trendlines) → SELL on upper channel touch, BUY on lower
+
+CONFIRMATION RULES (all must apply before signalling):
+1. Pattern must be fully formed — no anticipating incomplete patterns
+2. Breakout candle must CLOSE beyond the pattern boundary (no wicks only)
+3. Measured move target must give at least 1:2 risk-reward
+4. Pattern must align with higher timeframe (H4/D1) trend or be a major reversal with volume confirmation
+5. Avoid patterns at very tight consolidations (< 30 pips range) — low reliability
+
+For each pair output: the detected pattern name, signal direction, confidence score (based on pattern clarity, breakout strength, and trend alignment), and a brief reason.
+
+Only signal BUY or SELL on confirmed pattern breakouts. Otherwise NEUTRAL. Minimum confidence 75%.`,
 
                 CANDLESTICK: `You are a candlestick pattern expert and price action forex analyst.
 
