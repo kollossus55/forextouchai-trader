@@ -88,29 +88,64 @@ export default function AutoTrade() {
     return filtered;
   }, [allBots, user]);
 
+  // Fetch broker connections to map user → account numbers
+  const { data: brokerConnections } = useQuery({
+    queryKey: ['broker-connections-autotrade'],
+    queryFn: () => base44.entities.BrokerConnection.list(),
+    initialData: [],
+  });
+
   // Fetch all trades to calculate bot performance
   const { data: allTrades } = useQuery({
     queryKey: ['all-trades'],
-    queryFn: () => base44.entities.Trade.list(),
+    queryFn: () => base44.entities.Trade.list('-updated_date', 500),
     initialData: [],
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
     refetchIntervalInBackground: true
   });
 
+  // Build map: user email → Set of account numbers (from broker connections)
+  const ownerAccountMap = React.useMemo(() => {
+    const map = {};
+    brokerConnections.forEach(conn => {
+      if (!conn.account_number) return;
+      // owner_email on connection or created_by (real user email)
+      const email = conn.owner_email || (conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null);
+      if (!email) return;
+      if (!map[email]) map[email] = new Set();
+      map[email].add(conn.account_number);
+    });
+    return map;
+  }, [brokerConnections]);
+
   // Calculate performance for each bot
+  // Primary: match by bot_id. Fallback: sum all closed trades on the bot owner's accounts.
   const botPerformance = React.useMemo(() => {
+    const closedTrades = allTrades.filter(t => t.status === 'CLOSED');
     const performance = {};
+    const performanceSource = {};
     bots.forEach(bot => {
-      const botTrades = allTrades.filter(t => t.bot_id === bot.id && t.status === 'CLOSED');
-      if (botTrades.length > 0) {
-        const totalPnL = botTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-        performance[bot.id] = totalPnL;
+      // Try bot_id match first
+      const byBotId = closedTrades.filter(t => t.bot_id === bot.id);
+      if (byBotId.length > 0) {
+        performance[bot.id] = byBotId.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        performanceSource[bot.id] = 'bot';
+        return;
+      }
+      // Fallback: account-level P&L for this bot's owner
+      const ownerEmail = bot.owner_email || bot.created_by;
+      const accountNums = ownerAccountMap[ownerEmail] || new Set();
+      if (accountNums.size > 0) {
+        const acctTrades = closedTrades.filter(t => accountNums.has(t.owner_email));
+        performance[bot.id] = acctTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        performanceSource[bot.id] = 'account';
       } else {
         performance[bot.id] = 0;
+        performanceSource[bot.id] = 'none';
       }
     });
-    return performance;
-  }, [bots, allTrades]);
+    return { values: performance, sources: performanceSource };
+  }, [bots, allTrades, ownerAccountMap]);
 
   // Fetch open trades to compute per-bot capacity status
   const { data: openTrades } = useQuery({
@@ -367,8 +402,11 @@ export default function AutoTrade() {
                       <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
                         <Zap className="w-3 h-3" /> Performance
                       </div>
-                      <div className={`font-semibold ${botPerformance[bot.id] >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {botPerformance[bot.id] >= 0 ? '+' : ''}${botPerformance[bot.id].toFixed(2)} <span className="text-slate-500 text-xs font-normal">total P&L</span>
+                      <div className={`font-semibold ${(botPerformance.values[bot.id] || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {(botPerformance.values[bot.id] || 0) >= 0 ? '+' : ''}${(botPerformance.values[bot.id] || 0).toFixed(2)}
+                        <span className="text-slate-500 text-xs font-normal ml-1">
+                          {botPerformance.sources[bot.id] === 'account' ? 'account P&L' : 'total P&L'}
+                        </span>
                       </div>
                     </div>
                   </div>
