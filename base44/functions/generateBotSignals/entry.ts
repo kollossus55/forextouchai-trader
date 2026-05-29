@@ -21,7 +21,6 @@ Deno.serve(async (req) => {
         for (const r of riskSettingsList) {
             if (r.account_number) accountRiskMap[r.account_number] = r;
         }
-        // Helper: get effective risk settings for an account
         const getRiskForAccount = (acctNum) => accountRiskMap[acctNum] || globalRiskSettings || {};
 
         if (!bots.length) {
@@ -30,8 +29,7 @@ Deno.serve(async (req) => {
 
         const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-        // Build a set of all account numbers that are live (regardless of who created the connection)
-        // A connection is live if it is CONNECTED and last_sync is within 5 minutes
+        // Build a set of all account numbers that are live
         const liveAccountNumbers = new Set();
         for (const conn of brokerConnections) {
             if (!conn.account_number) continue;
@@ -44,16 +42,11 @@ Deno.serve(async (req) => {
         }
         console.log(`[generateBotSignals] Live accounts: ${[...liveAccountNumbers].join(', ')}`);
 
-        // Build map: bot owner email → list of ALL broker account numbers across ALL connections
-        // We look at ALL broker connections and assign them to the user based on connection's created_by,
-        // BUT the MT4 account may have been created by service role — so we also look at the Trade/Signal
-        // history to associate it. Simpler fix: include ALL live accounts for the user whose bots are running.
-        // Since there is only one user, map ALL live accounts to ALL bot owners that have live connections.
-        const ownerAccountMap = {};      // email → [account_number, ...]
-        const ownerHasLiveConn = {};     // email → boolean
+        // Build map: bot owner email → list of broker account numbers
+        const ownerAccountMap = {};
+        const ownerHasLiveConn = {};
         for (const conn of brokerConnections) {
             if (!conn.account_number) continue;
-            // Use created_by if it's a real user email (not a service account)
             const email = conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null;
             if (!email) continue;
             if (!ownerAccountMap[email]) ownerAccountMap[email] = [];
@@ -63,8 +56,7 @@ Deno.serve(async (req) => {
             }
         }
 
-        // For any bot owner who has at least one live connection, also include ALL live accounts
-        // (this handles the case where MT4 was connected via service role but belongs to the same user)
+        // For any bot owner who has at least one live connection, also include unclaimed live accounts
         for (const email of Object.keys(ownerHasLiveConn)) {
             const currentAccts = new Set(ownerAccountMap[email] || []);
             for (const acctNum of liveAccountNumbers) {
@@ -81,16 +73,12 @@ Deno.serve(async (req) => {
         }
 
         // Build set of all account numbers per owner (for open trade lookup)
-        // Trades use account_number as owner_email
-        const ownerAccountSet = {};  // email → Set<account_number>
+        const ownerAccountSet = {};
         for (const [email, accts] of Object.entries(ownerAccountMap)) {
             ownerAccountSet[email] = new Set(accts);
         }
 
-        // (riskByOwner no longer used — risk is now checked per account via getRiskForAccount)
-
-        // Build price map from CurrencyPair table — use all available prices
-        // Note: bridge updates these periodically; we trust whatever is in the DB
+        // Build price map from CurrencyPair table
         const priceMap = {};
         for (const p of pairsList) {
             if (p.symbol && p.current_price) {
@@ -100,7 +88,7 @@ Deno.serve(async (req) => {
         }
         console.log(`[generateBotSignals] Loaded ${Object.keys(priceMap).length / 2} pairs from DB`);
 
-        // Group bots by owner for isolated per-user processing
+        // Group bots by owner
         const botsByOwner = {};
         for (const bot of bots) {
             const owner = bot.owner_email || bot.created_by;
@@ -109,34 +97,48 @@ Deno.serve(async (req) => {
             botsByOwner[owner].push(bot);
         }
 
-        // FALLBACK: If no real-user connections found (all created by service role),
-        // assign orphan live accounts (not claimed by anyone) to the ADMIN bot owner only.
-        // Never assign to non-admin users to prevent cross-user signal contamination.
+        // FIXED: Assign unclaimed live accounts to ALL bot owners who have no connection yet
+        // (not just admin) — this allows users like kollossus60 with service-created connections to trade
         const unclaimedLiveAccounts = [...liveAccountNumbers].filter(acctNum =>
             !Object.values(ownerAccountMap).some(accts => accts.includes(acctNum))
         );
         if (unclaimedLiveAccounts.length > 0) {
-            // Find admin bot owner (prefer admin over regular users for unclaimed accounts)
-            const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 50).catch(() => []);
-            const adminEmails = new Set(allUsers.filter(u => u.role === 'admin').map(u => u.email));
             const botOwnerEmails = Object.keys(botsByOwner);
-            const adminBotOwners = botOwnerEmails.filter(e => adminEmails.has(e));
-            const targetOwner = adminBotOwners.length === 1 ? adminBotOwners[0] : (botOwnerEmails.length === 1 ? botOwnerEmails[0] : null);
-            if (targetOwner) {
-                if (!ownerAccountMap[targetOwner]) ownerAccountMap[targetOwner] = [];
-                for (const acctNum of unclaimedLiveAccounts) {
-                    ownerAccountMap[targetOwner].push(acctNum);
+            // Assign orphan accounts to ALL bot owners who don't have a live connection yet
+            const unconnectedBotOwners = botOwnerEmails.filter(e => !ownerHasLiveConn[e]);
+            if (unconnectedBotOwners.length > 0) {
+                for (const targetOwner of unconnectedBotOwners) {
+                    if (!ownerAccountMap[targetOwner]) ownerAccountMap[targetOwner] = [];
                     if (!ownerAccountSet[targetOwner]) ownerAccountSet[targetOwner] = new Set();
-                    ownerAccountSet[targetOwner].add(acctNum);
+                    for (const acctNum of unclaimedLiveAccounts) {
+                        ownerAccountMap[targetOwner].push(acctNum);
+                        ownerAccountSet[targetOwner].add(acctNum);
+                    }
+                    ownerHasLiveConn[targetOwner] = true;
+                    console.log(`[generateBotSignals] Orphan fallback: assigned ${unclaimedLiveAccounts.join(', ')} to ${targetOwner}`);
                 }
-                ownerHasLiveConn[targetOwner] = true;
-                console.log(`[generateBotSignals] Orphan fallback: assigned ${unclaimedLiveAccounts.join(', ')} to admin ${targetOwner}`);
             } else {
-                console.log(`[generateBotSignals] Multiple bot owners with no clear admin — skipping orphan fallback`);
+                // All connected — assign to any single bot owner if only one exists
+                const allUsers = await base44.asServiceRole.entities.User.list('-created_date', 50).catch(() => []);
+                const adminEmails = new Set(allUsers.filter(u => u.role === 'admin').map(u => u.email));
+                const adminBotOwners = botOwnerEmails.filter(e => adminEmails.has(e));
+                const targetOwner = adminBotOwners.length === 1 ? adminBotOwners[0] : (botOwnerEmails.length === 1 ? botOwnerEmails[0] : null);
+                if (targetOwner) {
+                    if (!ownerAccountMap[targetOwner]) ownerAccountMap[targetOwner] = [];
+                    for (const acctNum of unclaimedLiveAccounts) {
+                        ownerAccountMap[targetOwner].push(acctNum);
+                        if (!ownerAccountSet[targetOwner]) ownerAccountSet[targetOwner] = new Set();
+                        ownerAccountSet[targetOwner].add(acctNum);
+                    }
+                    ownerHasLiveConn[targetOwner] = true;
+                    console.log(`[generateBotSignals] Orphan fallback: assigned ${unclaimedLiveAccounts.join(', ')} to ${targetOwner}`);
+                } else {
+                    console.log(`[generateBotSignals] Multiple bot owners with no clear admin — skipping orphan fallback`);
+                }
             }
         }
 
-        // Collect all unique pairs across ALL bots that have a live price (for single AI call)
+        // Collect all unique pairs across ALL bots that have a live price
         const allPairsSet = new Set();
         for (const bot of bots) {
             for (const pair of (bot.pairs || [])) {
@@ -356,28 +358,24 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
             }
         }));
 
-        // Process each user's bots in isolation — signals are scoped to that user's account
+        // Process each user's bots in isolation
         const allSignalsToCreate = [];
 
         for (const [ownerEmail, ownerBots] of Object.entries(botsByOwner)) {
-            // Per-user: skip if no live broker connection
             if (!ownerHasLiveConn[ownerEmail]) {
                 console.log(`[generateBotSignals] No live connection for ${ownerEmail} — skipping`);
                 continue;
             }
 
-            // Open trades: match by account numbers owned by this user (bridge stores account_number as owner_email on trades)
             const acctSet = ownerAccountSet[ownerEmail] || new Set();
             const userOpenTrades = openTrades.filter(t => acctSet.has(t.owner_email));
 
-            // Pending + Active signals: match by account numbers (owner_email on signals = account_number)
-            // We check BOTH statuses to prevent firing a new signal for a pair that already has one in-flight
             const userPendingSignals = [
                 ...pendingSignals.filter(s => acctSet.has(s.owner_email)),
                 ...activeSignals.filter(s => acctSet.has(s.owner_email)),
             ];
 
-            // Filter out accounts that are paused — only skip the paused account, not all accounts
+            // Filter out paused accounts
             const activeAcctNums = [...acctSet].filter(acctNum => {
                 const risk = getRiskForAccount(acctNum);
                 if (risk.is_trading_paused === true) {
@@ -393,7 +391,7 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
             }
 
             for (const bot of ownerBots) {
-                // --- Trading hours check (UTC) ---
+                // Trading hours check (UTC)
                 if (bot.trading_start_time && bot.trading_end_time) {
                     const nowUtc = new Date();
                     const [startH, startM] = bot.trading_start_time.split(':').map(Number);
@@ -402,17 +400,15 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const startMins = startH * 60 + startM;
                     const endMins = endH * 60 + endM;
                     const inWindow = startMins <= endMins
-                        ? nowMins >= startMins && nowMins < endMins   // same-day window e.g. 07:00–23:00
-                        : nowMins >= startMins || nowMins < endMins;  // overnight window e.g. 22:00–06:00
+                        ? nowMins >= startMins && nowMins < endMins
+                        : nowMins >= startMins || nowMins < endMins;
                     if (!inWindow) {
                         console.log(`[generateBotSignals] Bot "${bot.name}" outside trading hours (${bot.trading_start_time}–${bot.trading_end_time} UTC, now ${nowUtc.getUTCHours()}:${String(nowUtc.getUTCMinutes()).padStart(2,'0')} UTC) — skipping`);
                         continue;
                     }
                 }
 
-                // Count open trades per-account — max_open_trades applies per account, not combined across all accounts
-                const botOpenTrades = userOpenTrades.filter(t => t.bot_id === bot.id || !t.bot_id);
-                const maxOpen = bot.max_open_trades || 5;
+                const maxOpen = bot.max_open_trades || 15;
                 // Only skip this bot if ALL active accounts are already at capacity
                 const allAccountsAtCapacity = activeAcctNums.every(acctNum => {
                     const acctCount = openTrades.filter(t => t.owner_email === acctNum).length;
@@ -425,29 +421,18 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                 }
 
                 const minConf = bot.min_confidence || 75;
+                const maxPerPair = bot.max_trades_per_pair || 1;
 
                 for (const pair of (bot.pairs || [])) {
-                    // Per-account capacity check: break only if ALL accounts are at/above maxOpen (including queued signals)
+                    // Break if ALL accounts are full (including queued signals)
                     const allAcctsFull = activeAcctNums.every(acctNum => {
                         const acctOpen = openTrades.filter(t => t.owner_email === acctNum).length;
                         const acctQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
                         return acctOpen + acctQueued >= maxOpen;
                     });
                     if (allAcctsFull) break;
-                    const globalMax = Math.max(...activeAcctNums.map(a => getRiskForAccount(a).max_concurrent_trades || 100));
-                    if (userOpenTrades.length + allSignalsToCreate.filter(s => acctSet.has(s.owner_email)).length >= globalMax) break;
 
                     const pairRaw = pair.replace('/', '');
-                    // Per-pair trade limit check
-                    const maxPerPair = bot.max_trades_per_pair || 1;
-                    const openTradesOnPair = userOpenTrades.filter(t => (t.pair || '').replace('/', '') === pairRaw).length;
-                    const pendingSignalsOnPair = userPendingSignals.filter(s => (s.pair || '').replace('/', '') === pairRaw).length;
-                    const queuedSignalsOnPair = allSignalsToCreate.filter(s => acctSet.has(s.owner_email) && (s.pair || '').replace('/', '') === pairRaw).length;
-                    if (openTradesOnPair + pendingSignalsOnPair + queuedSignalsOnPair >= maxPerPair) {
-                        console.log(`[Skip] ${bot.name} ${pair}: at max_trades_per_pair (${openTradesOnPair + pendingSignalsOnPair + queuedSignalsOnPair}/${maxPerPair})`);
-                        continue;
-                    }
-
                     const currentPrice = priceMap[pair] || priceMap[pairRaw];
                     if (!currentPrice) { console.log(`[Skip] ${bot.name} ${pair}: no price`); continue; }
 
@@ -455,7 +440,6 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const analysis = strategyMap[pairRaw];
                     if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis`); continue; }
                     if (analysis.type === 'NEUTRAL') continue;
-                    // Normalize confidence: AI sometimes returns 0-1 decimal instead of 0-100
                     const normalizedConf = (analysis.confidence || 0) <= 1 ? (analysis.confidence || 0) * 100 : (analysis.confidence || 0);
                     if (normalizedConf < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${normalizedConf} < ${minConf}`); continue; }
 
@@ -473,16 +457,9 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     const sl = analysis.type === 'BUY' ? currentPrice - (slPips * pipValue) : currentPrice + (slPips * pipValue);
                     const tp = analysis.type === 'BUY' ? currentPrice + (tpPips * pipValue) : currentPrice - (tpPips * pipValue);
 
-                    // Get active (non-paused) account numbers for this owner
-                    const accountNumbers = activeAcctNums;
-                    if (accountNumbers.length === 0) {
-                        console.log(`[Skip] ${bot.name} ${pair}: no active accounts for ${ownerEmail}`);
-                        continue;
-                    }
+                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) → ${activeAcctNums.length} active account(s)`);
 
-                    console.log(`[Signal] ${ownerEmail} | ${bot.name} -> ${analysis.type} ${pair} @ ${currentPrice.toFixed(5)} (${analysis.confidence}%) → ${accountNumbers.length} active account(s)`);
-
-                    for (const acctNum of accountNumbers) {
+                    for (const acctNum of activeAcctNums) {
                         // Per-account max trades check
                         const acctRisk = getRiskForAccount(acctNum);
                         const acctMaxTrades = acctRisk.max_concurrent_trades || 100;
@@ -492,6 +469,15 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                             console.log(`[Skip] ${acctNum} at max concurrent trades (${acctOpenCount + acctPendingCount}/${acctMaxTrades})`);
                             continue;
                         }
+                        // FIX: Per-account, per-pair check (was previously aggregate across all accounts, blocking valid trades)
+                        const acctPairOpen = openTrades.filter(t => t.owner_email === acctNum && (t.pair || '').replace('/', '') === pairRaw).length;
+                        const acctPairPending = userPendingSignals.filter(s => s.owner_email === acctNum && (s.pair || '').replace('/', '') === pairRaw).length;
+                        const acctPairQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum && (s.pair || '').replace('/', '') === pairRaw).length;
+                        if (acctPairOpen + acctPairPending + acctPairQueued >= maxPerPair) {
+                            console.log(`[Skip] ${bot.name} ${pair} on ${acctNum}: at max_trades_per_pair (${acctPairOpen + acctPairPending + acctPairQueued}/${maxPerPair})`);
+                            continue;
+                        }
+
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,
@@ -504,7 +490,7 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                             bot_id: bot.id,
                             status: 'PENDING',
                             result_pnl: 0,
-                            owner_email: acctNum,  // Bridge matches on account_number
+                            owner_email: acctNum,
                             calculated_indicators: {
                                 rsi: analysis.rsi,
                                 ema_trend: analysis.ema_trend,
