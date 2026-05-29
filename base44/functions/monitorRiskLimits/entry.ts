@@ -17,8 +17,9 @@ Deno.serve(async (req) => {
 
         const today = new Date().toISOString().split('T')[0];
 
-        // Fetch today's closed trades once
-        const closedTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-created_date', 1000);
+        // Fetch today's closed trades — sorted by updated_date desc, limit 500
+        // HARDENED: sort by updated_date (when trade closed) not created_date, limit to 500
+        const closedTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 500);
         const todayClosedTrades = closedTrades.filter(t => {
             const d = t.updated_date || t.created_date;
             return d && d.startsWith(today);

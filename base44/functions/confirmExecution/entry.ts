@@ -42,18 +42,23 @@ Deno.serve(async (req) => {
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
+        // Validate trade type
+        const tradeType = (body.type || '').toUpperCase();
+        if (tradeType && tradeType !== 'BUY' && tradeType !== 'SELL') {
+            return Response.json({ error: `Invalid trade type: ${tradeType}` }, {
+                status: 400,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
 
-        // Fetch signal and broker connection in parallel (all via service role — EA has no user token)
-        const [signals, connections] = await Promise.all([
-            base44.asServiceRole.entities.Signal.filter({ id: signal_id }),
+        // HARDENED: use .get() for signal lookup (correct tool for single record by ID)
+        const [signal, connections] = await Promise.all([
+            base44.asServiceRole.entities.Signal.get(signal_id).catch(() => null),
             account_number
                 ? base44.asServiceRole.entities.BrokerConnection.filter({ account_number: String(account_number) })
                 : Promise.resolve([]),
         ]);
 
-        const signal = signals?.[0];
-        // Use account_number as owner_email (matches bridge reconciliation key)
-        // Fall back to connection's account_number, then signal owner
         const connAccountNumber = connections?.[0]?.account_number;
         const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
 

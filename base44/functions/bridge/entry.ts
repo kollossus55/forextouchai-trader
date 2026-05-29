@@ -28,6 +28,7 @@ const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 
 // In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
 const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
+const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
 // keyed by "acctKey:pairRaw" → timestamp of last dispatch
@@ -101,6 +102,20 @@ Deno.serve(async (req) => {
             }, { status: 200, headers: corsHeaders() });
         }
         lastCallTs[acctKey] = now;
+
+        // ── Periodic memory cleanup (every ~100 calls) to prevent unbounded growth ──
+        if (dispatchedSignalIds.size > MAX_DISPATCHED_IDS) {
+            // Keep only the most recent 200 IDs (convert to array, slice, back to set)
+            const arr = [...dispatchedSignalIds];
+            dispatchedSignalIds.clear();
+            arr.slice(-200).forEach(id => dispatchedSignalIds.add(id));
+            console.log('[BRIDGE] Pruned dispatchedSignalIds to 200 entries');
+        }
+        // Clean pairDispatchCooldown entries older than the cooldown window
+        const cutoff = now - PAIR_COOLDOWN_MS * 2;
+        for (const key of Object.keys(pairDispatchCooldown)) {
+            if (pairDispatchCooldown[key] < cutoff) delete pairDispatchCooldown[key];
+        }
 
         // Build live price map from EA heartbeat
         const eaPrices = body.prices || acct.prices;
@@ -636,9 +651,14 @@ async function updateCurrencyPrices(base44, eaPrices) {
 // ─── Daily profit target check ────────────────────────────────────────────────
 async function checkDailyProfitTarget(base44, riskSettings, balance, openTrades) {
     const today = new Date().toISOString().split('T')[0];
-    const closedToday = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' });
+    // HARDENED: filter by account + status, limit 500 — never fetch all closed trades
+    const acctKey = riskSettings.account_number || null;
+    const closedToday = await base44.asServiceRole.entities.Trade.filter(
+        acctKey ? { status: 'CLOSED', owner_email: acctKey } : { status: 'CLOSED' },
+        '-updated_date', 500
+    );
     const todayProfit = closedToday
-        .filter(t => t.created_date?.startsWith(today))
+        .filter(t => (t.updated_date || t.created_date)?.startsWith(today))
         .reduce((sum, t) => sum + (t.pnl || 0), 0);
     const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const dailyProfitPercent = ((todayProfit + floatingPnl) / balance) * 100;
