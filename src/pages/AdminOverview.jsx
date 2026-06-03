@@ -55,7 +55,7 @@ export default function AdminOverview() {
   });
 
   // Manual trade signals — all statuses, last 48h
-  const { data: manualSignals = [], refetch: refetchManual } = useQuery({
+  const { data: manualSignals = [], refetch: refetchManual, isFetching: isManualFetching } = useQuery({
     queryKey: ['ao-manual-signals'],
     queryFn: async () => {
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -355,8 +355,8 @@ export default function AdminOverview() {
             <CardTitle className="text-white flex items-center gap-2">
               <Hand className="w-5 h-5 text-amber-400" /> Manual Trade Diagnostics — Last 48h
             </CardTitle>
-            <button onClick={() => refetchManual()} className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1">
-              <RefreshCw className="w-3 h-3" /> Refresh
+            <button onClick={() => refetchManual()} disabled={isManualFetching} className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 disabled:opacity-50">
+              <RefreshCw className={`w-3 h-3 ${isManualFetching ? 'animate-spin' : ''}`} /> Refresh
             </button>
           </div>
           {/* Legend */}
