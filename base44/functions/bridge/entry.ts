@@ -427,27 +427,50 @@ function sanitizeSignal(s, livePriceMap) {
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
 async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
-    // ── Deduplication cleanup: remove duplicate DB records for same ticket ────
-    // This guards against multi-isolate race conditions where two server instances
-    // both pass the existence check before either completes the create.
+    // ── Deduplication cleanup: remove duplicate DB records for same ticket OR same pair+type within 60s ──
+    // This guards against: (1) multi-isolate same-ticket races, (2) MT4 opening two trades on same pair rapidly
     try {
         const allAcctTrades = await base44.asServiceRole.entities.Trade.filter(
             { owner_email: acctKey, status: 'OPEN' }, '-created_date', 500
         );
         const seenTickets = {};
-        const toDelete = [];
+        const seenPairType = {}; // key: "pair:type" → earliest created_date record
+        const toDelete = new Set();
+        // First pass: dedup by ticket
         for (const t of allAcctTrades) {
             if (!t.ticket) continue;
             if (seenTickets[t.ticket]) {
-                // Keep the first (newest by created_date desc), delete the rest
-                toDelete.push(t.id);
+                toDelete.add(t.id);
             } else {
                 seenTickets[t.ticket] = true;
             }
         }
-        if (toDelete.length > 0) {
-            console.log('[BRIDGE] Dedup: removing', toDelete.length, 'duplicate trade records for', acctKey);
-            await Promise.all(toDelete.map(id => base44.asServiceRole.entities.Trade.delete(id)));
+        // Second pass: dedup by pair+type within 60 seconds (catches manual trade double-fires)
+        for (const t of allAcctTrades) {
+            if (toDelete.has(t.id)) continue; // already flagged
+            const key = `${(t.pair||'').replace('/','').toUpperCase()}:${t.type}`;
+            if (seenPairType[key]) {
+                const existing = seenPairType[key];
+                const diff = Math.abs(new Date(t.created_date).getTime() - new Date(existing.created_date).getTime());
+                if (diff < 60_000) {
+                    // Keep the one with the higher ticket number (more recent MT4 order), delete the other
+                    if ((t.ticket || 0) < (existing.ticket || 0)) {
+                        toDelete.add(t.id);
+                    } else {
+                        toDelete.add(existing.id);
+                        seenPairType[key] = t;
+                    }
+                    console.log(`[BRIDGE] Dedup pair+type: removing duplicate ${key} opened within 60s`);
+                } else {
+                    // Not a duplicate — keep both (different trades on same pair at different times)
+                }
+            } else {
+                seenPairType[key] = t;
+            }
+        }
+        if (toDelete.size > 0) {
+            console.log('[BRIDGE] Dedup: removing', toDelete.size, 'duplicate trade records for', acctKey);
+            await Promise.all([...toDelete].map(id => base44.asServiceRole.entities.Trade.delete(id)));
         }
     } catch (e) {
         console.warn('[BRIDGE] Dedup cleanup error:', e.message);
