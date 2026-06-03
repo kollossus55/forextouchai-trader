@@ -275,8 +275,8 @@ export default function Admin() {
           </button>
           {/* Browser desktop notification status (informational) */}
           {notifPermission === 'denied' && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs">
-              <BellOff className="w-3.5 h-3.5" /> Desktop blocked
+            <span title="Open browser settings (padlock icon in address bar) → Notifications → Allow, then reload" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs cursor-help">
+              <BellOff className="w-3.5 h-3.5" /> Desktop blocked — hover for help
             </span>
           )}
           {notifPermission === 'default' && (
