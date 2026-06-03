@@ -259,28 +259,34 @@ export default function Admin() {
           <p className="text-slate-400 mt-1">Platform health and operational status</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {/* Signal notification toggle */}
+          {/* In-app toast alert toggle — always available */}
           <button
-            onClick={() => {
-              if (notifPermission === 'default') { requestNotifPermission(); return; }
-              setNotifEnabled(v => !v);
-            }}
-            title={notifEnabled ? 'Signal notifications ON — click to disable' : 'Signal notifications OFF — click to enable'}
+            onClick={() => setNotifEnabled(v => !v)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
-              notifEnabled && notifPermission === 'granted'
+              notifEnabled
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                : notifPermission === 'denied'
-                ? 'border-rose-500/50 bg-rose-500/10 text-rose-400'
-                : 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                : 'border-slate-600 bg-slate-800/50 text-slate-400 hover:bg-slate-700/50'
             }`}
           >
-            {notifEnabled && notifPermission === 'granted'
+            {notifEnabled
               ? <><Bell className="w-4 h-4 animate-pulse" /> Signal Alerts ON</>
-              : notifPermission === 'denied'
-              ? <><BellOff className="w-4 h-4" /> Notifications Blocked</>
-              : <><Bell className="w-4 h-4" /> Enable Signal Alerts</>
+              : <><BellOff className="w-4 h-4" /> Signal Alerts OFF</>
             }
           </button>
+          {/* Browser desktop notification status (informational) */}
+          {notifPermission === 'denied' && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs">
+              <BellOff className="w-3.5 h-3.5" /> Desktop blocked
+            </span>
+          )}
+          {notifPermission === 'default' && (
+            <button
+              onClick={requestNotifPermission}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs hover:bg-amber-500/20 cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5" /> Allow desktop alerts
+            </button>
+          )}
           <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 px-3 py-1">
             <Activity className="w-3 h-3 mr-2 animate-pulse" /> Systems Operational
           </Badge>
