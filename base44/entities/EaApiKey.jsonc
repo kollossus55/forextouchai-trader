@@ -1,0 +1,24 @@
+{
+  "name": "EaApiKey",
+  "type": "object",
+  "properties": {
+    "api_key": {
+      "type": "string",
+      "description": "The EA API key value"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the user who owns this key"
+    }
+  },
+  "required": [
+    "api_key",
+    "owner_email"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}
