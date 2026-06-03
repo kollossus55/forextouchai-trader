@@ -15,8 +15,11 @@ import {
   Key,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  Bell,
+  BellOff
 } from 'lucide-react';
+import useSignalNotifications from '@/hooks/useSignalNotifications';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -197,6 +200,16 @@ function EaApiKeySection() {
 
 export default function Admin() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [notifPermission, setNotifPermission] = useState('Notification' in window ? Notification.permission : 'unsupported');
+
+  useSignalNotifications({ enabled: notifEnabled });
+
+  const requestNotifPermission = async () => {
+    if (!('Notification' in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotifPermission(perm);
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -245,9 +258,33 @@ export default function Admin() {
           </h1>
           <p className="text-slate-400 mt-1">Platform health and operational status</p>
         </div>
-        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 px-3 py-1">
-          <Activity className="w-3 h-3 mr-2 animate-pulse" /> Systems Operational
-        </Badge>
+        <div className="flex items-center gap-3">
+          {/* Signal notification toggle */}
+          <button
+            onClick={() => {
+              if (notifPermission === 'default') { requestNotifPermission(); return; }
+              setNotifEnabled(v => !v);
+            }}
+            title={notifEnabled ? 'Signal notifications ON — click to disable' : 'Signal notifications OFF — click to enable'}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+              notifEnabled && notifPermission === 'granted'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                : notifPermission === 'denied'
+                ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                : 'border-slate-700 bg-slate-800/50 text-slate-400'
+            }`}
+          >
+            {notifEnabled && notifPermission === 'granted'
+              ? <><Bell className="w-3.5 h-3.5 animate-pulse" /> Signal Alerts ON</>
+              : notifPermission === 'denied'
+              ? <><BellOff className="w-3.5 h-3.5" /> Notifications Blocked</>
+              : <><Bell className="w-3.5 h-3.5" /> Enable Signal Alerts</>
+            }
+          </button>
+          <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 px-3 py-1">
+            <Activity className="w-3 h-3 mr-2 animate-pulse" /> Systems Operational
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
