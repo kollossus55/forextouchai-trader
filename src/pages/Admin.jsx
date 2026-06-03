@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { appParams } from '@/lib/app-params';
 import { 
   Shield, 
   Server, 
@@ -7,7 +8,10 @@ import {
   Cpu,
   Users,
   Mail,
-  UserCog
+  UserCog,
+  Webhook,
+  Copy,
+  CheckCheck
 } from 'lucide-react';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -16,6 +20,90 @@ import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+
+function WebhookInfoCard() {
+  const [copied, setCopied] = useState(null);
+  const appId = appParams.appId || 'YOUR_APP_ID';
+  const webhookUrl = `https://api.base44.app/api/apps/${appId}/functions/injectSignal`;
+
+  const copy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const CopyBtn = ({ text, id }) => (
+    <button onClick={() => copy(text, id)} className="ml-2 text-slate-500 hover:text-emerald-400 transition-colors">
+      {copied === id ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+
+  return (
+    <Card className="bg-slate-900/50 border-slate-800">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Webhook className="w-5 h-5 text-amber-400" /> 3rd Party Signal Webhook
+        </CardTitle>
+        <CardDescription className="text-slate-400">Use these details to connect external signal providers</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Webhook URL */}
+        <div className="bg-slate-950/60 rounded-lg p-4 border border-slate-800">
+          <p className="text-xs text-slate-500 mb-1 font-semibold uppercase tracking-wide">Webhook URL</p>
+          <div className="flex items-center">
+            <code className="text-emerald-400 text-sm font-mono break-all">{webhookUrl}</code>
+            <CopyBtn text={webhookUrl} id="url" />
+          </div>
+        </div>
+
+        {/* Auth */}
+        <div className="bg-slate-950/60 rounded-lg p-4 border border-slate-800">
+          <p className="text-xs text-slate-500 mb-1 font-semibold uppercase tracking-wide">Auth Method</p>
+          <p className="text-slate-300 text-sm">API Key in JSON body — field name: <code className="text-amber-400 bg-slate-800 px-1.5 py-0.5 rounded text-xs">api_key</code></p>
+          <p className="text-xs text-slate-500 mt-1">Use the same API key from your MT4 EA / Broker Connection settings</p>
+        </div>
+
+        {/* Payload */}
+        <div className="bg-slate-950/60 rounded-lg p-4 border border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">JSON Payload</p>
+            <CopyBtn text={`{\n  "api_key": "YOUR_EA_API_KEY",\n  "pair": "EURUSD",\n  "type": "BUY",\n  "entry_price": 1.08500,\n  "stop_loss": 1.08200,\n  "take_profit": 1.09000,\n  "lot_size": 0.10,\n  "account_number": "123456",\n  "comment": "Signal provider name"\n}`} id="payload" />
+          </div>
+          <pre className="text-xs text-slate-300 font-mono leading-relaxed">{`{
+  "api_key":        "YOUR_EA_API_KEY",   // required
+  "pair":           "EURUSD",            // required
+  "type":           "BUY",              // required: BUY | SELL
+  "entry_price":    1.08500,             // required
+  "stop_loss":      1.08200,             // optional
+  "take_profit":    1.09000,             // optional
+  "lot_size":       0.10,                // optional, default 0.10
+  "account_number": "123456",            // optional
+  "comment":        "Signal provider"   // optional
+}`}</pre>
+        </div>
+
+        {/* Quick info row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Method', value: 'POST' },
+            { label: 'Format', value: 'JSON' },
+            { label: 'Confidence Filter', value: 'None (all accepted)' },
+            { label: 'Rate Limit', value: 'No hard limit' },
+          ].map(item => (
+            <div key={item.label} className="bg-slate-950/40 rounded-lg p-3 border border-slate-800/50">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{item.label}</p>
+              <p className="text-sm text-slate-300 font-medium">{item.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-slate-500">
+          ⚡ Signals appear immediately in <span className="text-slate-400">Admin Overview → Manual Trade Diagnostics</span> and are dispatched to MT4 on the next bridge heartbeat.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Admin() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -183,6 +271,9 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 3rd Party Signal Webhook */}
+      <WebhookInfoCard />
 
       {/* Risk Management Section for all accounts */}
       <RiskManagementPanel />
