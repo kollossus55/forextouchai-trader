@@ -59,10 +59,22 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'type must be BUY or SELL' }, { status: 400 });
         }
 
-        // ── Validate api_key against known broker connections ──
-        const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ api_key });
+        // ── Validate api_key: check BrokerConnection.api_key OR User.ea_api_key ──
+        let connections = await base44.asServiceRole.entities.BrokerConnection.filter({ api_key });
+
         if (!connections || connections.length === 0) {
-            return Response.json({ error: 'Unauthorized — invalid api_key' }, { status: 401 });
+            // Fallback: check if any user has this as their ea_api_key
+            const users = await base44.asServiceRole.entities.User.filter({ ea_api_key: api_key });
+            if (!users || users.length === 0) {
+                console.warn(`[injectSignal] Unauthorized attempt with key: ${api_key?.slice(0, 8)}...`);
+                return Response.json({ error: 'Unauthorized — invalid api_key' }, { status: 401 });
+            }
+            // Use all broker connections belonging to this user
+            const userEmail = users[0].email;
+            connections = await base44.asServiceRole.entities.BrokerConnection.filter({ owner_email: userEmail });
+            if (!connections || connections.length === 0) {
+                connections = await base44.asServiceRole.entities.BrokerConnection.list();
+            }
         }
 
         // Normalise pair symbol (strip slash)
