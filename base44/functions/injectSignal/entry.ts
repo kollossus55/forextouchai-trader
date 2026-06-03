@@ -71,9 +71,9 @@ Deno.serve(async (req) => {
             }
             // Use all broker connections belonging to this user
             const userEmail = users[0].email;
-            connections = await base44.asServiceRole.entities.BrokerConnection.filter({ owner_email: userEmail });
+            connections = await base44.asServiceRole.entities.BrokerConnection.filter({ created_by: userEmail });
             if (!connections || connections.length === 0) {
-                connections = await base44.asServiceRole.entities.BrokerConnection.list();
+                connections = await base44.asServiceRole.entities.BrokerConnection.list('-created_date', 10);
             }
         }
 
@@ -96,8 +96,9 @@ Deno.serve(async (req) => {
             strategy: 'MANUAL_EXECUTION',
             status: 'PENDING',
             result_pnl: 0,
-            // Route to specific account if provided, else broadcast to all accounts tied to this api_key
-            ...(account_number ? { owner_email: String(account_number) } : { owner_email: connections[0].account_number }),
+            // Route to specific account number if provided, else use first matched connection's account_number
+            // IMPORTANT: owner_email in Signal must be the account_number string (not user email) so the bridge can match it
+            owner_email: account_number ? String(account_number) : (connections[0].account_number || ''),
             calculated_indicators: comment ? { source: comment } : undefined,
         };
 
