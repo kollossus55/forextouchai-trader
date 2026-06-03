@@ -14,5 +14,8 @@
       "type": "string",
       "description": "Unique EA API key for authenticating MT4/MT5 bridge requests"
     }
-  }
+  },
+  "required": [
+    "ea_api_key"
+  ]
 }

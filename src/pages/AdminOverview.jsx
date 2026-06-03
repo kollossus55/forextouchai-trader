@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
 } from 'recharts';
 import {
   DollarSign, TrendingUp, TrendingDown, Activity, Bot, Shield,
@@ -44,6 +44,13 @@ export default function AdminOverview() {
     queryKey: ['ao-bots'],
     queryFn: () => base44.entities.BotConfig.list('-updated_date', 100),
     refetchInterval: 30000,
+    initialData: []
+  });
+
+  const { data: signals = [] } = useQuery({
+    queryKey: ['ao-signals'],
+    queryFn: () => base44.entities.Signal.filter({ status: 'CLOSED' }, '-updated_date', 500),
+    refetchInterval: 60000,
     initialData: []
   });
 
@@ -106,6 +113,38 @@ export default function AdminOverview() {
     }
     return Object.values(map).sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl)).slice(0, 8);
   }, [closedTrades]);
+
+  // ── Bot performance (last 7 days) ──
+  const botPerformance = useMemo(() => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const recentTrades = closedTrades.filter(t => (t.updated_date || t.created_date || '') >= sevenDaysAgo);
+
+    return bots.map(bot => {
+      const botTrades = recentTrades.filter(t => t.bot_id === bot.id);
+      const wins = botTrades.filter(t => (t.pnl || 0) > 0).length;
+      const losses = botTrades.filter(t => (t.pnl || 0) < 0).length;
+      const total = wins + losses;
+      const winRate = total > 0 ? Math.round((wins / total) * 100) : null;
+      const profit = botTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+
+      // Daily profit breakdown (last 7 days)
+      const dailyMap = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        dailyMap[d] = 0;
+      }
+      botTrades.forEach(t => {
+        const day = (t.updated_date || t.created_date || '').split('T')[0];
+        if (dailyMap[day] !== undefined) dailyMap[day] += t.pnl || 0;
+      });
+      const dailyData = Object.entries(dailyMap).map(([date, pnl]) => ({
+        date: date.slice(5), // MM-DD
+        pnl: parseFloat(pnl.toFixed(2))
+      }));
+
+      return { ...bot, wins, losses, total, winRate, profit, dailyData };
+    }).sort((a, b) => b.profit - a.profit);
+  }, [bots, closedTrades]);
 
   // ── Win/Loss pie ──
   const pieData = [
@@ -291,34 +330,88 @@ export default function AdminOverview() {
         </CardContent>
       </Card>
 
-      {/* Bot Status */}
+      {/* Bot Performance - Last 7 Days */}
       <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-purple-400" /> Bot Status Overview
+            <Bot className="w-5 h-5 text-purple-400" /> Bot Performance — Last 7 Days
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {bots.length === 0 ? (
-              <p className="text-slate-500 text-sm col-span-3 text-center py-4">No bots configured</p>
-            ) : bots.map(bot => (
-              <div key={bot.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
-                <div>
-                  <p className="text-slate-200 text-sm font-medium">{bot.name}</p>
-                  <p className="text-slate-500 text-xs mt-0.5">{bot.strategy_type} · {bot.timeframe}</p>
+          {botPerformance.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-8">No bots configured</p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {botPerformance.map(bot => (
+                <div key={bot.id} className="bg-slate-950/50 border border-slate-800/50 rounded-lg p-4">
+                  {/* Bot header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-slate-200 font-medium">{bot.name}</p>
+                        <Badge variant="outline" className={
+                          bot.status === 'RUNNING' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs' :
+                          bot.status === 'PAUSED' ? 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs' :
+                          'border-slate-600 text-slate-400 text-xs'
+                        }>
+                          {bot.status === 'RUNNING' && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
+                          {bot.status}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-0.5">{bot.strategy_type} · {bot.timeframe}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${bot.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {bot.profit >= 0 ? '+' : ''}${fmt(bot.profit)}
+                      </p>
+                      <p className="text-xs text-slate-500">{bot.total} trades</p>
+                    </div>
+                  </div>
+
+                  {/* Win rate bar */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-xs text-slate-400 w-16 shrink-0">Win Rate</span>
+                    {bot.winRate != null ? (
+                      <>
+                        <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${bot.winRate >= 60 ? 'bg-emerald-500' : bot.winRate >= 45 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                            style={{ width: `${bot.winRate}%` }}
+                          />
+                        </div>
+                        <span className={`text-sm font-bold w-10 text-right ${bot.winRate >= 60 ? 'text-emerald-400' : bot.winRate >= 45 ? 'text-amber-400' : 'text-rose-400'}`}>
+                          {bot.winRate}%
+                        </span>
+                        <span className="text-xs text-slate-500">{bot.wins}W/{bot.losses}L</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-500 text-xs">No trades yet</span>
+                    )}
+                  </div>
+
+                  {/* Daily P&L sparkline */}
+                  <ResponsiveContainer width="100%" height={70}>
+                    <LineChart data={bot.dailyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip
+                        contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
+                        formatter={(v) => [`$${fmt(v)}`, 'P&L']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="pnl"
+                        stroke={bot.profit >= 0 ? '#10b981' : '#f43f5e'}
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: bot.profit >= 0 ? '#10b981' : '#f43f5e' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-                <Badge variant="outline" className={
-                  bot.status === 'RUNNING' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs' :
-                  bot.status === 'PAUSED' ? 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs' :
-                  'border-slate-600 text-slate-400 text-xs'
-                }>
-                  {bot.status === 'RUNNING' && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
-                  {bot.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

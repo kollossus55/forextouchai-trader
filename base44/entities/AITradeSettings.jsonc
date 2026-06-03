@@ -1,0 +1,95 @@
+{
+  "name": "AITradeSettings",
+  "type": "object",
+  "properties": {
+    "enableAI": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable AI-powered trade management"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "SUGGESTIONS",
+        "AUTO_EXECUTE"
+      ],
+      "default": "SUGGESTIONS",
+      "description": "AI can suggest or automatically execute trade adjustments"
+    },
+    "maxRiskPercent": {
+      "type": "number",
+      "default": 2,
+      "minimum": 0.5,
+      "maximum": 10,
+      "description": "Maximum risk per trade as % of account balance"
+    },
+    "trailingStopPips": {
+      "type": "number",
+      "default": 20,
+      "description": "Distance in pips for trailing stop"
+    },
+    "profitProtectPercent": {
+      "type": "number",
+      "default": 50,
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Lock profit when this % of TP is reached"
+    },
+    "maxHoldHours": {
+      "type": "number",
+      "default": 24,
+      "description": "Maximum time to hold a losing trade"
+    },
+    "monitoringInterval": {
+      "type": "number",
+      "default": 15,
+      "description": "How often AI checks trades (minutes)"
+    }
+  },
+  "required": [],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": {
+          "$ne": "guest"
+        }
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
