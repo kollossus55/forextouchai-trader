@@ -203,13 +203,16 @@ export default function Admin() {
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [notifPermission, setNotifPermission] = useState('Notification' in window ? Notification.permission : 'unsupported');
 
-  // Re-check permission whenever the page gains focus (e.g. after changing browser settings)
+  // Re-check permission on focus AND poll every 2s to catch browser setting changes
   useEffect(() => {
-    const checkPermission = () => {
-      if ('Notification' in window) setNotifPermission(Notification.permission);
-    };
+    if (!('Notification' in window)) return;
+    const checkPermission = () => setNotifPermission(Notification.permission);
     window.addEventListener('focus', checkPermission);
-    return () => window.removeEventListener('focus', checkPermission);
+    const interval = setInterval(checkPermission, 2000);
+    return () => {
+      window.removeEventListener('focus', checkPermission);
+      clearInterval(interval);
+    };
   }, []);
 
   useSignalNotifications({ enabled: notifEnabled });
