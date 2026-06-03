@@ -335,14 +335,13 @@ export default function Pairs() {
     if (!selectedPair) return;
     const { slPrice, tpPrice, executionPrice } = calcSLTP();
 
-    // Block if trading against AI signal direction
+    // Warn (but allow) if trading against AI signal direction
     const aiSignal = liveData[selectedPair.id]?.ai_signal;
     if (aiSignal && aiSignal !== 'NEUTRAL' && aiSignal !== tradeType) {
-      toast.error('AI Signal Conflict', {
-        description: `AI signals ${aiSignal} for ${selectedPair.symbol}. Trading against the AI signal is blocked for your protection.`,
-        duration: 6000
+      toast.warning('AI Signal Conflict', {
+        description: `AI signals ${aiSignal} for ${selectedPair.symbol}. Proceeding with manual override.`,
+        duration: 4000
       });
-      return;
     }
 
     // Hard validation: reject if SL/TP are on the wrong side of entry
@@ -793,16 +792,13 @@ export default function Pairs() {
               Cancel
             </Button>
             {(() => {
-              const aiSignal = selectedPair ? liveData[selectedPair.id]?.ai_signal : null;
-              const isBlocked = aiSignal && aiSignal !== 'NEUTRAL' && aiSignal !== tradeType;
               return (
                 <Button 
                   onClick={executeTrade}
-                  disabled={selectedAccounts.length === 0 || sendSignal.isPending || isBlocked}
-                  title={isBlocked ? `Blocked: AI signals ${aiSignal}` : ''}
+                  disabled={selectedAccounts.length === 0 || sendSignal.isPending}
                   className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40' : 'bg-rose-600 hover:bg-rose-700 disabled:opacity-40'}
                 >
-                  {sendSignal.isPending ? 'Sending...' : isBlocked ? `Blocked by AI` : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+                  {sendSignal.isPending ? 'Sending...' : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
                 </Button>
               );
             })()}
