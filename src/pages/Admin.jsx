@@ -11,7 +11,11 @@ import {
   UserCog,
   Webhook,
   Copy,
-  CheckCheck
+  CheckCheck,
+  Key,
+  RefreshCw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -97,11 +101,97 @@ function WebhookInfoCard() {
           ))}
         </div>
 
+        {/* EA API Key display */}
+        <EaApiKeySection />
+
         <p className="text-xs text-slate-500">
           ⚡ Signals appear immediately in <span className="text-slate-400">Admin Overview → Manual Trade Diagnostics</span> and are dispatched to MT4 on the next bridge heartbeat.
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+function EaApiKeySection() {
+  const [apiKey, setApiKey] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    base44.auth.me().then(u => {
+      setApiKey(u?.ea_api_key || null);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await base44.functions.invoke('generateEaApiKey', {});
+      setApiKey(res.data.ea_api_key);
+      setRevealed(true);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const maskedKey = apiKey
+    ? `${apiKey.slice(0, 7)}${'•'.repeat(apiKey.length - 11)}${apiKey.slice(-4)}`
+    : null;
+
+  return (
+    <div className="bg-slate-950/60 rounded-lg p-4 border border-amber-500/20">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide flex items-center gap-1.5">
+          <Key className="w-3.5 h-3.5 text-amber-400" /> Your EA API Key
+        </p>
+        <button
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-amber-400 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${regenerating ? 'animate-spin' : ''}`} />
+          {regenerating ? 'Regenerating…' : 'Regenerate'}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-slate-500 text-sm">Loading…</p>
+      ) : apiKey ? (
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-emerald-400 text-sm font-mono bg-slate-900 rounded px-3 py-2 border border-slate-800 break-all">
+            {revealed ? apiKey : maskedKey}
+          </code>
+          <button onClick={() => setRevealed(v => !v)} className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0">
+            {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button onClick={handleCopy} className="text-slate-500 hover:text-emerald-400 transition-colors flex-shrink-0">
+            {copied ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <p className="text-slate-500 text-sm">No key generated yet.</p>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="text-xs text-amber-400 hover:underline disabled:opacity-50"
+          >
+            Generate now
+          </button>
+        </div>
+      )}
+      <p className="text-xs text-slate-600 mt-2">Use this exact key as <code className="text-amber-400/80">api_key</code> in your webhook payload. Regenerating invalidates the old key immediately.</p>
+    </div>
   );
 }
 
