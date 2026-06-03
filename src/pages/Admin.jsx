@@ -251,14 +251,14 @@ export default function Admin() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
             <Shield className="w-8 h-8 text-emerald-500" /> System Administration
           </h1>
           <p className="text-slate-400 mt-1">Platform health and operational status</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Signal notification toggle */}
           <button
             onClick={() => {
@@ -266,19 +266,19 @@ export default function Admin() {
               setNotifEnabled(v => !v);
             }}
             title={notifEnabled ? 'Signal notifications ON — click to disable' : 'Signal notifications OFF — click to enable'}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
               notifEnabled && notifPermission === 'granted'
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
                 : notifPermission === 'denied'
-                ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
-                : 'border-slate-700 bg-slate-800/50 text-slate-400'
+                ? 'border-rose-500/50 bg-rose-500/10 text-rose-400'
+                : 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
             }`}
           >
             {notifEnabled && notifPermission === 'granted'
-              ? <><Bell className="w-3.5 h-3.5 animate-pulse" /> Signal Alerts ON</>
+              ? <><Bell className="w-4 h-4 animate-pulse" /> Signal Alerts ON</>
               : notifPermission === 'denied'
-              ? <><BellOff className="w-3.5 h-3.5" /> Notifications Blocked</>
-              : <><Bell className="w-3.5 h-3.5" /> Enable Signal Alerts</>
+              ? <><BellOff className="w-4 h-4" /> Notifications Blocked</>
+              : <><Bell className="w-4 h-4" /> Enable Signal Alerts</>
             }
           </button>
           <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 px-3 py-1">
