@@ -273,8 +273,20 @@ Deno.serve(async (req) => {
             .filter(s => {
                 // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
                 if (dispatchedSignalIds.has(s.id)) return false;
-                // If a signal for this pair is already ACTIVE in DB, skip — trade likely already open
+
                 const pairRaw = (s.pair || '').replace('/', '');
+                const isManual = s.strategy === 'MANUAL_EXECUTION';
+
+                // Manual signals: only check account targeting and per-cycle dedup — bypass cooldown & open-pair checks
+                if (isManual) {
+                    if (s.owner_email && s.owner_email !== acctKey) return false;
+                    if (dispatchedPairsThisCycle.has(`manual:${pairRaw}`)) return false;
+                    dispatchedPairsThisCycle.add(`manual:${pairRaw}`);
+                    console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown/open-pair checks`);
+                    return true;
+                }
+
+                // If a signal for this pair is already ACTIVE in DB, skip — trade likely already open
                 if (activePairs.has(pairRaw)) {
                     console.log(`[BRIDGE] Pair ${pairRaw} already has ACTIVE signal — skipping`);
                     return false;
@@ -308,9 +320,11 @@ Deno.serve(async (req) => {
             // Mark as dispatched BEFORE the async DB write to block any concurrent requests
             freshSignals.forEach(s => {
                 dispatchedSignalIds.add(s.id);
-                // Record per-pair cooldown to prevent re-dispatch of same pair on next heartbeat
-                const pairRaw = (s.pair || '').replace('/', '');
-                pairDispatchCooldown[`${acctKey}:${pairRaw}`] = now;
+                // Only set cooldown for non-manual signals — manual trades bypass cooldown entirely
+                if (s.strategy !== 'MANUAL_EXECUTION') {
+                    const pairRaw = (s.pair || '').replace('/', '');
+                    pairDispatchCooldown[`${acctKey}:${pairRaw}`] = now;
+                }
             });
             try {
                 const toLock = freshSignals.filter(s => s.status === 'PENDING');

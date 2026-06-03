@@ -678,13 +678,13 @@ export default function Pairs() {
                   <div>
                     <div className="font-semibold">
                       {isNeutral ? 'AI: No Signal' :
-                       isAligned ? `AI Confirmed: ${aiSignal} (${aiConf}% confidence)` :
-                       `⛔ Blocked: AI signals ${aiSignal} — cannot trade ${tradeType}`}
-                    </div>
-                    <div className="text-xs mt-0.5 opacity-75">
-                      {isNeutral ? 'AI has no directional bias. Proceed with caution.' :
-                       isAligned ? 'Your trade direction matches the AI signal.' :
-                       'Trading against the AI signal is blocked for your protection.'}
+                          isAligned ? `AI Confirmed: ${aiSignal} (${aiConf}% confidence)` :
+                          `⚠ AI signals ${aiSignal} — manual override active`}
+                        </div>
+                        <div className="text-xs mt-0.5 opacity-75">
+                          {isNeutral ? 'AI has no directional bias. Proceed with caution.' :
+                           isAligned ? 'Your trade direction matches the AI signal.' :
+                           'You are trading against the AI signal. Order will still be sent.'}
                     </div>
                   </div>
                 </div>
