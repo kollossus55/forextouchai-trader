@@ -33,7 +33,7 @@ const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
 // keyed by "acctKey:pairRaw" → timestamp of last dispatch
 const pairDispatchCooldown = {}; // e.g. { "1511587:EURUSD": 1716200000000 }
-const PAIR_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+const PAIR_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
@@ -225,9 +225,9 @@ Deno.serve(async (req) => {
             }, { headers: corsHeaders() });
         }
 
-        const fiveMinutesAgo = new Date(now - 10 * 60 * 1000).toISOString(); // 10min expiry window
-        // Also expire ACTIVE signals older than 5 minutes (stuck signals that MT5 never acknowledged)
-        const fiveMinAgo = new Date(now - 5 * 60 * 1000).toISOString();
+        const fiveMinutesAgo = new Date(now - 20 * 60 * 1000).toISOString(); // 20min expiry window (index instruments need more time)
+        // Also expire ACTIVE signals older than 10 minutes (stuck signals that MT5 never acknowledged)
+        const fiveMinAgo = new Date(now - 10 * 60 * 1000).toISOString();
         const stale = (allPendingSignals || []).filter(s =>
             s.created_date < fiveMinutesAgo ||
             (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < fiveMinAgo)
