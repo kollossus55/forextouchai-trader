@@ -453,7 +453,10 @@ export default function AutoTrade() {
                       <div className="flex flex-wrap gap-1.5">
                         {bot.pairs.map(pair => {
                           const pairRaw = pair.replace('/', '');
-                          const hasOpenTrade = openTrades.some(t => (t.pair || '').replace('/', '') === pairRaw);
+                          const hasOpenTrade = openTrades.some(t => 
+                            (t.pair || '').replace('/', '') === pairRaw && 
+                            (t.bot_id === bot.id || (!t.bot_id && (t.owner_email === bot.owner_email || t.owner_email === bot.created_by)))
+                          );
                           return (
                             <span key={pair} className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
                               hasOpenTrade
