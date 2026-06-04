@@ -446,6 +446,30 @@ export default function AutoTrade() {
                     </div>
                   </div>
 
+                  {/* Configured Pairs */}
+                  {(bot.pairs || []).length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5">Configured Pairs</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {bot.pairs.map(pair => {
+                          const pairRaw = pair.replace('/', '');
+                          const hasOpenTrade = openTrades.some(t => (t.pair || '').replace('/', '') === pairRaw);
+                          return (
+                            <span key={pair} className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                              hasOpenTrade
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                                : 'bg-slate-800/60 border-slate-700 text-slate-300'
+                            }`}>
+                              {pair}
+                              {hasOpenTrade && <span className="ml-1 text-amber-400">●</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <p className="text-slate-600 text-[10px] mt-1">● = open trade on this pair</p>
+                    </div>
+                  )}
+
                   {/* Capacity Status Banner */}
                   {bot.status === 'RUNNING' && botCapacityStatus[bot.id]?.blocked && (
                     <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
