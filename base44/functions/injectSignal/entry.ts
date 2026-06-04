@@ -55,11 +55,12 @@ Deno.serve(async (req) => {
             ? `${normalisedPair.slice(0, 3)}/${normalisedPair.slice(3)}`
             : normalisedPair;
 
-        const targetAccount = account_number
-            ? String(account_number)
-            : (userConnections[0].account_number || '');
+        // If account_number specified, target that account only. Otherwise broadcast to ALL connected accounts.
+        const targetAccounts = account_number
+            ? [String(account_number)]
+            : userConnections.map(c => c.account_number).filter(Boolean);
 
-        const signalPayload = {
+        const buildPayload = (acct) => ({
             pair: formattedPair,
             type: type.toUpperCase(),
             entry_price: parseFloat(entry_price),
@@ -70,15 +71,17 @@ Deno.serve(async (req) => {
             strategy: 'MANUAL_EXECUTION',
             status: 'PENDING',
             result_pnl: 0,
-            owner_email: targetAccount,
+            owner_email: acct,
             calculated_indicators: comment ? { source: comment } : undefined,
-        };
+        });
 
-        const signal = await base44.asServiceRole.entities.Signal.create(signalPayload);
-        console.log(`[injectSignal] Signal queued: ${formattedPair} ${type} lot=${signalPayload.lot_size} account=${targetAccount} id=${signal.id}`);
+        const signals = await Promise.all(
+            targetAccounts.map(acct => base44.asServiceRole.entities.Signal.create(buildPayload(acct)))
+        );
+        console.log(`[injectSignal] Signal queued: ${formattedPair} ${type} → accounts: ${targetAccounts.join(', ')}`);
 
         return Response.json(
-            { status: 'queued', signal_id: signal.id, pair: formattedPair, type: type.toUpperCase(), account: targetAccount },
+            { status: 'queued', signal_ids: signals.map(s => s.id), pair: formattedPair, type: type.toUpperCase(), accounts: targetAccounts },
             { status: 201, headers: { 'Access-Control-Allow-Origin': '*' } }
         );
 
