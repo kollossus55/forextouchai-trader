@@ -11,6 +11,7 @@ import {
   Settings, 
   User, 
   Shield,
+  Zap,
   Menu,
   X,
   Search,
@@ -190,6 +191,7 @@ export default function Layout({ children }) {
       ...(user?.role === 'admin' ? [
         { label: 'Admin', icon: Shield, path: '/Admin' },
         { label: 'Admin Overview', icon: Activity, path: '/AdminOverview' },
+        { label: 'Signals', icon: Zap, path: '/SignalsDashboard' },
       ] : []),
     ];
   }, [user?.role, isLoadingAuth]);
