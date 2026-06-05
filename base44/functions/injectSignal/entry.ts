@@ -60,6 +60,36 @@ Deno.serve(async (req) => {
             ? [String(account_number)]
             : userConnections.map(c => c.account_number).filter(Boolean);
 
+        // ── Deduplication: skip accounts that already have an ACTIVE/PENDING signal for same pair+type within 5 min ──
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const existingSignals = await base44.asServiceRole.entities.Signal.filter({
+            pair: formattedPair,
+            type: type.toUpperCase(),
+            strategy: 'MANUAL_EXECUTION',
+        }, '-created_date', 50);
+
+        const recentActiveAccounts = new Set(
+            (existingSignals || [])
+                .filter(s => ['PENDING', 'ACTIVE'].includes(s.status) && s.created_date >= fiveMinAgo)
+                .map(s => s.owner_email)
+        );
+
+        const accountsToCreate = targetAccounts.filter(acct => {
+            if (recentActiveAccounts.has(acct)) {
+                console.log(`[injectSignal] Duplicate suppressed: ${formattedPair} ${type} already ACTIVE/PENDING for ${acct}`);
+                return false;
+            }
+            return true;
+        });
+
+        if (accountsToCreate.length === 0) {
+            console.log(`[injectSignal] All accounts already have active signal for ${formattedPair} ${type} — skipping`);
+            return Response.json(
+                { status: 'skipped', reason: 'duplicate', pair: formattedPair, type: type.toUpperCase(), accounts: targetAccounts },
+                { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } }
+            );
+        }
+
         const buildPayload = (acct) => ({
             pair: formattedPair,
             type: type.toUpperCase(),
@@ -76,12 +106,12 @@ Deno.serve(async (req) => {
         });
 
         const signals = await Promise.all(
-            targetAccounts.map(acct => base44.asServiceRole.entities.Signal.create(buildPayload(acct)))
+            accountsToCreate.map(acct => base44.asServiceRole.entities.Signal.create(buildPayload(acct)))
         );
-        console.log(`[injectSignal] Signal queued: ${formattedPair} ${type} → accounts: ${targetAccounts.join(', ')}`);
+        console.log(`[injectSignal] Signal queued: ${formattedPair} ${type} → accounts: ${accountsToCreate.join(', ')}`);
 
         return Response.json(
-            { status: 'queued', signal_ids: signals.map(s => s.id), pair: formattedPair, type: type.toUpperCase(), accounts: targetAccounts },
+            { status: 'queued', signal_ids: signals.map(s => s.id), pair: formattedPair, type: type.toUpperCase(), accounts: accountsToCreate },
             { status: 201, headers: { 'Access-Control-Allow-Origin': '*' } }
         );
 
