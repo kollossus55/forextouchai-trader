@@ -556,6 +556,7 @@ Also provide:
 
                         const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : parseFloat(sl.toFixed(5));
                         const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : parseFloat(tp.toFixed(5));
+                        console.log(`[generateBotSignals] ${pair} ${analysis.type} @ ${currentPrice} | SL: ${finalSl} | TP: ${finalTp}${isGold ? ' [GOLD]' : ''}`);
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,

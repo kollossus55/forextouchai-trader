@@ -401,8 +401,8 @@ function sanitizeSignal(s, livePriceMap) {
     let safeTP = s.take_profit || 0;
 
     if (basePrice > 0) {
-        // Determine pip size based on price magnitude
-        const pipSize = basePrice > 50 ? 0.01 : 0.0001;
+        // Detect Gold/XAUUSD: price > 500 means it's a commodity priced in dollars
+        const isGold = basePrice > 500;
 
         // Validate SL direction — reset if wrong side of price
         if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
@@ -414,22 +414,44 @@ function sanitizeSignal(s, livePriceMap) {
             if (type === 'SELL' && safeSL <= safeTP) { safeSL = 0; safeTP = 0; }
         }
 
-        // CRITICAL: If SL is still 0 after validation, calculate a default SL (30 pips)
-        // This ensures MT5 always receives a valid stop loss — never trades without one
-        if (safeSL === 0) {
+        if (isGold) {
+            // Gold: use ATR-based dollar distances (~0.7% of price)
+            const goldAtr = basePrice * 0.007; // ~$22-25 on Gold at $3200
+            const defaultSlDist = goldAtr * 1.5;  // ~$33
+            const defaultTpDist = goldAtr * 3.0;  // ~$67
+
+            if (safeSL === 0) {
+                safeSL = type === 'BUY'
+                    ? parseFloat((basePrice - defaultSlDist).toFixed(2))
+                    : parseFloat((basePrice + defaultSlDist).toFixed(2));
+            }
+            if (safeTP === 0) {
+                safeTP = type === 'BUY'
+                    ? parseFloat((basePrice + defaultTpDist).toFixed(2))
+                    : parseFloat((basePrice - defaultTpDist).toFixed(2));
+            }
+            // Ensure SL/TP are rounded to 2dp for Gold
+            safeSL = parseFloat(safeSL.toFixed(2));
+            safeTP = parseFloat(safeTP.toFixed(2));
+        } else {
+            // Standard Forex: pip-based SL/TP
+            const pipSize = basePrice > 50 ? 0.01 : 0.0001; // JPY pairs use 0.01
             const defaultSlPips = 30;
-            safeSL = type === 'BUY'
-                ? parseFloat((basePrice - defaultSlPips * pipSize).toFixed(5))
-                : parseFloat((basePrice + defaultSlPips * pipSize).toFixed(5));
+            const defaultTpPips = 60;
+
+            if (safeSL === 0) {
+                safeSL = type === 'BUY'
+                    ? parseFloat((basePrice - defaultSlPips * pipSize).toFixed(5))
+                    : parseFloat((basePrice + defaultSlPips * pipSize).toFixed(5));
+            }
+            if (safeTP === 0) {
+                safeTP = type === 'BUY'
+                    ? parseFloat((basePrice + defaultTpPips * pipSize).toFixed(5))
+                    : parseFloat((basePrice - defaultTpPips * pipSize).toFixed(5));
+            }
         }
 
-        // If TP is still 0, calculate a default TP (60 pips)
-        if (safeTP === 0) {
-            const defaultTpPips = 60;
-            safeTP = type === 'BUY'
-                ? parseFloat((basePrice + defaultTpPips * pipSize).toFixed(5))
-                : parseFloat((basePrice - defaultTpPips * pipSize).toFixed(5));
-        }
+        console.log(`[BRIDGE] sanitizeSignal ${pair} ${type} @ ${basePrice} | SL: ${safeSL} | TP: ${safeTP}${isGold ? ' [GOLD]' : ''}`);
     } else {
         // No price available at all — log and send 0s (EA will reject the signal anyway)
         console.warn(`[BRIDGE] sanitizeSignal: no price for ${pair} — signal ${s.id} sent without SL/TP`);
