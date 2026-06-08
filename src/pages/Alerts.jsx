@@ -34,7 +34,7 @@ export default function Alerts() {
   });
 
   const clearAll = useMutation({
-    mutationFn: (alertList) => Promise.all(alertList.map(a => base44.entities.Alert.delete(a.id))),
+    mutationFn: () => base44.functions.invoke('clearAllAlerts', {}),
     onSuccess: () => queryClient.invalidateQueries(['alerts'])
   });
 
@@ -66,7 +66,7 @@ export default function Alerts() {
           <p className="text-slate-400 mt-1">System alerts and trading notifications</p>
         </div>
         <Button 
-          onClick={() => clearAll.mutate(alerts)}
+          onClick={() => clearAll.mutate()}
           disabled={clearAll.isPending || alerts.length === 0}
           className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all"
         >
