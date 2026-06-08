@@ -36,6 +36,15 @@ export default function Layout({ children }) {
   // Don't show layout chrome on Home page (landing page)
   const isHomePage = location.pathname === '/' || location.pathname === '/Home';
 
+  const { data: unreadAlerts } = useQuery({
+    queryKey: ['unread-alerts-count'],
+    queryFn: () => base44.entities.Alert.filter({ is_read: false }),
+    refetchInterval: 15000,
+    initialData: []
+  });
+
+  const unreadCount = unreadAlerts?.length ?? 0;
+
   const { data: connections, error: connectionError } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: async () => {
@@ -257,7 +266,12 @@ export default function Layout({ children }) {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <item.icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className="font-medium">{item.label}</span>
+                <span className="font-medium flex-1">{item.label}</span>
+                {item.label === 'Alerts' && unreadCount > 0 && (
+                  <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-xs font-bold animate-pulse">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
