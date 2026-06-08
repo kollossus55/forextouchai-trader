@@ -33,6 +33,11 @@ export default function Alerts() {
     onSuccess: () => queryClient.invalidateQueries(['alerts'])
   });
 
+  const clearAll = useMutation({
+    mutationFn: () => Promise.all(alerts.map(a => base44.entities.Alert.delete(a.id))),
+    onSuccess: () => queryClient.invalidateQueries(['alerts'])
+  });
+
   const getIcon = (type) => {
     switch(type) {
       case 'WARNING': return <AlertTriangle className="w-5 h-5 text-amber-500" />;
@@ -60,8 +65,12 @@ export default function Alerts() {
           </h1>
           <p className="text-slate-400 mt-1">System alerts and trading notifications</p>
         </div>
-        <Button className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
-          Clear All
+        <Button 
+          onClick={() => clearAll.mutate()}
+          disabled={clearAll.isPending || alerts.length === 0}
+          className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all"
+        >
+          {clearAll.isPending ? 'Clearing...' : 'Clear All'}
         </Button>
       </div>
 
