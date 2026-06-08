@@ -14,7 +14,8 @@ import {
   Clock,
   BrainCircuit,
   Target,
-  BarChart
+  BarChart,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -197,6 +198,19 @@ export default function AutoTrade() {
     return status;
   }, [bots, openTrades]);
 
+  // Detect stale trades (open too long + negative PnL)
+  const INDEX_PAIRS = new Set(['US30', 'SPX500', 'SPX/500', 'JPN225', 'JPN/225', 'GER30', 'HK50', 'AUS200', 'AUS/200', 'ESP35', 'UK100', 'NAS100']);
+  const staleTrades = React.useMemo(() => {
+    const now = Date.now();
+    return openTrades.filter(trade => {
+      const hoursOpen = (now - new Date(trade.created_date).getTime()) / (1000 * 60 * 60);
+      const pairRaw = (trade.pair || '').replace('/', '').toUpperCase();
+      const isIndex = INDEX_PAIRS.has(pairRaw) || INDEX_PAIRS.has(trade.pair || '');
+      const threshold = isIndex ? 48 : 24;
+      return hoursOpen >= threshold && (trade.pnl || 0) <= -10;
+    });
+  }, [openTrades]);
+
   // Fetch recent signals to show in bot terminals (backend is the authoritative signal source)
   const { data: recentSignals } = useQuery({
     queryKey: ['recent-signals'],
@@ -319,6 +333,34 @@ export default function AutoTrade() {
             initialData={selectedBot}
         />
       </div>
+
+      {/* Stale Trade Warning Banner */}
+      {staleTrades.length > 0 && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+          <AlertTriangle className="w-5 h-5 text-rose-400 mt-0.5 shrink-0 animate-pulse" />
+          <div className="flex-1">
+            <p className="text-rose-400 font-semibold text-sm">⚠️ {staleTrades.length} Stale Trade{staleTrades.length > 1 ? 's' : ''} Detected</p>
+            <p className="text-rose-300/70 text-xs mt-0.5">
+              The following trades have been open too long with losses &gt; $10 and may need manual review:
+            </p>
+            <div className="mt-2 space-y-1">
+              {staleTrades.map(t => {
+                const hoursOpen = Math.floor((Date.now() - new Date(t.created_date).getTime()) / (1000 * 60 * 60));
+                return (
+                  <div key={t.id} className="flex items-center gap-3 text-xs font-mono">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${t.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>{t.type}</span>
+                    <span className="text-slate-300">{t.pair}</span>
+                    <span className="text-slate-500">Acct: {t.owner_email}</span>
+                    <span className="text-slate-500">{hoursOpen}h open</span>
+                    <span className="text-rose-400 font-semibold">${(t.pnl || 0).toFixed(2)}</span>
+                    {t.ticket && <span className="text-slate-600">#{t.ticket}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800 mb-6 w-full justify-start h-auto p-1">
