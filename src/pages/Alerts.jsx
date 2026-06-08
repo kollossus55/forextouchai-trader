@@ -19,7 +19,7 @@ export default function Alerts() {
   
   const { data: alerts } = useQuery({
     queryKey: ['alerts'],
-    queryFn: () => base44.entities.Alert.list({ sort: { created_date: -1 }, limit: 50 }),
+    queryFn: () => base44.entities.Alert.list('-created_date', 50),
     initialData: []
   });
 

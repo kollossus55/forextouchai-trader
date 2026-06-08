@@ -39,7 +39,7 @@ export default function Layout({ children }) {
   const { data: unreadAlerts } = useQuery({
     queryKey: ['unread-alerts-count'],
     queryFn: () => base44.entities.Alert.filter({ is_read: false }),
-    refetchInterval: 15000,
+    refetchInterval: 60000,
     initialData: []
   });
 
