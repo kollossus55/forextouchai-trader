@@ -310,6 +310,66 @@ For EACH pair, use a full confluence approach:
 - Volume: Breakout volume confirmation
 
 Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Minimum confidence 80% for this strategy.`,
+
+                GOLD_XAUUSD: `You are an elite XAUUSD (Gold) specialist trader with deep expertise in gold market dynamics. You ONLY analyze Gold/XAUUSD.
+
+Current Gold Price: ${priceContext}
+Analysis time: ${now}
+
+Gold is highly sensitive to: USD strength/weakness, geopolitical risk, inflation expectations, bond yields, and session-specific liquidity (Asian/London/NY).
+
+Analyze XAUUSD across M15 and H1 timeframes using ALL of the following gold-specific indicators:
+
+1. TREND & STRUCTURE:
+   - EMA 20, 50, 200 alignment on H1 (above all EMAs = strong bullish, below all = strong bearish)
+   - Market structure: Higher Highs/Higher Lows (uptrend) vs Lower Highs/Lower Lows (downtrend)
+   - Key daily/weekly pivot levels (Round numbers like 3200, 3250, 3300 act as major support/resistance)
+   - Trendline breaks and channel boundaries
+
+2. MOMENTUM INDICATORS:
+   - RSI(14) on M15 and H1: >70 = overbought (SELL bias), <30 = oversold (BUY bias), divergence signals
+   - MACD(12,26,9): Histogram direction and signal line crossovers on H1
+   - Stochastic(5,3,3): Oversold <20 (BUY) / Overbought >80 (SELL) on M15 for entry timing
+   - CCI(20): Extremes beyond +100 / -100 indicate strong momentum continuation or exhaustion
+
+3. VOLATILITY & ATR:
+   - Gold ATR is typically $15-40/oz on H1 — use this to size SL/TP appropriately
+   - Bollinger Bands(20,2): Price at upper band = potential short, lower band = potential long; squeeze = breakout incoming
+   - Average True Range confirms if current move has enough momentum to reach target
+
+4. CANDLESTICK PATTERNS AT KEY LEVELS:
+   - Pin bars / hammer / shooting star rejecting major levels → high probability reversal
+   - Bullish/bearish engulfing at session open levels
+   - Inside bars consolidation followed by breakout direction
+
+5. CHART PATTERNS:
+   - Bull/Bear flags on H1 after strong moves (gold makes fast momentum runs)
+   - Double tops/bottoms at psychological levels
+   - Ascending/descending triangles near key levels
+
+6. SESSION TIMING ANALYSIS (critical for gold):
+   - Asian session (00:00-07:00 UTC): Usually tight ranges, set support/resistance for London
+   - London open (07:00-09:00 UTC): HIGH volatility, often sets direction for the day — strong breakout signals
+   - NY open (13:00-15:00 UTC): Second high-volatility window, often reversal or trend continuation
+   - London close (16:00-17:00 UTC): Potential reversals as positions close
+   - Avoid signals during very low liquidity (22:00-00:00 UTC)
+
+7. CONFLUENCE REQUIREMENTS (must have at least 4):
+   - Higher timeframe trend alignment (H1 EMA direction)
+   - RSI supports the signal direction (not in opposing extreme zone)
+   - MACD histogram confirms momentum
+   - Price at or near a key level (support/resistance, round number, pivot)
+   - Candlestick confirmation candle in signal direction
+   - Active or upcoming high-liquidity session
+
+Only signal BUY or SELL when 4+ confluence factors strongly align. Otherwise output NEUTRAL.
+Minimum confidence threshold: 80%. Gold moves fast — precision over frequency.
+
+Also provide:
+- rsi: current RSI value (0-100)
+- ema_trend: "BULLISH" / "BEARISH" / "MIXED"
+- momentum: "STRONG" / "MODERATE" / "WEAK" / "DIVERGING"
+- reason: detailed explanation including which session, key level, and confluences triggered the signal`,
             };
 
             return prompts[strategy] || prompts['AI_PREDICTIVE'];
@@ -446,6 +506,22 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                     // Calculate SL/TP
                     let slPips = bot.stop_loss_pips || 30;
                     let tpPips = bot.take_profit_pips || 60;
+
+                    // Gold (XAUUSD) uses dollar-based SL/TP, not pips
+                    const isGold = pairRaw === 'XAUUSD' || bot.strategy_type === 'GOLD_XAUUSD';
+
+                    // Pre-compute SL/TP for gold (dollar-based, not pips)
+                    let goldSl = null, goldTp = null;
+                    if (isGold) {
+                        const goldAtr = currentPrice * 0.007; // ~0.7% of gold price ≈ typical H1 ATR
+                        goldSl = analysis.type === 'BUY'
+                            ? currentPrice - (goldAtr * (bot.atr_multiplier_sl || 1.5))
+                            : currentPrice + (goldAtr * (bot.atr_multiplier_sl || 1.5));
+                        goldTp = analysis.type === 'BUY'
+                            ? currentPrice + (goldAtr * (bot.atr_multiplier_tp || 3.0))
+                            : currentPrice - (goldAtr * (bot.atr_multiplier_tp || 3.0));
+                    }
+
                     if (bot.sl_tp_mode === 'ATR' || bot.use_ai_risk) {
                         const volatilityFactor = currentPrice > 100 ? 0.002 : 0.0015;
                         const atr = currentPrice * volatilityFactor;
@@ -478,12 +554,14 @@ Signal BUY or SELL only when 4+ confluence factors align. Otherwise NEUTRAL. Min
                             continue;
                         }
 
+                        const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : parseFloat(sl.toFixed(5));
+                        const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : parseFloat(tp.toFixed(5));
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,
                             entry_price: currentPrice,
-                            stop_loss: parseFloat(sl.toFixed(5)),
-                            take_profit: parseFloat(tp.toFixed(5)),
+                            stop_loss: finalSl,
+                            take_profit: finalTp,
                             confidence: normalizedConf,
                             lot_size: bot.lot_size || 0.01,
                             strategy: bot.strategy_type || 'AUTO',

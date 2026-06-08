@@ -15,7 +15,8 @@
         "PRICE_ACTION",
         "PATTERN_TRADING",
         "CANDLESTICK",
-        "HYBRID_ALL"
+        "HYBRID_ALL",
+        "GOLD_XAUUSD"
       ]
     },
     "timeframe": {
