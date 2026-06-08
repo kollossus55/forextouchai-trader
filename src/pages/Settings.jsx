@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConnectionDiagnostics from '../components/settings/ConnectionDiagnostics';
 import AccountStatusPanel from '../components/settings/AccountStatusPanel';
+import GoldEADownload from '../components/settings/GoldEADownload';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -1531,10 +1532,11 @@ string GetJsonValue(string json, string key) {
                   >
                     Download MT5 Bridge (.mq5)
                   </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                  </div>
+                  <GoldEADownload />
+                  </CardContent>
+                  </Card>
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6 space-y-6">
