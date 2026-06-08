@@ -161,14 +161,27 @@ Deno.serve(async (req) => {
                 }
             }
 
-            // Create alerts (deduplicate)
+            // Create alerts (deduplicate) and send emails
             if (alerts.length > 0) {
                 const recentAlerts = await base44.asServiceRole.entities.Alert.filter({ is_read: false }, '-created_date', 20);
+
+                // Get owner email for this account
+                const connOwner = conn.owner_email || (conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null);
+
                 for (const alert of alerts) {
                     const alreadyExists = recentAlerts.some(a => a.title === alert.title);
                     if (!alreadyExists) {
                         await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
                         console.log(`[monitorRiskLimits] Alert for ${acctKey}: ${alert.title}`);
+
+                        // Send email notification
+                        if (connOwner) {
+                            await base44.asServiceRole.integrations.Core.SendEmail({
+                                to: connOwner,
+                                subject: `${alert.type === 'ERROR' ? '🚨' : '⚠️'} ForexTouchAI — ${alert.title}`,
+                                body: `${alert.message}\n\nPlease log in to ForexTouchAI to review your account and take action if needed.\n\nForexTouchAI — Automated Risk Monitor`
+                            }).catch(e => console.error(`[monitorRiskLimits] Email failed for ${connOwner}:`, e.message));
+                        }
                     }
                 }
             }
