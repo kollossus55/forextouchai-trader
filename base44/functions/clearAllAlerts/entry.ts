@@ -12,19 +12,23 @@ Deno.serve(async (req) => {
         }
 
         let deleted = 0;
+        let rounds = 0;
+        const MAX_ROUNDS = 50;
 
-        while (true) {
-            const alerts = await base44.asServiceRole.entities.Alert.list(undefined, 10);
+        while (rounds < MAX_ROUNDS) {
+            const alerts = await base44.asServiceRole.entities.Alert.list(undefined, 5);
             if (!alerts || alerts.length === 0) break;
 
             for (const alert of alerts) {
                 await base44.asServiceRole.entities.Alert.delete(alert.id);
-                await sleep(200);
+                await sleep(300);
             }
-            deleted += alerts.length;
 
-            if (alerts.length < 10) break;
-            await sleep(500);
+            deleted += alerts.length;
+            rounds++;
+
+            if (alerts.length < 5) break;
+            await sleep(300);
         }
 
         return Response.json({ success: true, deleted });
