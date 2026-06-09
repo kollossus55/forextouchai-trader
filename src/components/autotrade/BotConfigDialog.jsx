@@ -59,7 +59,8 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     'PRICE_ACTION': 'H1',
     'PATTERN_TRADING': 'H4',
     'CANDLESTICK': 'M30',
-    'HYBRID_ALL': 'H1'
+    'HYBRID_ALL': 'H1',
+    'GOLD_XAUUSD': 'H1'
   };
 
   useEffect(() => {
@@ -222,6 +223,7 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                       <SelectItem value="PATTERN_TRADING">Chart Pattern Trading</SelectItem>
                       <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
                       <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
+                      <SelectItem value="GOLD_XAUUSD">⭐ Gold / XAUUSD Specialist</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -251,6 +253,15 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                 </div>
               </div>
 
+              {formData.strategy_type === 'GOLD_XAUUSD' && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-start gap-2">
+                  <span className="text-lg leading-none">⭐</span>
+                  <div>
+                    <p className="font-semibold text-amber-200 mb-0.5">Gold Specialist Strategy</p>
+                    <p className="text-amber-400/80">This bot uses a dedicated gold-optimised AI engine with session timing, ATR-based SL/TP, and XAU/USD-specific volatility analysis. Only XAUUSD trades will be opened.</p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Active Pairs</Label>
                 <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-md max-h-40 overflow-y-auto">
