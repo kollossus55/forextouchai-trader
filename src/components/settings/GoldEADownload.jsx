@@ -13,12 +13,13 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 #include <Trade\\Trade.mqh>
 
 // --- INPUTS ---
-input string BridgeURL    = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
-input string ApiKey       = "";       // Paste your API Key from ForexTouchAI Settings page
-input int    HeartbeatSec = 30;       // Poll interval (seconds)
-input ulong  MagicNumber  = 99999;    // MUST differ from standard EA (12345) - Gold only
-input int    Slippage     = 100;      // Wide slippage tolerance required for Gold
-input string GoldSymbol   = "XAUUSD"; // Adjust if broker uses XAUUSDm, XAUUSD. etc.
+input string BridgeURL      = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
+input string ApiKey         = "";       // Paste your API Key from ForexTouchAI Settings page
+input int    HeartbeatSec   = 30;       // Poll interval (seconds)
+input ulong  MagicNumber    = 99999;    // MUST differ from standard EA (12345) - Gold only
+input int    Slippage       = 100;      // Wide slippage tolerance required for Gold
+input string GoldSymbol     = "XAUUSD"; // Adjust if broker uses XAUUSDm, XAUUSD. etc.
+input int    MaxGoldTrades  = 3;        // Maximum concurrent Gold trades (0 = unlimited)
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -102,6 +103,18 @@ void SendHeartbeat() {
     ProcessSignals(response);
 }
 
+int CountOpenGoldTrades() {
+    int count = 0;
+    for (int i = 0; i < PositionsTotal(); i++) {
+        ulong t = PositionGetTicket(i);
+        if (!PositionSelectByTicket(t)) continue;
+        if (PositionGetInteger(POSITION_MAGIC) != (long)MagicNumber) continue;
+        if (PositionGetString(POSITION_SYMBOL) != GoldSymbol) continue;
+        count++;
+    }
+    return count;
+}
+
 void ProcessSignals(string json) {
     int start = StringFind(json, "\\"pending_signals\\"");
     if (start == -1) return;
@@ -113,6 +126,10 @@ void ProcessSignals(string json) {
     if (StringLen(arr) < 5) return;
     int pos = 0;
     while (pos < StringLen(arr)) {
+        if (MaxGoldTrades > 0 && CountOpenGoldTrades() >= MaxGoldTrades) {
+            Print("[GoldEA MT5] MaxGoldTrades limit reached (", MaxGoldTrades, ") — skipping remaining signals");
+            break;
+        }
         int objStart = StringFind(arr, "{", pos);
         if (objStart == -1) break;
         int objEnd = StringFind(arr, "}", objStart);
@@ -212,12 +229,13 @@ const GOLD_EA_CODE = `//+-------------------------------------------------------
 #property strict
 
 // --- INPUTS ---
-input string BridgeURL    = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
-input string ApiKey       = "";      // Paste your API Key from ForexTouchAI Settings page
-input int    HeartbeatSec = 30;      // Poll interval (seconds)
-input int    MagicNumber  = 99999;   // MUST differ from standard EA (12345) - Gold only
-input int    Slippage     = 100;     // Wide slippage tolerance required for Gold
-input string GoldSymbol   = "XAUUSD"; // Adjust if your broker uses XAUUSDm, XAUUSD. etc.
+input string BridgeURL      = "https://forex-ai-trader-cc744e2a.base44.app/functions/bridge";
+input string ApiKey         = "";      // Paste your API Key from ForexTouchAI Settings page
+input int    HeartbeatSec   = 30;      // Poll interval (seconds)
+input int    MagicNumber    = 99999;   // MUST differ from standard EA (12345) - Gold only
+input int    Slippage       = 100;     // Wide slippage tolerance required for Gold
+input string GoldSymbol     = "XAUUSD"; // Adjust if your broker uses XAUUSDm, XAUUSD. etc.
+input int    MaxGoldTrades  = 3;       // Maximum concurrent Gold trades (0 = unlimited)
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -290,6 +308,18 @@ void SendHeartbeat() {
     ProcessSignals(response);
 }
 
+int CountOpenGoldTrades() {
+    int count = 0;
+    for (int i = 0; i < OrdersTotal(); i++) {
+        if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if (OrderMagicNumber() != MagicNumber) continue;
+        if (OrderSymbol() != GoldSymbol) continue;
+        count++;
+    }
+    return count;
+}
+
 void ProcessSignals(string json) {
     int start = StringFind(json, "\\"pending_signals\\"");
     if (start == -1) return;
@@ -301,6 +331,10 @@ void ProcessSignals(string json) {
     if (StringLen(arr) < 5) return;
     int pos = 0;
     while (pos < StringLen(arr)) {
+        if (MaxGoldTrades > 0 && CountOpenGoldTrades() >= MaxGoldTrades) {
+            Print("[GoldEA] MaxGoldTrades limit reached (", MaxGoldTrades, ") — skipping remaining signals");
+            break;
+        }
         int objStart = StringFind(arr, "{", pos);
         if (objStart == -1) break;
         int objEnd = StringFind(arr, "}", objStart);
@@ -410,6 +444,7 @@ export default function GoldEADownload() {
                         <li><strong>Slippage 100 points</strong> — required by brokers for Gold execution</li>
                         <li><strong>2dp price precision</strong> — correct for XAUUSD ($3200.50)</li>
                         <li>Only picks up XAUUSD signals — ignores all Forex signals</li>
+                        <li><strong>MaxGoldTrades = 3</strong> (default) — limits concurrent Gold trades; set to 0 for unlimited</li>
                     </ul>
                     <p className="text-xs text-amber-300/80 font-semibold mb-3">
                         ⚠ Attach this EA to a separate XAUUSD chart alongside your standard bridge EA.

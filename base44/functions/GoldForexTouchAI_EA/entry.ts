@@ -14,6 +14,7 @@ input int    HeartbeatSec = 30;   // How often to poll bridge (seconds)
 input int    MagicNumber  = 99999; // DIFFERENT from standard EA (12345) — Gold trades only
 input int    Slippage     = 100;  // Gold requires wide slippage tolerance (100 points)
 input string GoldSymbol   = "XAUUSD"; // Symbol name as shown in your broker's Market Watch
+input int    MaxGoldTrades = 3;   // Maximum concurrent Gold trades (0 = unlimited)
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -124,6 +125,20 @@ void SendHeartbeat() {
 }
 
 //+------------------------------------------------------------------+
+// Count open Gold trades managed by this EA
+int CountOpenGoldTrades() {
+    int count = 0;
+    for (int i = 0; i < OrdersTotal(); i++) {
+        if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if (OrderMagicNumber() != MagicNumber) continue;
+        if (OrderSymbol() != GoldSymbol) continue;
+        count++;
+    }
+    return count;
+}
+
+//+------------------------------------------------------------------+
 void ProcessSignals(string json) {
     int start = StringFind(json, "\"pending_signals\"");
     if (start == -1) return;
@@ -139,6 +154,12 @@ void ProcessSignals(string json) {
 
     int pos = 0;
     while (pos < StringLen(signalsArray)) {
+        // Check trade limit before each signal
+        if (MaxGoldTrades > 0 && CountOpenGoldTrades() >= MaxGoldTrades) {
+            Print("[GoldForexTouchAI] MaxGoldTrades limit reached (", MaxGoldTrades, ") — skipping remaining signals");
+            break;
+        }
+
         int objStart = StringFind(signalsArray, "{", pos);
         if (objStart == -1) break;
         int objEnd = StringFind(signalsArray, "}", objStart);
