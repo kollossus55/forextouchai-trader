@@ -729,9 +729,9 @@ export default function Overview() {
             <CardContent>
               <div className="space-y-4">
                 {news.map((item, i) => (
-                  <div key={i} className="flex gap-4 group">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                  <div key={i} className="flex gap-4 group p-3 rounded-lg hover:bg-slate-800/40 transition-colors border border-transparent hover:border-slate-700/50">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <Badge variant="secondary" className="bg-slate-800 text-slate-400 text-[10px] h-5 hover:bg-slate-700">
                           {item.source}
                         </Badge>
@@ -741,14 +741,22 @@ export default function Overview() {
                         }`}>
                           {item.sentiment}
                         </span>
-                        <span className="text-[10px] text-slate-500 ml-auto">2h ago</span>
                       </div>
-                      <h4 className="text-sm font-medium text-slate-200 group-hover:text-emerald-400 transition-colors cursor-pointer line-clamp-1">
+                      <h4 className="text-sm font-medium text-slate-200 group-hover:text-emerald-400 transition-colors line-clamp-1 mb-1">
                         {item.title}
                       </h4>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-2">
                         {item.summary}
                       </p>
+                      <a
+                        href={item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 hover:text-amber-200 hover:border-amber-400/60 transition-all"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Read Full Article
+                      </a>
                     </div>
                   </div>
                 ))}
