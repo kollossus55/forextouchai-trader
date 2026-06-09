@@ -19,7 +19,10 @@ input int    HeartbeatSec   = 30;       // Poll interval (seconds)
 input ulong  MagicNumber    = 99999;    // MUST differ from standard EA (12345) - Gold only
 input int    Slippage       = 100;      // Wide slippage tolerance required for Gold
 input string GoldSymbol     = "XAUUSD"; // Adjust if broker uses XAUUSDm, XAUUSD. etc.
-input int    MaxGoldTrades  = 3;        // Maximum concurrent Gold trades (0 = unlimited)
+input int    MaxGoldTrades      = 3;     // Maximum concurrent Gold trades (0 = unlimited)
+input bool   EnableTrailing     = false; // Enable trailing stop
+input double TrailingStartPoints = 150;  // Profit in points before trailing activates
+input double TrailingStopPoints  = 100;  // Trailing stop distance in points
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -46,7 +49,42 @@ void OnTimer() {
     SendHeartbeat();
 }
 
-void OnTick() {}
+void OnTick() { if (EnableTrailing) ManageTrailingStop(); }
+
+void ManageTrailingStop() {
+    for (int i = 0; i < PositionsTotal(); i++) {
+        ulong t = PositionGetTicket(i);
+        if (!PositionSelectByTicket(t)) continue;
+        if (PositionGetInteger(POSITION_MAGIC) != (long)MagicNumber) continue;
+        if (PositionGetString(POSITION_SYMBOL) != GoldSymbol) continue;
+        double point = SymbolInfoDouble(GoldSymbol, SYMBOL_POINT);
+        double trailDist = TrailingStopPoints * point;
+        double trailStart = TrailingStartPoints * point;
+        long ptype = PositionGetInteger(POSITION_TYPE);
+        double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+        double curSL = PositionGetDouble(POSITION_SL);
+        double curTP = PositionGetDouble(POSITION_TP);
+        if (ptype == POSITION_TYPE_BUY) {
+            double bid = SymbolInfoDouble(GoldSymbol, SYMBOL_BID);
+            double profit = bid - openPrice;
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(bid - trailDist, 2);
+                if (newSL > curSL + point) {
+                    trade.PositionModify(GoldSymbol, newSL, curTP);
+                }
+            }
+        } else {
+            double ask = SymbolInfoDouble(GoldSymbol, SYMBOL_ASK);
+            double profit = openPrice - ask;
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(ask + trailDist, 2);
+                if (newSL < curSL - point || curSL == 0) {
+                    trade.PositionModify(GoldSymbol, newSL, curTP);
+                }
+            }
+        }
+    }
+}
 
 void SendHeartbeat() {
     // Only report Gold positions opened by THIS EA (MagicNumber 99999)
@@ -235,7 +273,10 @@ input int    HeartbeatSec   = 30;      // Poll interval (seconds)
 input int    MagicNumber    = 99999;   // MUST differ from standard EA (12345) - Gold only
 input int    Slippage       = 100;     // Wide slippage tolerance required for Gold
 input string GoldSymbol     = "XAUUSD"; // Adjust if your broker uses XAUUSDm, XAUUSD. etc.
-input int    MaxGoldTrades  = 3;       // Maximum concurrent Gold trades (0 = unlimited)
+input int    MaxGoldTrades      = 3;     // Maximum concurrent Gold trades (0 = unlimited)
+input bool   EnableTrailing     = false; // Enable trailing stop
+input double TrailingStartPoints = 150;  // Profit in points before trailing activates
+input double TrailingStopPoints  = 100;  // Trailing stop distance in points
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -258,7 +299,36 @@ void OnTimer() {
     SendHeartbeat();
 }
 
-void OnTick() {}
+void OnTick() { if (EnableTrailing) ManageTrailingStop(); }
+
+void ManageTrailingStop() {
+    for (int i = 0; i < OrdersTotal(); i++) {
+        if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if (OrderMagicNumber() != MagicNumber) continue;
+        if (OrderSymbol() != GoldSymbol) continue;
+        double point = MarketInfo(GoldSymbol, MODE_POINT);
+        double trailDist = TrailingStopPoints * point;
+        double trailStart = TrailingStartPoints * point;
+        if (OrderType() == OP_BUY) {
+            double bid = MarketInfo(GoldSymbol, MODE_BID);
+            double profit = bid - OrderOpenPrice();
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(bid - trailDist, 2);
+                if (newSL > OrderStopLoss() + point)
+                    OrderModify(OrderTicket(), OrderOpenPrice(), newSL, OrderTakeProfit(), 0, clrGold);
+            }
+        } else {
+            double ask = MarketInfo(GoldSymbol, MODE_ASK);
+            double profit = OrderOpenPrice() - ask;
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(ask + trailDist, 2);
+                if (newSL < OrderStopLoss() - point || OrderStopLoss() == 0)
+                    OrderModify(OrderTicket(), OrderOpenPrice(), newSL, OrderTakeProfit(), 0, clrOrangeRed);
+            }
+        }
+    }
+}
 
 void SendHeartbeat() {
     // Only report Gold trades opened by THIS EA (MagicNumber 99999)
@@ -445,6 +515,9 @@ export default function GoldEADownload() {
                         <li><strong>2dp price precision</strong> — correct for XAUUSD ($3200.50)</li>
                         <li>Only picks up XAUUSD signals — ignores all Forex signals</li>
                         <li><strong>MaxGoldTrades = 3</strong> (default) — limits concurrent Gold trades; set to 0 for unlimited</li>
+                        <li><strong>EnableTrailing = false</strong> — set to true to activate trailing stop on all Gold trades</li>
+                        <li><strong>TrailingStartPoints = 150</strong> — profit in points before trailing activates ($1.50 on Gold)</li>
+                        <li><strong>TrailingStopPoints = 100</strong> — trailing distance in points ($1.00 on Gold)</li>
                     </ul>
                     <p className="text-xs text-amber-300/80 font-semibold mb-3">
                         ⚠ Attach this EA to a separate XAUUSD chart alongside your standard bridge EA.

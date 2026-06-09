@@ -15,6 +15,9 @@ input int    MagicNumber  = 99999; // DIFFERENT from standard EA (12345) — Gol
 input int    Slippage     = 100;  // Gold requires wide slippage tolerance (100 points)
 input string GoldSymbol   = "XAUUSD"; // Symbol name as shown in your broker's Market Watch
 input int    MaxGoldTrades = 3;   // Maximum concurrent Gold trades (0 = unlimited)
+input bool   EnableTrailing     = false; // Enable trailing stop
+input double TrailingStartPoints = 150; // Profit in points before trailing activates (e.g. 150 = $1.50)
+input double TrailingStopPoints  = 100; // Trailing stop distance in points (e.g. 100 = $1.00)
 
 // --- GLOBALS ---
 datetime lastHeartbeat = 0;
@@ -44,7 +47,41 @@ void OnTimer() {
 }
 
 void OnTick() {
-    // Heartbeat driven by timer, not tick
+    if (EnableTrailing) ManageTrailingStop();
+}
+
+//+------------------------------------------------------------------+
+void ManageTrailingStop() {
+    for (int i = 0; i < OrdersTotal(); i++) {
+        if (!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+        if (OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+        if (OrderMagicNumber() != MagicNumber) continue;
+        if (OrderSymbol() != GoldSymbol) continue;
+
+        double bid = MarketInfo(GoldSymbol, MODE_BID);
+        double ask = MarketInfo(GoldSymbol, MODE_ASK);
+        double point = MarketInfo(GoldSymbol, MODE_POINT);
+        double trailDist = TrailingStopPoints * point;
+        double trailStart = TrailingStartPoints * point;
+
+        if (OrderType() == OP_BUY) {
+            double profit = bid - OrderOpenPrice();
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(bid - trailDist, 2);
+                if (newSL > OrderStopLoss() + point) {
+                    OrderModify(OrderTicket(), OrderOpenPrice(), newSL, OrderTakeProfit(), 0, clrGold);
+                }
+            }
+        } else {
+            double profit = OrderOpenPrice() - ask;
+            if (profit >= trailStart) {
+                double newSL = NormalizeDouble(ask + trailDist, 2);
+                if (newSL < OrderStopLoss() - point || OrderStopLoss() == 0) {
+                    OrderModify(OrderTicket(), OrderOpenPrice(), newSL, OrderTakeProfit(), 0, clrOrangeRed);
+                }
+            }
+        }
+    }
 }
 
 //+------------------------------------------------------------------+
