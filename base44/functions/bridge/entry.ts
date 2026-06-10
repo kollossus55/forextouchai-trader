@@ -587,17 +587,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             ticketCreateLock[lockKey] = true;
 
             try {
-                // Guard 3: DB existence check — the final safety net that survives isolate restarts
-                const existing = await base44.asServiceRole.entities.Trade.filter(
-                    { ticket: t.ticket, owner_email: acctKey }, '-created_date', 1
-                );
-                if (existing && existing.length > 0) {
-                    console.log('[BRIDGE] Ticket', t.ticket, 'already in DB — skipping (isolate restart guard)');
-                    memTickets.add(t.ticket); // sync memory with DB reality
-                    continue;
-                }
-
                 // Safe to create — add to memory BEFORE the async create call
+                // (cold-start init already loaded all existing tickets from DB, so no per-ticket DB check needed)
                 memTickets.add(t.ticket);
                 const sym = (t.pair || t.symbol || '').replace('/', '');
                 // Use explicit check (> 0) so we don't skip a valid open_price of 0
@@ -627,24 +618,6 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             } finally {
                 delete ticketCreateLock[lockKey]; // always release lock
             }
-        }
-    }
-
-    // ── Post-create dedup: immediately clean up any race-condition duplicates ──
-    if (createdTickets.length > 0) {
-        try {
-            for (const ticket of createdTickets) {
-                const dupes = await base44.asServiceRole.entities.Trade.filter(
-                    { ticket, owner_email: acctKey }, '-created_date', 10
-                );
-                if (dupes && dupes.length > 1) {
-                    const toDelete = dupes.slice(1).map(d => d.id); // keep newest (index 0)
-                    console.log('[BRIDGE] Post-create dedup: removing', toDelete.length, 'duplicate(s) for ticket', ticket);
-                    await Promise.all(toDelete.map(id => base44.asServiceRole.entities.Trade.delete(id)));
-                }
-            }
-        } catch (e) {
-            console.warn('[BRIDGE] Post-create dedup error:', e.message);
         }
     }
 
