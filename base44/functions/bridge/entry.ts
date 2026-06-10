@@ -91,7 +91,20 @@ Deno.serve(async (req) => {
 
         // ── Rate limit: reject if called too frequently ───────────────────────
         const lastCall = lastCallTs[acctKey] || 0;
-        if (now - lastCall < MIN_CALL_INTERVAL_MS) {
+        const isRateLimited = (now - lastCall) < MIN_CALL_INTERVAL_MS;
+
+        // Always run trade reconcile even when rate-limited — trade sync must not be blocked
+        const eaTradesEarly = body.trades || acct.trades;
+        const eaPricesEarly = body.prices || acct.prices;
+        const livePriceMapEarly = buildPriceMap(eaTradesEarly?.length ? eaPricesEarly : []);
+        if (isRateLimited && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey]) {
+            reconcileLock[acctKey] = true;
+            reconcileTrades(base44, eaTradesEarly, acctKey, livePriceMapEarly)
+                .catch(e => console.error('[BRIDGE] Rate-limited reconcile error:', e.message))
+                .finally(() => { reconcileLock[acctKey] = false; });
+        }
+
+        if (isRateLimited) {
             return Response.json({
                 success: true,
                 account: acctKey,
