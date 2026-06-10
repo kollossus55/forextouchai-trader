@@ -215,11 +215,8 @@ Deno.serve(async (req) => {
             || (riskSettingsList || []).find(r => !r.account_number)
             || null;
         const lastRiskCheck = body.last_risk_check || 0;
-        if ((now - lastRiskCheck) > 60_000 && riskSettings?.daily_profit_target_percent > 0 && !riskSettings?.is_trading_paused && balance > 0) {
-            const dbTrades = cache.trades[acctKey]?.data || [];
-            checkDailyProfitTarget(base44, riskSettings, balance, dbTrades)
-                .catch(e => console.error('[BRIDGE] Risk check error:', e.message));
-        }
+        // Bridge-side profit target check is DISABLED — monitorRiskLimits handles this exclusively
+        // to avoid duplicate alerts from two separate code paths.
 
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
         // Guard: if trading is paused, skip signal dispatch but return success (reconcile already ran above)
