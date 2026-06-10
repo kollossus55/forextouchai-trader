@@ -140,23 +140,36 @@ Deno.serve(async (req) => {
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
                     console.log(`[monitorRiskLimits] Account ${acctKey}: Daily profit target reached ${dailyProfitPercent.toFixed(2)}%`);
 
-                    // Pause trading FIRST — prevents re-entry on next monitor cycle
+                    // Pause trading FIRST — this is the primary dedup guard.
+                    // Any subsequent monitor run will see is_trading_paused=true and skip this block entirely.
                     await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
 
-                    // Close all open trades for this account
-                    const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
-                    for (let i = 0; i < acctOpenTrades.length; i += 3) {
-                        await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
-                            base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
-                        ));
-                    }
-
-                    // Fire the alert exactly once
-                    await base44.asServiceRole.entities.Alert.create({
-                        title: `🎯 Daily Profit Target Reached! (Acct ${acctKey})`,
-                        message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused until tomorrow.`,
-                        type: 'SUCCESS',
+                    // Double-check: don't fire alert if one already exists for today for this account
+                    const todayAlertTitle = `🎯 Daily Profit Target Reached! (Acct ${acctKey})`;
+                    const recentProfitAlerts = await base44.asServiceRole.entities.Alert.filter({ title: todayAlertTitle }, '-created_date', 5);
+                    const alreadyAlerted = recentProfitAlerts.some(a => {
+                        const d = a.created_date || '';
+                        return String(d).startsWith(today);
                     });
+
+                    if (!alreadyAlerted) {
+                        // Close all open trades for this account
+                        const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
+                        for (let i = 0; i < acctOpenTrades.length; i += 3) {
+                            await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
+                                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
+                            ));
+                        }
+
+                        await base44.asServiceRole.entities.Alert.create({
+                            title: todayAlertTitle,
+                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused until tomorrow.`,
+                            type: 'SUCCESS',
+                        });
+                        console.log(`[monitorRiskLimits] Profit target alert fired for ${acctKey}`);
+                    } else {
+                        console.log(`[monitorRiskLimits] Profit target alert already exists for ${acctKey} today — skipping`);
+                    }
                 }
             }
 
