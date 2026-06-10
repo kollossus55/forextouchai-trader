@@ -58,11 +58,17 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const togglePauseMutation = useMutation({
     mutationFn: async (isPaused) => {
       if (!existingRecord?.id) return;
-      return await base44.entities.RiskManagementSettings.update(existingRecord.id, { is_trading_paused: isPaused });
+      const updateData = { is_trading_paused: isPaused };
+      // On resume: reset daily counters so tracking starts fresh
+      if (!isPaused) {
+        updateData.daily_loss_current = 0;
+        updateData.last_reset_date = new Date().toISOString().split('T')[0];
+      }
+      return await base44.entities.RiskManagementSettings.update(existingRecord.id, updateData);
     },
     onSuccess: (_, isPaused) => {
       queryClient.invalidateQueries(['risk-settings']);
-      toast.success(isPaused ? `Account ${acctKey} trading paused` : `Account ${acctKey} trading resumed`);
+      toast.success(isPaused ? `Account ${acctKey} trading paused` : `Account ${acctKey} resumed with fresh daily counters`);
     },
     onError: (err) => toast.error(`Failed to toggle: ${err.message}`)
   });
