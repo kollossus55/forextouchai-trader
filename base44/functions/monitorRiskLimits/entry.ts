@@ -132,32 +132,31 @@ Deno.serve(async (req) => {
             }
 
             // --- Check: Daily Profit Target ---
-            if (riskSettings.daily_profit_target_percent > 0) {
+            // Skip entirely if trading is already paused — target was already handled
+            if (riskSettings.daily_profit_target_percent > 0 && !riskSettings.is_trading_paused) {
                 const acctAllTodayTrades = todayClosedTrades.filter(t => t.owner_email === acctKey);
                 const todayProfit = acctAllTodayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
                 const dailyProfitPercent = ((todayProfit + acctFloatingPnl) / balance) * 100;
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
                     console.log(`[monitorRiskLimits] Account ${acctKey}: Daily profit target reached ${dailyProfitPercent.toFixed(2)}%`);
+
+                    // Pause trading FIRST — prevents re-entry on next monitor cycle
+                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
+
+                    // Close all open trades for this account
                     const acctOpenTrades = openTrades.filter(t => t.owner_email === acctKey);
                     for (let i = 0; i < acctOpenTrades.length; i += 3) {
                         await Promise.all(acctOpenTrades.slice(i, i + 3).map(t =>
                             base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
                         ));
                     }
-                    const profitAlertUpdates = [
-                        base44.asServiceRole.entities.Alert.create({
-                            title: `🎯 Daily Profit Target Reached! (Acct ${acctKey})`,
-                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.`,
-                            type: 'SUCCESS',
-                        }),
-                    ];
-                    // Only pause trading if stop_trading_on_limit is enabled
-                    if (riskSettings.stop_trading_on_limit) {
-                        profitAlertUpdates.push(
-                            base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true })
-                        );
-                    }
-                    await Promise.all(profitAlertUpdates);
+
+                    // Fire the alert exactly once
+                    await base44.asServiceRole.entities.Alert.create({
+                        title: `🎯 Daily Profit Target Reached! (Acct ${acctKey})`,
+                        message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused until tomorrow.`,
+                        type: 'SUCCESS',
+                    });
                 }
             }
 
