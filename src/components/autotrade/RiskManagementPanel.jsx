@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -102,13 +102,13 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
 
   const lastReset = formData.last_reset_date ? new Date(formData.last_reset_date) : null;
   const todayClosedTrades = (trades || []).filter(t => {
-    if (t.status !== 'CLOSED' || t.owner_email !== acctKey) return false;
+    if (t.status !== 'CLOSED' || String(t.owner_email) !== String(acctKey)) return false;
     const d = t.updated_date || t.created_date;
     if (!d?.startsWith(today)) return false;
     if (lastReset && new Date(d) < lastReset) return false;
     return true;
   });
-  const openTrades = (trades || []).filter(t => t.status === 'OPEN' && t.owner_email === acctKey);
+  const openTrades = (trades || []).filter(t => t.status === 'OPEN' && String(t.owner_email) === String(acctKey));
   const openCount = openTrades.length;
   const closedPnl = todayClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
@@ -230,12 +230,21 @@ export default function RiskManagementPanel() {
     queryFn: () => base44.entities.BrokerConnection.list()
   });
 
-  const { data: trades = [] } = useQuery({
-    queryKey: ['all-trades'],
-    queryFn: () => base44.entities.Trade.list('-updated_date', 500),
+  const { data: openTrades = [] } = useQuery({
+    queryKey: ['risk-open-trades'],
+    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 500),
+    refetchInterval: 15000,
+    staleTime: 0
+  });
+
+  const { data: closedTrades = [] } = useQuery({
+    queryKey: ['risk-closed-trades'],
+    queryFn: () => base44.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 500),
     refetchInterval: 30000,
     staleTime: 0
   });
+
+  const trades = useMemo(() => [...openTrades, ...closedTrades], [openTrades, closedTrades]);
 
   // Connected accounts
   const connectedAccounts = connections.filter(c => c.connection_status === 'CONNECTED');
