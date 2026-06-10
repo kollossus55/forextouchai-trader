@@ -37,7 +37,7 @@ const PAIR_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
-    signals:    20_000,  // 20s  — signals rarely change
+    signals:     5_000,  // 5s   — keep very fresh to avoid stale ACTIVE signal blocking
     trades:     60_000,  // 60s  — trade list cache
     risk:      120_000,  // 2min — risk settings
     connection: 20_000,  // 20s  — heartbeat throttle
@@ -475,10 +475,16 @@ function sanitizeSignal(s, livePriceMap) {
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
+// Per-account last dedup timestamp — only run dedup every 5 minutes to avoid rate limits
+const lastDedupTs = {};
+
 async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
-    // ── Deduplication cleanup: remove duplicate DB records for same ticket OR same pair+type within 60s ──
-    // This guards against: (1) multi-isolate same-ticket races, (2) MT4 opening two trades on same pair rapidly
-    try {
+    // ── Deduplication cleanup: throttled to once per 5 min per account ──
+    const nowTs = Date.now();
+    const shouldDedup = !lastDedupTs[acctKey] || (nowTs - lastDedupTs[acctKey]) > 300_000;
+    if (shouldDedup) lastDedupTs[acctKey] = nowTs;
+
+    if (shouldDedup) try {
         const allAcctTrades = await base44.asServiceRole.entities.Trade.filter(
             { owner_email: acctKey, status: 'OPEN' }, '-created_date', 500
         );
@@ -523,7 +529,7 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         }
     } catch (e) {
         console.warn('[BRIDGE] Dedup cleanup error:', e.message);
-    }
+    } // end shouldDedup block
 
     // ── Cold-start init: populate knownTickets from DB exactly once per isolate ──
     // All concurrent requests await the same promise — no races.
@@ -532,7 +538,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             initPromise[acctKey] = (async () => {
                 knownTickets[acctKey] = new Set();
                 try {
-                    const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 1000);
+                    // Only load recent trades (last 500) to avoid rate limit on large accounts
+                    const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 500);
                     allTrades.forEach(t => { if (t.ticket) knownTickets[acctKey].add(t.ticket); });
                     console.log('[BRIDGE] Cold-start init: loaded', knownTickets[acctKey].size, 'tickets for', acctKey);
                 } catch (e) {
@@ -612,6 +619,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 });
                 createdTickets.push(t.ticket);
                 console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey);
+                // Small delay between creates to avoid 429 rate limiting
+                await new Promise(r => setTimeout(r, 200));
             } catch (e) {
                 console.error('[BRIDGE] Trade create error ticket', t.ticket, e.message);
                 memTickets.delete(t.ticket); // unlock so it can retry next cycle
@@ -654,19 +663,20 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         const ea = eaTrades.find(et => et.ticket === t.ticket);
         return ea && Math.abs((t.pnl || 0) - (ea.pnl || ea.profit || 0)) > 1.0;
     });
-    for (let i = 0; i < toUpdatePnl.length; i += 3) {
-        await Promise.all(toUpdatePnl.slice(i, i + 3).map(t => {
+    for (let i = 0; i < toUpdatePnl.length; i += 2) {
+        await Promise.all(toUpdatePnl.slice(i, i + 2).map(t => {
             const ea = eaTrades.find(et => et.ticket === t.ticket);
             return base44.asServiceRole.entities.Trade.update(t.id, { pnl: ea.pnl || ea.profit || 0 });
         })).catch(e => console.warn('[BRIDGE] PnL update error:', e.message));
+        if (i + 2 < toUpdatePnl.length) await new Promise(r => setTimeout(r, 150));
     }
 
     // ── Close trades no longer in EA ─────────────────────────────────────────
     const toClose = existingDbTrades.filter(t => t.ticket && !eaTicketSet.has(t.ticket));
     if (toClose.length > 0) {
         console.log('[BRIDGE] Closing', toClose.length, 'trades for', acctKey);
-        for (let i = 0; i < toClose.length; i += 3) {
-            await Promise.all(toClose.slice(i, i + 3).map(t => {
+        for (let i = 0; i < toClose.length; i += 2) {
+            await Promise.all(toClose.slice(i, i + 2).map(t => {
                 const finalPnl = t.pnl || 0;
                 const lotMultiplier = (t.lot_size || 0.1) * 100000;
                 const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
@@ -679,6 +689,7 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                     pnl: finalPnl,
                 });
             })).catch(e => console.warn('[BRIDGE] Close error:', e.message));
+            if (i + 2 < toClose.length) await new Promise(r => setTimeout(r, 150));
         }
     }
 }
