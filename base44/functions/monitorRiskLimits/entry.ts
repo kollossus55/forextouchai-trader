@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
             if (!balance) continue;
 
             // Reset daily loss counter if new day
-            const lastResetDate = riskSettings.last_reset_date ? riskSettings.last_reset_date.split('T')[0] : null;
+            const lastResetDate = riskSettings.last_reset_date ? String(riskSettings.last_reset_date).split('T')[0] : null;
             if (lastResetDate !== today) {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
                     daily_loss_current: 0,
