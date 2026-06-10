@@ -101,15 +101,19 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const drawdown = peakEquity > 0 ? Math.max(0, ((peakEquity - equity) / peakEquity) * 100) : 0;
 
   const lastReset = formData.last_reset_date ? new Date(formData.last_reset_date) : null;
-  const todayTrades = (trades || []).filter(t => {
+  const todayClosedTrades = (trades || []).filter(t => {
     if (t.status !== 'CLOSED' || t.owner_email !== acctKey) return false;
-    if (!t.created_date?.startsWith(today)) return false;
-    if (lastReset && new Date(t.created_date) < lastReset) return false;
+    const d = t.updated_date || t.created_date;
+    if (!d?.startsWith(today)) return false;
+    if (lastReset && new Date(d) < lastReset) return false;
     return true;
   });
-  const dailyPnl = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const dailyLossPercent = balance > 0 ? Math.abs((dailyPnl / balance) * 100) : 0;
-  const openCount = (trades || []).filter(t => t.status === 'OPEN' && t.owner_email === acctKey).length;
+  const openTrades = (trades || []).filter(t => t.status === 'OPEN' && t.owner_email === acctKey);
+  const openCount = openTrades.length;
+  const closedPnl = todayClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const dailyPnl = closedPnl + floatingPnl;
+  const dailyLossPercent = balance > 0 && dailyPnl < 0 ? Math.abs((dailyPnl / balance) * 100) : 0;
 
   const dailyLossRisk = formData.max_daily_loss_percent > 0 ? (dailyLossPercent / formData.max_daily_loss_percent) * 100 : 0;
   const drawdownRisk = formData.max_drawdown_percent > 0 ? (drawdown / formData.max_drawdown_percent) * 100 : 0;
@@ -228,7 +232,9 @@ export default function RiskManagementPanel() {
 
   const { data: trades = [] } = useQuery({
     queryKey: ['all-trades'],
-    queryFn: () => base44.entities.Trade.list()
+    queryFn: () => base44.entities.Trade.list('-updated_date', 500),
+    refetchInterval: 30000,
+    staleTime: 0
   });
 
   // Connected accounts
