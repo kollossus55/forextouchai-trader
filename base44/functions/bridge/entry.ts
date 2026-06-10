@@ -563,9 +563,21 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
 
     // ── Create new trades ────────────────────────────────────────────────────────
     // Triple-guarded: (1) in-memory set, (2) per-ticket create lock, (3) DB existence check
+    // ALSO: don't create trades for tickets already in the closed DB — prevent duplicate closed records
+    let closedTickets = new Set();
+    try {
+        const recentClosed = await base44.asServiceRole.entities.Trade.filter(
+            { owner_email: acctKey, status: 'CLOSED' }, '-updated_date', 200
+        );
+        recentClosed.forEach(t => { if (t.ticket) { closedTickets.add(t.ticket); memTickets.add(t.ticket); } });
+    } catch (e) {
+        console.warn('[BRIDGE] Closed ticket fetch error:', e.message);
+    }
+
     const createdTickets = [];
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
+        if (closedTickets.has(t.ticket)) return false; // already closed — don't re-create
         return !memTickets.has(t.ticket);
     });
     if (toCreate.length > 0) {
@@ -648,14 +660,19 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         for (let i = 0; i < toClose.length; i += 2) {
             await Promise.all(toClose.slice(i, i + 2).map(t => {
                 const finalPnl = t.pnl || 0;
-                const lotMultiplier = (t.lot_size || 0.1) * 100000;
-                const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
-                const closePrice = t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove;
+                // Only compute close_price if we have a valid open_price — otherwise store 0
+                // (MT4 sometimes sends trades with open_price=0; don't produce garbage tiny decimals)
+                let closePrice = 0;
+                if (t.open_price > 0) {
+                    const lotMultiplier = (t.lot_size || 0.1) * 100000;
+                    const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
+                    closePrice = parseFloat((t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove).toFixed(5));
+                }
                 // Remove from memory set so it doesn't block future re-opens of same ticket
                 memTickets.delete(t.ticket);
                 return base44.asServiceRole.entities.Trade.update(t.id, {
                     status: 'CLOSED',
-                    close_price: parseFloat(closePrice.toFixed(5)),
+                    close_price: closePrice,
                     pnl: finalPnl,
                 });
             })).catch(e => console.warn('[BRIDGE] Close error:', e.message));

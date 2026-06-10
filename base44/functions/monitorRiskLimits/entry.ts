@@ -64,14 +64,21 @@ Deno.serve(async (req) => {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { peak_equity: newPeak });
             }
 
-            // Calculate PnL for this account
-            const acctTodayPnl = todayClosedTrades
-                .filter(t => t.owner_email === acctKey)
-                .reduce((sum, t) => sum + (t.pnl || 0), 0);
+            // Calculate PnL for this account — deduplicate closed trades by ticket first
+            // (bridge can create duplicate closed records for same ticket; only count each ticket once)
+            const rawAcctClosed = todayClosedTrades.filter(t => t.owner_email === acctKey);
+            const seenTickets = new Set();
+            const dedupedClosed = rawAcctClosed.filter(t => {
+                if (t.ticket && seenTickets.has(t.ticket)) return false;
+                if (t.ticket) seenTickets.add(t.ticket);
+                return true;
+            });
+            const acctTodayPnl = dedupedClosed.reduce((sum, t) => sum + (t.pnl || 0), 0);
             const acctFloatingPnl = openTrades
                 .filter(t => t.owner_email === acctKey)
                 .reduce((sum, t) => sum + (t.pnl || 0), 0);
             const totalDailyPnl = acctTodayPnl + acctFloatingPnl;
+            console.log(`[monitorRiskLimits] Account ${acctKey}: ${rawAcctClosed.length} raw closed → ${dedupedClosed.length} deduped | todayPnl=$${acctTodayPnl.toFixed(2)} floatingPnl=$${acctFloatingPnl.toFixed(2)}`);
             const acctOpenCount = openTrades.filter(t => t.owner_email === acctKey).length;
 
             const alerts = [];
@@ -134,8 +141,8 @@ Deno.serve(async (req) => {
             // --- Check: Daily Profit Target ---
             // Skip entirely if trading is already paused — target was already handled
             if (riskSettings.daily_profit_target_percent > 0 && !riskSettings.is_trading_paused) {
-                const acctAllTodayTrades = todayClosedTrades.filter(t => t.owner_email === acctKey);
-                const todayProfit = acctAllTodayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+                // Use already-deduped closed trades
+                const todayProfit = dedupedClosed.reduce((sum, t) => sum + (t.pnl || 0), 0);
                 const dailyProfitPercent = ((todayProfit + acctFloatingPnl) / balance) * 100;
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
                     console.log(`[monitorRiskLimits] Account ${acctKey}: Daily profit target reached ${dailyProfitPercent.toFixed(2)}%`);
