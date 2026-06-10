@@ -95,12 +95,11 @@ export default function Overview() {
     }
   }, [activeConnection]);
 
-  const { data: tradesRaw, refetch: refetchTrades } = useQuery({
-    queryKey: ['trades-home', connections?.map(c => c.account_number).join(',')],
+  const { data: tradesRaw } = useQuery({
+    queryKey: ['trades-home'],
     queryFn: async () => {
       const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
       if (myAccountNumbers.length === 0) return [];
-      // Read directly from DB — bridge reconcile keeps this up to date
       const result = await Promise.all(
         myAccountNumbers.map(acctNum =>
           base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
@@ -111,7 +110,7 @@ export default function Overview() {
     refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
-    enabled: true,
+    enabled: (connections?.length ?? 0) > 0,
   });
 
   const trades = tradesRaw ?? [];
@@ -717,7 +716,7 @@ export default function Overview() {
                       )
                     )).flat()
                   : await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 200);
-                queryClient.setQueryData(['trades-home', connections?.map(c => c.account_number).join(',')], freshTrades);
+                queryClient.setQueryData(['trades-home'], freshTrades);
                 toast.success(`Synced - ${freshTrades.length} open trade${freshTrades.length !== 1 ? 's' : ''}`, { id: toastId });
               } catch (e) {
                 toast.error('Sync failed: ' + e.message, { id: toastId });
