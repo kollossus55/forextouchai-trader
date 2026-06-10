@@ -103,7 +103,7 @@ export default function Overview() {
       // Read directly from DB — bridge reconcile keeps this up to date
       const result = await Promise.all(
         myAccountNumbers.map(acctNum =>
-          base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 100)
+          base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
         )
       );
       return result.flat();
@@ -709,8 +709,14 @@ export default function Overview() {
               const toastId = toast.loading('Waiting for MT4 sync...');
               try {
                 await new Promise(resolve => setTimeout(resolve, 6000));
-                queryClient.removeQueries(['trades-home']);
-                const freshTrades = await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 100);
+                const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
+                const freshTrades = myAccountNumbers.length > 0
+                  ? (await Promise.all(
+                      myAccountNumbers.map(acctNum =>
+                        base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
+                      )
+                    )).flat()
+                  : await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 200);
                 queryClient.setQueryData(['trades-home', connections?.map(c => c.account_number).join(',')], freshTrades);
                 toast.success(`Synced - ${freshTrades.length} open trade${freshTrades.length !== 1 ? 's' : ''}`, { id: toastId });
               } catch (e) {
