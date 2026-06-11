@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { 
   Bot, 
   Play, 
@@ -15,7 +16,8 @@ import {
   BrainCircuit,
   Target,
   BarChart,
-  AlertTriangle
+  AlertTriangle,
+  GripVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -35,6 +37,9 @@ export default function AutoTrade() {
   const [backtestBot, setBacktestBot] = useState(null);
   const [activeTab, setActiveTab] = useState("bots");
   const [user, setUser] = useState(null);
+  const [botOrder, setBotOrder] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('botOrder') || '[]'); } catch { return []; }
+  });
   
   // Fetch current user
   useEffect(() => {
@@ -87,13 +92,23 @@ export default function AutoTrade() {
       console.log('[AutoTrade] Filtered bots for trader:', result.length, 'out of', allBots.length);
     }
 
-    // Sort: AI_PREDICTIVE first
+    // Apply saved order if available, otherwise AI_PREDICTIVE first
+    if (botOrder.length > 0) {
+      return [...result].sort((a, b) => {
+        const ai = botOrder.indexOf(a.id);
+        const bi = botOrder.indexOf(b.id);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+    }
     return [...result].sort((a, b) => {
       if (a.strategy_type === 'AI_PREDICTIVE' && b.strategy_type !== 'AI_PREDICTIVE') return -1;
       if (b.strategy_type === 'AI_PREDICTIVE' && a.strategy_type !== 'AI_PREDICTIVE') return 1;
       return 0;
     });
-  }, [allBots, user]);
+  }, [allBots, user, botOrder]);
 
   // Fetch broker connections to map user → account numbers
   const { data: brokerConnections } = useQuery({
@@ -312,6 +327,16 @@ export default function AutoTrade() {
     return currentTime >= startTime && currentTime <= endTime;
   };
 
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+    const reordered = Array.from(bots);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    const newOrder = reordered.map(b => b.id);
+    setBotOrder(newOrder);
+    localStorage.setItem('botOrder', JSON.stringify(newOrder));
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -385,9 +410,18 @@ export default function AutoTrade() {
         </TabsList>
 
         <TabsContent value="bots" className="mt-0">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {bots.map((bot) => (
-              <Card key={bot.id} className={`bg-slate-900/50 backdrop-blur-sm border transition-all ${
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="bots-grid" direction="horizontal">
+              {(provided) => (
+                <div
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
+            {bots.map((bot, index) => (
+              <Draggable key={bot.id} draggableId={bot.id} index={index}>
+                {(dragProvided, dragSnapshot) => (
+              <Card ref={dragProvided.innerRef} {...dragProvided.draggableProps} className={`bg-slate-900/50 backdrop-blur-sm border transition-all ${dragSnapshot.isDragging ? 'shadow-2xl shadow-emerald-900/30 scale-[1.02] z-50' : ''} ${
                 bot.status === 'RUNNING' && isWithinTradingHours(bot)
                   ? 'border-emerald-500/30 shadow-[0_0_20px_-5px_rgba(16,185,129,0.1)]'
                   : bot.status === 'RUNNING'
@@ -395,7 +429,10 @@ export default function AutoTrade() {
                   : 'border-slate-800'
               }`}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div className="space-y-1">
+                  <div {...dragProvided.dragHandleProps} className="cursor-grab active:cursor-grabbing p-1 -ml-1 mr-2 text-slate-600 hover:text-slate-400 transition-colors">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1 flex-1">
                     <CardTitle className="text-xl text-white flex items-center gap-2">
                       {bot.name}
                       <Badge variant="outline" className={`ml-2 text-xs font-normal ${
@@ -589,7 +626,14 @@ export default function AutoTrade() {
                    </Button>
                 </CardFooter>
               </Card>
+                )}
+              </Draggable>
             ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
 
             {bots.length === 0 && (
               <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-500 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
@@ -598,7 +642,6 @@ export default function AutoTrade() {
                 <p className="text-sm">Create your first AI trading bot to get started.</p>
               </div>
             )}
-          </div>
         </TabsContent>
 
         <TabsContent value="risk" className="mt-0">
