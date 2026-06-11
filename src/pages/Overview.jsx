@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { 
@@ -12,10 +12,7 @@ import {
   DollarSign,
   PieChart,
   BarChart3,
-  BrainCircuit,
-  Zap,
   ExternalLink,
-  SlidersHorizontal,
   TrendingUp,
   TrendingDown
   } from 'lucide-react';
@@ -23,52 +20,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ColoredSlider } from '@/components/ui/colored-slider';
-import SignalCard from '@/components/dashboard/SignalCard';
 import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
 
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function Overview() {
   const queryClient = useQueryClient();
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Scan Settings State with localStorage persistence
-  const [scanSettings, setScanSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem('aiScanSettings');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error('Failed to load scan settings', e);
-    }
-    return {
-      minConfidence: 80,
-      lotSize: 0.01,
-      riskLevel: 'MEDIUM',
-      signalSensitivity: 'BALANCED',
-      indicators: {
-          rsi: true,
-          macd: true,
-          bollinger: false,
-          ema: true,
-          stochastic: false
-      }
-    };
-  });
-
-  // Save settings to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('aiScanSettings', JSON.stringify(scanSettings));
-  }, [scanSettings]);
 
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
@@ -94,26 +53,7 @@ export default function Overview() {
     }
   }, [activeConnection]);
 
-  const accountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
 
-  const { data: tradesRaw } = useQuery({
-    queryKey: ['trades-home', accountNumbers],
-    queryFn: async () => {
-      if (accountNumbers.length === 0) return [];
-      const result = await Promise.all(
-        accountNumbers.map(acctNum =>
-          base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
-        )
-      );
-      return result.flat();
-    },
-    refetchInterval: 10000,
-    staleTime: 0,
-    gcTime: 0,
-    enabled: accountNumbers.length > 0,
-  });
-
-  const trades = tradesRaw ?? [];
 
   const { data: events } = useQuery({
     queryKey: ['economic-events'],
@@ -127,142 +67,9 @@ export default function Overview() {
     initialData: []
   });
 
-  const { data: signals } = useQuery({
-    queryKey: ['ai-signals'],
-    queryFn: () => base44.entities.Signal.list('-created_date', 3),
-    initialData: []
-  });
 
-  const { data: pairsList } = useQuery({
-    queryKey: ['pairs-overview'],
-    queryFn: () => base44.entities.CurrencyPair.list(),
-    initialData: []
-  });
 
-  const generateSignalMutation = useMutation({
-    mutationFn: (signalData) => base44.entities.Signal.create(signalData),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['ai-signals']);
-    }
-  });
 
-  const [selectedAccountNumber, setSelectedAccountNumber] = useState(null);
-
-  // Set default account on first load
-  useEffect(() => {
-    if (connections?.length > 0 && !selectedAccountNumber) {
-      setSelectedAccountNumber(connections[0].account_number);
-    }
-  }, [connections]);
-
-  const executeSignalMutation = useMutation({
-    mutationFn: async (signal) => {
-      const targetAccount = selectedAccountNumber || connections?.[0]?.account_number;
-      return base44.entities.Signal.update(signal.id, { 
-        status: 'PENDING',
-        lot_size: signal.lot_size || 0.01,
-        strategy: signal.strategy || 'MANUAL_EXECUTION',
-        owner_email: targetAccount  // Route to specific account
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['ai-signals']);
-      const acct = connections?.find(c => c.account_number === selectedAccountNumber);
-      const label = acct ? `${acct.platform} — ${acct.server_name} #${acct.account_number}` : 'selected account';
-      toast.success("Signal dispatched", { description: `Sent to ${label}` });
-    }
-  });
-
-  useEffect(() => {
-    MarketDataService.initialize();
-  }, []);
-
-  const handleGenerateSignals = async () => {
-    setIsGenerating(true);
-    try {
-      // Refresh market data before generating
-      await MarketDataService.fetchAll();
-
-      const MAJOR_PAIRS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'GBP/JPY', 'EUR/JPY', 'XAU/USD', 'BTC/USD', 'ETH/USD'];
-      const userPairs = pairsList.map(p => p.symbol);
-      // Combine user pairs with major pairs for a broader scan
-      const pairs = Array.from(new Set([...userPairs, ...MAJOR_PAIRS]));
-
-      // Prepare active indicators list
-      const activeIndicators = Object.entries(scanSettings.indicators)
-          .filter(([_, active]) => active)
-          .map(([key]) => {
-              const names = {
-                  rsi: "RSI (14)",
-                  macd: "MACD (12,26,9)",
-                  bollinger: "Bollinger Bands",
-                  ema: "200 EMA",
-                  stochastic: "Stochastic Oscillator"
-              };
-              return names[key];
-          });
-
-      // Invoke Backend Function for Real AI Analysis with Enhanced Parameters
-      // Only send prices for the pairs being analyzed (avoid oversized payload)
-      const filteredMarketData = {};
-      pairs.forEach(p => {
-          if (MarketDataService.prices[p]) filteredMarketData[p] = MarketDataService.prices[p];
-      });
-
-      const response = await base44.functions.invoke('analyzeMarket', {
-          pairs,
-          marketData: filteredMarketData,
-          minConfidence: scanSettings.minConfidence,
-          riskLevel: scanSettings.riskLevel,
-          signalSensitivity: scanSettings.signalSensitivity,
-          indicators: activeIndicators,
-          timeframe: 'H1', // Default to H1 for Overview page signals
-          botId: null // Manual scan from Overview - no bot association
-      });
-
-      console.log("AI Analysis Response:", response);
-      const aiSignal = response.data;
-
-      if (aiSignal && aiSignal.pair && !aiSignal.error) {
-          // Prevent duplicates - check both ANALYSIS and PENDING/ACTIVE signals
-          const isDuplicate = signals.some(s => 
-            s.pair === aiSignal.pair && 
-            (s.status === 'ANALYSIS' || s.status === 'PENDING' || s.status === 'ACTIVE')
-          );
-
-          if (isDuplicate) {
-             toast.info("Signal Already Exists", { description: `${aiSignal.pair} signal is already active or pending.` });
-             return;
-          }
-
-          generateSignalMutation.mutate({
-              pair: aiSignal.pair,
-              type: aiSignal.type,
-              entry_price: Number(aiSignal.entry_price),
-              stop_loss: Number(aiSignal.stop_loss),
-              take_profit: Number(aiSignal.take_profit),
-              confidence: Number(aiSignal.confidence),
-              lot_size: scanSettings.lotSize,
-              strategy: aiSignal.strategy,
-              calculated_indicators: aiSignal.calculated_indicators,
-              status: 'ANALYSIS',
-              result_pnl: 0,
-              owner_email: selectedAccountNumber || connections?.[0]?.account_number
-          });
-          toast.success("AI Analysis Complete", { description: `Found setup for ${aiSignal.pair}` });
-      } else if (aiSignal && aiSignal.error) {
-          toast.error("AI Analysis Failed", { description: aiSignal.error });
-      } else {
-          toast.warning("No Signals Found", { description: "No high-confidence setups detected" });
-      }
-    } catch (error) {
-        console.error("AI Generation Failed:", error);
-        const errorMsg = error.response?.data?.error || error.message || "Unknown error";
-        toast.error("Failed to generate signal", { description: errorMsg });
-    } finally {
-        setIsGenerating(false);
-    }
-  };
 
   // Build per-account data array
   const accountList = (connections || []).map(conn => {
@@ -291,7 +98,6 @@ export default function Overview() {
     try {
       await base44.functions.invoke('forceSync', {});
       queryClient.invalidateQueries(['broker-connections']);
-      queryClient.invalidateQueries(['trades-home']);
       setLastUpdated(new Date());
       toast.success('Sync Complete', { description: 'Trade data synchronized with MT4' });
     } catch (e) {
@@ -444,253 +250,7 @@ export default function Overview() {
         </div>
       )}
 
-      {/* Enhanced AI Signal Generator Banner */}
-      <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 via-emerald-900/30 to-slate-900/90 border-emerald-500/30 backdrop-blur-xl shadow-2xl shadow-emerald-500/10">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-transparent rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-500/10 to-transparent rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 relative">
-          <div>
-            <CardTitle className="text-white flex items-center gap-3 text-xl">
-              <div className="p-2.5 bg-emerald-500/20 rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-500/20">
-                <BrainCircuit className="w-6 h-6 text-emerald-400" />
-              </div>
-              AI Signal Generator
-            </CardTitle>
-            <CardDescription className="text-emerald-200/70 mt-2 text-base">
-              Real-time market analysis and setup detection
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            {/* Account selector for signal execution */}
-            {activeConnections.length > 1 && (
-              <Select value={selectedAccountNumber || ''} onValueChange={setSelectedAccountNumber}>
-                <SelectTrigger className="w-52 bg-slate-900/50 border-slate-700 text-slate-300 hover:border-emerald-500/30 text-xs h-9">
-                  <SelectValue placeholder="Select account..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700">
-                  {activeConnections.map(c => (
-                    <SelectItem key={c.account_number} value={c.account_number} className="text-slate-300 text-xs focus:bg-slate-800">
-                      {c.platform} — {c.server_name} #{c.account_number}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Button variant="outline" className="bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-emerald-500/30 transition-all">
-                        <SlidersHorizontal className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">Settings</span>
-                        <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            {scanSettings.lotSize} lots
-                        </span>
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 bg-slate-900 border-slate-800 text-slate-200 p-4">
-                    <div className="space-y-4">
-                        <div className="pb-2 mb-2 border-b border-slate-800">
-                            <h3 className="font-semibold text-white text-sm flex items-center gap-2">
-                                <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
-                                AI Scan Configuration
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-1">Adjust lot size, confidence threshold, and technical indicators</p>
-                        </div>
-                        <div className="space-y-2">
-                            <h4 className="font-medium text-white flex justify-between">
-                                Min Confidence
-                                <span className="text-emerald-400">{scanSettings.minConfidence}%</span>
-                            </h4>
-                            <ColoredSlider 
-                                value={[scanSettings.minConfidence]} 
-                                min={50} 
-                                max={99} 
-                                step={1}
-                                onValueChange={([v]) => setScanSettings(s => ({...s, minConfidence: v}))}
-                                className="py-2"
-                                rangeClassName="bg-emerald-500"
-                                thumbClassName="border-emerald-500"
-                            />
-                        </div>
-                        <div className="space-y-2 pt-2 border-t border-slate-800">
-                            <h4 className="font-medium text-white flex justify-between">
-                                Lot Size
-                                <span className="text-emerald-400">{scanSettings.lotSize}</span>
-                            </h4>
-                            <ColoredSlider 
-                                value={[scanSettings.lotSize * 100]} 
-                                min={1} 
-                                max={100} 
-                                step={1}
-                                onValueChange={([v]) => setScanSettings(s => ({...s, lotSize: v / 100}))}
-                                className="py-2"
-                                rangeClassName="bg-blue-500"
-                                thumbClassName="border-blue-500"
-                            />
-                            <p className="text-xs text-slate-500">Adjust trade volume (0.01 - 1.00 lots)</p>
-                        </div>
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
-                            <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Risk Management</h4>
 
-                            <div className="space-y-2">
-                                <Label className="text-sm text-slate-300">Risk Level</Label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {['LOW', 'MEDIUM', 'HIGH'].map(level => (
-                                        <button
-                                            key={level}
-                                            onClick={() => setScanSettings(s => ({...s, riskLevel: level}))}
-                                            className={`px-3 py-2 rounded text-xs font-medium transition-all ${
-                                                scanSettings.riskLevel === level
-                                                    ? 'bg-emerald-600 text-white'
-                                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            {level}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-slate-500">
-                                    {scanSettings.riskLevel === 'LOW' && 'Conservative: Wider stops, 2:1 R/R'}
-                                    {scanSettings.riskLevel === 'MEDIUM' && 'Balanced: Standard stops, 1.5:1 R/R'}
-                                    {scanSettings.riskLevel === 'HIGH' && 'Aggressive: Tighter stops, 1.2:1 R/R'}
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label className="text-sm text-slate-300">Signal Sensitivity</Label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE'].map(sens => (
-                                        <button
-                                            key={sens}
-                                            onClick={() => setScanSettings(s => ({...s, signalSensitivity: sens}))}
-                                            className={`px-3 py-2 rounded text-xs font-medium transition-all ${
-                                                scanSettings.signalSensitivity === sens
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            {sens.charAt(0) + sens.slice(1).toLowerCase()}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-slate-500">
-                                    {scanSettings.signalSensitivity === 'CONSERVATIVE' && 'Strict: Multi-indicator confluence required'}
-                                    {scanSettings.signalSensitivity === 'BALANCED' && 'Standard: 2-3 indicators alignment'}
-                                    {scanSettings.signalSensitivity === 'AGGRESSIVE' && 'Opportunistic: Single strong indicator'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
-                            <h4 className="font-medium text-white text-xs uppercase tracking-wider text-slate-500">Active Indicators</h4>
-                            
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="rsi" className="text-sm">RSI (14)</Label>
-                                <Switch 
-                                    id="rsi" 
-                                    checked={scanSettings.indicators.rsi}
-                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, rsi: c}}))}
-                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
-                                />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="macd" className="text-sm">MACD</Label>
-                                <Switch 
-                                    id="macd" 
-                                    checked={scanSettings.indicators.macd}
-                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, macd: c}}))}
-                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
-                                />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="bb" className="text-sm">Bollinger Bands</Label>
-                                <Switch 
-                                    id="bb" 
-                                    checked={scanSettings.indicators.bollinger}
-                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, bollinger: c}}))}
-                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
-                                />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="ema" className="text-sm">200 EMA</Label>
-                                <Switch 
-                                    id="ema" 
-                                    checked={scanSettings.indicators.ema}
-                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, ema: c}}))}
-                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
-                                />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="stoch" className="text-sm">Stochastic</Label>
-                                <Switch 
-                                    id="stoch" 
-                                    checked={scanSettings.indicators.stochastic}
-                                    onCheckedChange={(c) => setScanSettings(s => ({...s, indicators: {...s.indicators, stochastic: c}}))}
-                                    className="data-[state=checked]:bg-emerald-600 scale-75" 
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </PopoverContent>
-            </Popover>
-
-            <Button 
-                onClick={handleGenerateSignals} 
-                disabled={isGenerating}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
-            >
-                {isGenerating ? (
-                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
-                ) : (
-                <><Zap className="w-4 h-4 mr-2" /> Scan Market</>
-                )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             {isGenerating ? (
-                // Scanning Animation State
-                <>
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-[180px] rounded-xl bg-slate-900/40 border border-slate-800 p-4 animate-pulse relative overflow-hidden">
-                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent skew-x-12 translate-x-[-100%] animate-[shimmer_1s_infinite]"></div>
-                       <div className="flex gap-3 mb-4">
-                         <div className="w-10 h-10 rounded-lg bg-slate-800"></div>
-                         <div className="space-y-2">
-                           <div className="h-4 w-16 bg-slate-800 rounded"></div>
-                           <div className="h-3 w-12 bg-slate-800 rounded"></div>
-                         </div>
-                       </div>
-                       <div className="space-y-2 mt-4">
-                          <div className="h-8 bg-slate-800/50 rounded"></div>
-                          <div className="h-8 bg-slate-800/50 rounded"></div>
-                       </div>
-                    </div>
-                  ))}
-                </>
-             ) : signals.length === 0 ? (
-               <div className="col-span-3 text-center py-8 text-slate-500 text-sm bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed flex flex-col items-center justify-center gap-2">
-                 <BrainCircuit className="w-8 h-8 text-slate-600 mb-2 opacity-50" />
-                 <p>AI Engine Standby</p>
-                 <p className="text-xs opacity-70">Click "Scan Market" to generate real-time signals</p>
-               </div>
-             ) : (
-               // Show all ANALYSIS signals with Execute button
-               signals
-                 .filter(signal => signal.status === 'ANALYSIS')
-                 .filter((signal, index, self) => 
-                    index === self.findIndex((t) => t.pair === signal.pair)
-                 )
-                 .map(signal => (
-                   <SignalCard 
-                      key={signal.id} 
-                      signal={signal} 
-                      onExecute={(updatedSignal) => executeSignalMutation.mutate(updatedSignal)} 
-                    />
-                 ))
-             )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
