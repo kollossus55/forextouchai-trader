@@ -252,6 +252,24 @@ export default function Overview() {
 
 
 
+      {/* Manual Trading Info Card */}
+      <Card className="bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border-emerald-500/30 backdrop-blur-sm">
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-emerald-500/20 rounded-lg mt-0.5">
+              <ExternalLink className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-200 mb-1">Execute Manual Trades</p>
+              <p className="text-sm text-slate-400 mb-3">Go to the <span className="font-medium text-emerald-300">Pairs</span> tab to fire off manual trades and manage your positions in real-time.</p>
+              <a href="/Pairs" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors text-sm font-medium border border-emerald-500/40 hover:border-emerald-500/60">
+                Go to Pairs <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
