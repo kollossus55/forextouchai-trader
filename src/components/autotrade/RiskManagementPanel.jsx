@@ -275,11 +275,12 @@ export default function RiskManagementPanel() {
   const connectedAccounts = connections.filter(c => c.connection_status === 'CONNECTED');
 
   // Map account_number → risk settings record
+  const safeRiskList = Array.isArray(riskSettingsList) ? riskSettingsList : [];
   const riskByAccount = {};
-  for (const r of riskSettingsList) {
+  for (const r of safeRiskList) {
     if (r.account_number) riskByAccount[r.account_number] = r;
   }
-  const globalRisk = riskSettingsList.find(r => !r.account_number) || null;
+  const globalRisk = safeRiskList.find(r => !r.account_number) || null;
 
   if (connectedAccounts.length === 0) {
     return (
@@ -316,7 +317,7 @@ export default function RiskManagementPanel() {
         <Tabs defaultValue={connectedAccounts[0]?.account_number}>
           <TabsList className="bg-slate-950 border border-slate-800 mb-4 flex-wrap h-auto gap-1">
             {connectedAccounts.map(conn => {
-              const risk = riskByAccount[conn.account_number] || globalRisk;
+              const risk = riskByAccount[conn.account_number] || globalRisk || null;
               const isPaused = risk?.is_trading_paused;
               return (
                 <TabsTrigger key={conn.account_number} value={conn.account_number}
