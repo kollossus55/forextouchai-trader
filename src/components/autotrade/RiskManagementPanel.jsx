@@ -236,16 +236,32 @@ export default function RiskManagementPanel() {
     queryFn: () => base44.entities.BrokerConnection.list()
   });
 
+  const accountNumbers = connections.map(c => c.account_number).filter(Boolean);
+
   const { data: openTrades = [] } = useQuery({
-    queryKey: ['risk-open-trades'],
-    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 500),
+    queryKey: ['risk-open-trades', accountNumbers],
+    queryFn: async () => {
+      if (accountNumbers.length === 0) return [];
+      const results = await Promise.all(
+        accountNumbers.map(acct => base44.entities.Trade.filter({ status: 'OPEN', owner_email: acct }, '-updated_date', 500))
+      );
+      return results.flat();
+    },
+    enabled: accountNumbers.length > 0,
     refetchInterval: 15000,
     staleTime: 0
   });
 
   const { data: closedTrades = [] } = useQuery({
-    queryKey: ['risk-closed-trades'],
-    queryFn: () => base44.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 500),
+    queryKey: ['risk-closed-trades', accountNumbers],
+    queryFn: async () => {
+      if (accountNumbers.length === 0) return [];
+      const results = await Promise.all(
+        accountNumbers.map(acct => base44.entities.Trade.filter({ status: 'CLOSED', owner_email: acct }, '-updated_date', 500))
+      );
+      return results.flat();
+    },
+    enabled: accountNumbers.length > 0,
     refetchInterval: 30000,
     staleTime: 0
   });
