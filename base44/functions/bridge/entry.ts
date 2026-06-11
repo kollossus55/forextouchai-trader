@@ -71,12 +71,14 @@ Deno.serve(async (req) => {
         // ── API Key validation (only enforce if key looks valid, i.e. starts with FTAI-) ─
         const authHeader = req.headers.get('Authorization') || '';
         const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
+        let resolvedOwnerEmail = null;
         if (providedKey && providedKey.startsWith('FTAI-')) {
-            // Find the user whose ea_api_key matches
-            const matchingUsers = await base44.asServiceRole.entities.User.filter({ ea_api_key: providedKey });
-            if (!matchingUsers || matchingUsers.length === 0) {
+            // Lookup the EaApiKey record to get the owner_email for this key
+            const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
+            if (!matchingKeys || matchingKeys.length === 0) {
                 return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
             }
+            resolvedOwnerEmail = matchingKeys[0].owner_email || null;
         }
         // If no key or non-FTAI key provided, allow (backward-compatible)
         const now = Date.now();
@@ -154,22 +156,16 @@ Deno.serve(async (req) => {
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
                 if (conns?.length > 0) {
-                    // Also backfill owner_email if missing (e.g. accounts added before this fix)
+                    // Backfill owner_email if missing and we resolved it from the API key
                     const patch = { ...updateData };
-                    if (!conns[0].owner_email) {
-                        const keyRec = await base44.asServiceRole.entities.EaApiKey.list('-created_date', 1).catch(() => []);
-                        if (keyRec?.[0]?.owner_email) patch.owner_email = keyRec[0].owner_email;
-                    }
+                    if (!conns[0].owner_email && resolvedOwnerEmail) patch.owner_email = resolvedOwnerEmail;
                     await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, patch);
                 } else {
-                    // Lookup owner from EaApiKey so signals route correctly to new accounts
-                    let ownerEmailNew = null;
-                    const keyRec = await base44.asServiceRole.entities.EaApiKey.list('-created_date', 1).catch(() => []);
-                    if (keyRec?.[0]?.owner_email) ownerEmailNew = keyRec[0].owner_email;
+                    // New connection — set owner_email from the API key lookup
                     await base44.asServiceRole.entities.BrokerConnection.create({
                         ...updateData, account_number: acctKey,
                         server_name: server_name || 'Unknown', platform: platform || 'MT4',
-                        ...(ownerEmailNew && { owner_email: ownerEmailNew }),
+                        ...(resolvedOwnerEmail && { owner_email: resolvedOwnerEmail }),
                     });
                 }
             })().catch(e => console.error('[BRIDGE] Connection update error:', e.message));
