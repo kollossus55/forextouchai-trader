@@ -12,6 +12,13 @@ import { MarketDataService } from './MarketDataService';
 const tickStore = {}; // symbol → [{ t, p }]
 const MAX_TICKS = 2000;
 
+// ─── Signal Lock Store ───────────────────────────────────────────────────────
+// Prevents signal direction from flipping for 15 minutes after a directional
+// signal is confirmed. Neutral signals never lock.
+const SIGNAL_LOCK_MS = 15 * 60 * 1000; // 15 minutes
+const MIN_LOCK_CONFIDENCE = 55;         // only lock if confidence is meaningful
+const signalLock = {};                  // symbol+tf → { signal, confidence, lockedAt }
+
 export function recordTick(symbol, price) {
     if (!tickStore[symbol]) tickStore[symbol] = [];
     tickStore[symbol].push({ t: Date.now(), p: price });
@@ -183,6 +190,28 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         confidence = Math.min(97, Math.round(45 + sellPct));
     } else {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
+    }
+
+    // ── 15-minute Signal Lock ────────────────────────────────────────────────
+    // If a directional signal was locked recently, hold it unless the lock
+    // has expired. A stronger opposing signal does NOT override the lock —
+    // wait for expiry to prevent noise-driven flips.
+    const lockKey = `${symbol}_${timeframe}`;
+    const now = Date.now();
+    const lock = signalLock[lockKey];
+
+    if (lock && (now - lock.lockedAt) < SIGNAL_LOCK_MS) {
+        // Still within lock window — preserve locked signal & confidence
+        signal = lock.signal;
+        confidence = lock.confidence;
+    } else {
+        // Lock window expired or no lock — set a new lock if signal is directional
+        if (signal !== 'NEUTRAL' && confidence >= MIN_LOCK_CONFIDENCE) {
+            signalLock[lockKey] = { signal, confidence, lockedAt: now };
+        } else if (signal === 'NEUTRAL') {
+            // Clear any expired lock on neutral
+            delete signalLock[lockKey];
+        }
     }
 
     // ── Build normalised indicator snapshot ─────────────────────────────────
