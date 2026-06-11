@@ -66,11 +66,14 @@ Deno.serve(async (req) => {
 
         const rawText = await req.text();
         const cleanText = rawText.replace(/\0/g, '').trim();
+
+        // Store parsed body early so the catch block can access account_number without re-reading the stream
+        let body = {};
         if (!cleanText) {
             return Response.json({ success: true, message: 'Bridge online', heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS }, { headers: corsHeaders() });
         }
 
-        const body = JSON.parse(cleanText);
+        body = JSON.parse(cleanText);
 
         // ── API Key validation (only enforce if key looks valid, i.e. starts with FTAI-) ─
         const authHeader = req.headers.get('Authorization') || '';
@@ -399,9 +402,8 @@ Deno.serve(async (req) => {
 
         // Write an alert record (throttled per account to avoid spam)
         try {
-            const bodyText = await req.clone().text().catch(() => '{}');
-            const bodyParsed = JSON.parse(bodyText.replace(/\0/g, '').trim() || '{}');
-            const acctKeyForAlert = String((bodyParsed.account || bodyParsed)?.account_number || 'unknown');
+            // body is already parsed above — no need to re-read the consumed stream
+            const acctKeyForAlert = String((body?.account || body)?.account_number || 'unknown');
             const nowTs = Date.now();
             const lastAlert = lastBridgeErrorAlert[acctKeyForAlert] || 0;
             if (nowTs - lastAlert > BRIDGE_ERROR_ALERT_THROTTLE_MS) {
