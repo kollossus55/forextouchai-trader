@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   alert_threshold_percent: 80,
   stop_trading_on_limit: true,
   daily_profit_target_percent: 0,
+  daily_reset_hour: 0,
   daily_loss_current: 0,
   peak_equity: 0,
   is_trading_paused: false
@@ -176,7 +177,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
             { label: 'Max Drawdown (%)', field: 'max_drawdown_percent', step: 0.5 },
             { label: 'Daily Profit Target (%) — 0=off', field: 'daily_profit_target_percent', step: 0.5, min: 0 },
             { label: 'Risk Per Trade (%)', field: 'risk_per_trade_percent', step: 0.1, min: 0.1 },
-          ].map(({ label, field, step, min = 0 }) => (
+            { label: 'Daily Reset Hour (UTC 0–23)', field: 'daily_reset_hour', step: 1, min: 0, max: 23 },
+          ].map(({ label, field, step, min = 0, max = 100 }) => (
             <div key={field} className="space-y-1">
               <Label className="text-xs text-slate-300">{label}</Label>
               <Input type="number" min={min} max={100} step={step} value={formData[field] ?? 0}

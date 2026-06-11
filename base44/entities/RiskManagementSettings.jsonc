@@ -60,6 +60,13 @@
       "maximum": 100,
       "description": "Close all trades and pause when daily profit reaches this % of balance (0 = disabled)"
     },
+    "daily_reset_hour": {
+      "type": "number",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 23,
+      "description": "UTC hour at which the daily counters reset and trading resumes (0 = midnight UTC)"
+    },
     "daily_loss_current": {
       "type": "number",
       "default": 0,

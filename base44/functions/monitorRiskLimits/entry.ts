@@ -15,15 +15,11 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No connected broker accounts — skipping' });
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
 
         // Fetch today's closed trades — sorted by updated_date desc, limit 500
         // HARDENED: sort by updated_date (when trade closed) not created_date, limit to 500
         const closedTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 500);
-        const todayClosedTrades = closedTrades.filter(t => {
-            const d = t.updated_date || t.created_date;
-            return d && d.startsWith(today);
-        });
 
         // Build a map: account_number → risk settings (prefer account-specific, fall back to global)
         const globalSettings = riskSettingsList.find(r => !r.account_number) || null;
@@ -47,15 +43,28 @@ Deno.serve(async (req) => {
             const equity = conn.equity || 0;
             if (!balance) continue;
 
-            // Reset daily loss counter if new day
-            const lastResetDate = riskSettings.last_reset_date ? String(riskSettings.last_reset_date).split('T')[0] : null;
-            if (lastResetDate !== today) {
+            // Reset daily loss counter based on configurable reset hour (UTC)
+            // e.g. daily_reset_hour=5 means reset happens at 05:00 UTC each day
+            const resetHour = riskSettings.daily_reset_hour ?? 0;
+            // Build a "reset period key": YYYY-MM-DD@HH where HH is the reset hour
+            // The current period started at the most recent occurrence of resetHour UTC
+            const currentPeriodStart = new Date(now);
+            currentPeriodStart.setUTCMinutes(0, 0, 0);
+            if (now.getUTCHours() < resetHour) {
+                // We haven't hit today's reset hour yet — period started yesterday at resetHour
+                currentPeriodStart.setUTCDate(currentPeriodStart.getUTCDate() - 1);
+            }
+            currentPeriodStart.setUTCHours(resetHour);
+            const periodKey = `${currentPeriodStart.toISOString().split('T')[0]}@${String(resetHour).padStart(2,'0')}`;
+
+            const lastResetKey = riskSettings.last_reset_date || null;
+            if (lastResetKey !== periodKey) {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
                     daily_loss_current: 0,
-                    last_reset_date: today,
-                    is_trading_paused: false, // Auto-unpause at start of new trading day
+                    last_reset_date: periodKey,
+                    is_trading_paused: false,
                 });
-                console.log(`[monitorRiskLimits] Daily reset for account ${acctKey} — counters cleared & trading unpaused`);
+                console.log(`[monitorRiskLimits] Daily reset for account ${acctKey} at hour ${resetHour} UTC — period ${periodKey}`);
             }
 
             // Update peak equity per account
@@ -63,6 +72,19 @@ Deno.serve(async (req) => {
             if (newPeak > (riskSettings.peak_equity || 0)) {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { peak_equity: newPeak });
             }
+
+            // Filter closed trades since the start of the current reset period for this account
+            const resetHourForFilter = riskSettings.daily_reset_hour ?? 0;
+            const periodStartForFilter = new Date(now);
+            periodStartForFilter.setUTCMinutes(0, 0, 0);
+            if (now.getUTCHours() < resetHourForFilter) {
+                periodStartForFilter.setUTCDate(periodStartForFilter.getUTCDate() - 1);
+            }
+            periodStartForFilter.setUTCHours(resetHourForFilter);
+            const todayClosedTrades = closedTrades.filter(t => {
+                const d = t.updated_date || t.created_date;
+                return d && new Date(d) >= periodStartForFilter;
+            });
 
             // Calculate PnL for this account — deduplicate closed trades by ticket first
             // (bridge can create duplicate closed records for same ticket; only count each ticket once)
