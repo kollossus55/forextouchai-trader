@@ -30,7 +30,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ColoredSlider } from '@/components/ui/colored-slider';
 import SignalCard from '@/components/dashboard/SignalCard';
 import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
-import RunningTradesSummary from '@/components/dashboard/RunningTradesSummary';
 
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -701,29 +700,7 @@ export default function Overview() {
           
 
 
-          <RunningTradesSummary
-            trades={trades}
-            connections={connections || []}
-            lastSync={activeConnection?.last_sync}
-            onRefresh={async () => {
-              const toastId = toast.loading('Waiting for MT4 sync...');
-              try {
-                await new Promise(resolve => setTimeout(resolve, 6000));
-                const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
-                const freshTrades = myAccountNumbers.length > 0
-                  ? (await Promise.all(
-                      myAccountNumbers.map(acctNum =>
-                        base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
-                      )
-                    )).flat()
-                  : await base44.entities.Trade.filter({ status: 'OPEN' }, '-updated_date', 200);
-                queryClient.setQueryData(['trades-home'], freshTrades);
-                toast.success(`Synced - ${freshTrades.length} open trade${freshTrades.length !== 1 ? 's' : ''}`, { id: toastId });
-              } catch (e) {
-                toast.error('Sync failed: ' + e.message, { id: toastId });
-              }
-            }}
-          />
+
 
           {/* Market News */}
           <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
