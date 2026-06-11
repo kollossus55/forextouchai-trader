@@ -37,10 +37,10 @@ const PAIR_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
-    signals:     5_000,  // 5s   — keep very fresh to avoid stale ACTIVE signal blocking
+    signals:    15_000,  // 15s  — reduced from 5s to cut DB hammering
     trades:     60_000,  // 60s  — trade list cache
-    risk:      120_000,  // 2min — risk settings
-    connection: 20_000,  // 20s  — heartbeat throttle
+    risk:      180_000,  // 3min — risk settings (was 2min)
+    connection: 30_000,  // 30s  — heartbeat throttle (was 20s)
     pairMap:   300_000,  // 5min — currency pair map
 };
 
@@ -194,7 +194,23 @@ Deno.serve(async (req) => {
                 .then(data => { cache.risk = { data, ts: now }; return data; })
                 .catch(() => cache.risk.data || []);
 
-        const [allPendingSignals, riskSettingsList] = await Promise.all([signalsPromise, riskPromise]);
+        let allPendingSignals, riskSettingsList;
+        try {
+            [allPendingSignals, riskSettingsList] = await Promise.all([signalsPromise, riskPromise]);
+        } catch (e) {
+            console.warn('[BRIDGE] Rate limited on signals/risk fetch — returning empty signals:', e.message);
+            return Response.json({
+                success: true,
+                account: acctKey,
+                timestamp: new Date().toISOString(),
+                heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
+                price_update_ts: body.last_price_update || 0,
+                last_reconcile: body.last_reconcile || 0,
+                last_risk_check: body.last_risk_check || 0,
+                pending_signals: [],
+                message: 'rate_limited',
+            }, { headers: corsHeaders() });
+        }
 
         // ── 3. Reconcile trades (server-driven throttle, locked per account) ─
         // NOTE: Reconcile runs ALWAYS even when trading is paused, so DB stays in sync with EA
