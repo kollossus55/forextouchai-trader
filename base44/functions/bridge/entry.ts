@@ -407,12 +407,30 @@ Deno.serve(async (req) => {
             if (nowTs - lastAlert > BRIDGE_ERROR_ALERT_THROTTLE_MS) {
                 lastBridgeErrorAlert[acctKeyForAlert] = nowTs;
                 const base44Alert = createClientFromRequest(req);
+
+                // Write in-app alert
                 await base44Alert.asServiceRole.entities.Alert.create({
                     title: '⚠️ Bridge Sync Error',
                     message: `MT4/MT5 bridge failed for account ${acctKeyForAlert}: ${error.message}`,
                     type: 'ERROR',
                     is_read: false,
                 }).catch(e => console.error('[BRIDGE] Failed to write error alert:', e.message));
+
+                // Send email to account owner
+                try {
+                    const connRecords = await base44Alert.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKeyForAlert });
+                    const ownerEmail = connRecords?.[0]?.owner_email || null;
+                    if (ownerEmail) {
+                        await base44Alert.asServiceRole.integrations.Core.SendEmail({
+                            to: ownerEmail,
+                            subject: '⚠️ ForexTouchAI - Bridge Sync Error',
+                            body: `Your MT4/MT5 bridge encountered an error for account ${acctKeyForAlert}.\n\nError: ${error.message}\n\nTime: ${new Date().toLocaleString()}\n\nPlease check the Alerts tab in your ForexTouchAI dashboard for more details.`,
+                        });
+                        console.log('[BRIDGE] Error notification email sent to', ownerEmail);
+                    }
+                } catch (emailErr) {
+                    console.error('[BRIDGE] Failed to send error email:', emailErr.message);
+                }
             }
         } catch (_) { /* never let alert logic break the error response */ }
 
