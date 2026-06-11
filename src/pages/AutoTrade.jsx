@@ -411,7 +411,7 @@ export default function AutoTrade() {
 
         <TabsContent value="bots" className="mt-0">
           <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="bots-grid" direction="horizontal">
+            <Droppable droppableId="bots-grid" direction="vertical">
               {(provided) => (
                 <div
                   className="grid grid-cols-1 lg:grid-cols-2 gap-6"
