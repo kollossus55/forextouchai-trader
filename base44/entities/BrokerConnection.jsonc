@@ -69,6 +69,11 @@
     "owner_email": {
       "type": "string",
       "description": "Email of the user who owns this broker connection"
+    },
+    "open_trade_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of currently open trades on this account (synced by bridge)"
     }
   },
   "required": [

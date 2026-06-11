@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
         const connCache = cache.connections[acctKey] || { data: null, ts: 0 };
         if (!isFresh(connCache, TTL.connection)) {
             cache.connections[acctKey] = { data: true, ts: now };
+            const eaTradesForCount = body.trades || acct.trades;
             const updateData = {
                 connection_status: 'CONNECTED',
                 last_sync: new Date().toISOString(),
@@ -152,6 +153,7 @@ Deno.serve(async (req) => {
                 ...(currency && { currency }),
                 ...(platform && { platform }),
                 ...(server_name && { server_name }),
+                ...(Array.isArray(eaTradesForCount) && { open_trade_count: eaTradesForCount.length }),
             };
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });

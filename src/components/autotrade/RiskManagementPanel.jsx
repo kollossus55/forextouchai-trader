@@ -115,7 +115,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
     return true;
   });
   const openTrades = (trades || []).filter(t => t.status === 'OPEN' && String(t.owner_email) === String(acctKey));
-  const openCount = openTrades.length;
+  // Use live count from bridge heartbeat if DB trades aren't synced yet
+  const openCount = openTrades.length > 0 ? openTrades.length : (conn.open_trade_count ?? 0);
   const closedPnl = todayClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const dailyPnl = closedPnl + floatingPnl;
