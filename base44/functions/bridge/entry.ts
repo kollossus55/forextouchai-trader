@@ -26,6 +26,10 @@ const initPromise = {}; // keyed by account_number → Promise<void> | null
 // Per-ticket create lock: prevents concurrent creates for the same ticket across requests
 const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 
+// Bridge error alert throttle: prevent spamming alerts (max 1 per account per 10 min)
+const lastBridgeErrorAlert = {}; // keyed by acctKey → timestamp
+const BRIDGE_ERROR_ALERT_THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
+
 // In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
 const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
 const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
@@ -392,6 +396,26 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('[BRIDGE ERROR]', error.message);
+
+        // Write an alert record (throttled per account to avoid spam)
+        try {
+            const bodyText = await req.clone().text().catch(() => '{}');
+            const bodyParsed = JSON.parse(bodyText.replace(/\0/g, '').trim() || '{}');
+            const acctKeyForAlert = String((bodyParsed.account || bodyParsed)?.account_number || 'unknown');
+            const nowTs = Date.now();
+            const lastAlert = lastBridgeErrorAlert[acctKeyForAlert] || 0;
+            if (nowTs - lastAlert > BRIDGE_ERROR_ALERT_THROTTLE_MS) {
+                lastBridgeErrorAlert[acctKeyForAlert] = nowTs;
+                const base44Alert = createClientFromRequest(req);
+                await base44Alert.asServiceRole.entities.Alert.create({
+                    title: '⚠️ Bridge Sync Error',
+                    message: `MT4/MT5 bridge failed for account ${acctKeyForAlert}: ${error.message}`,
+                    type: 'ERROR',
+                    is_read: false,
+                }).catch(e => console.error('[BRIDGE] Failed to write error alert:', e.message));
+            }
+        } catch (_) { /* never let alert logic break the error response */ }
+
         return Response.json({ error: error.message }, { status: 500, headers: corsHeaders() });
     }
 });
