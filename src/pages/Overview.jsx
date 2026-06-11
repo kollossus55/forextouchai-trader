@@ -95,13 +95,14 @@ export default function Overview() {
     }
   }, [activeConnection]);
 
+  const accountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
+
   const { data: tradesRaw } = useQuery({
-    queryKey: ['trades-home'],
+    queryKey: ['trades-home', accountNumbers],
     queryFn: async () => {
-      const myAccountNumbers = (connections || []).map(c => c.account_number).filter(Boolean);
-      if (myAccountNumbers.length === 0) return [];
+      if (accountNumbers.length === 0) return [];
       const result = await Promise.all(
-        myAccountNumbers.map(acctNum =>
+        accountNumbers.map(acctNum =>
           base44.entities.Trade.filter({ status: 'OPEN', owner_email: acctNum }, '-updated_date', 200)
         )
       );
@@ -110,7 +111,7 @@ export default function Overview() {
     refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
-    enabled: (connections?.length ?? 0) > 0,
+    enabled: accountNumbers.length > 0,
   });
 
   const trades = tradesRaw ?? [];
