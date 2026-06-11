@@ -35,7 +35,8 @@ export default function IndicatorPanel({ indicators, currentPrice }) {
   const macdSignal = getMACDSignal(indicators.macd?.histogram || 0);
   const bbPosition = getBBPosition(indicators.bollingerBands?.percentB || 50);
   const stochStatus = getStochasticStatus(indicators.stochastic?.k || 50);
-  const priceVsEMA = currentPrice > indicators.ema200 ? 'Above' : 'Below';
+  const ema200Val = typeof indicators.ema200 === 'object' ? indicators.ema200?.value : indicators.ema200;
+  const priceVsEMA = currentPrice > ema200Val ? 'Above' : 'Below';
 
   return (
     <div className="space-y-3">
@@ -133,18 +134,18 @@ export default function IndicatorPanel({ indicators, currentPrice }) {
 
         <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/50">
           <div className="text-xs font-medium text-slate-400 mb-2">EMA (200)</div>
-          <Badge className={`text-[10px] h-5 mb-2 ${currentPrice > indicators.ema200 ? 'text-emerald-400' : 'text-rose-400'} bg-slate-800 border-slate-700`}>
+          <Badge className={`text-[10px] h-5 mb-2 ${currentPrice > ema200Val ? 'text-emerald-400' : 'text-rose-400'} bg-slate-800 border-slate-700`}>
             Price {priceVsEMA}
           </Badge>
           <div className="text-[10px]">
             <div className="flex justify-between">
               <span className="text-slate-500">Value</span>
-              <span className="text-white font-mono">{indicators.ema200?.toFixed(5) || 0}</span>
+              <span className="text-white font-mono">{ema200Val ? Number(ema200Val).toFixed(5) : '—'}</span>
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-slate-500">Distance</span>
-              <span className={`font-mono font-bold ${currentPrice > indicators.ema200 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {(((currentPrice - indicators.ema200) / indicators.ema200) * 100).toFixed(2)}%
+              <span className={`font-mono font-bold ${currentPrice > ema200Val ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {ema200Val ? (((currentPrice - ema200Val) / ema200Val) * 100).toFixed(2) + '%' : '—'}
               </span>
             </div>
           </div>

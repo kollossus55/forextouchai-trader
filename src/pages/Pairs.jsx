@@ -37,6 +37,7 @@ import IndicatorPanel from '@/components/market/IndicatorPanel';
 import IndicatorCharts from '@/components/market/IndicatorCharts';
 import AdvancedChart from '@/components/charts/AdvancedChart';
 import { MarketDataService } from '@/components/services/MarketDataService';
+import { recordTick, computeSignal } from '@/components/services/SignalEngine';
 
 export default function Pairs() {
   const queryClient = useQueryClient();
@@ -58,6 +59,7 @@ export default function Pairs() {
   const [liveData, setLiveData] = useState({});
   const [pairIndicators, setPairIndicators] = useState({});
   const [pairChartData, setPairChartData] = useState({});
+  const [pairFactors, setPairFactors] = useState({}); // signal factor breakdown per pair
 
   const { data: pairs, isLoading } = useQuery({
     queryKey: ['pairs'],
@@ -82,107 +84,85 @@ export default function Pairs() {
     MarketDataService.initialize();
   }, []);
 
-  // Sync with MarketDataService & Simulate AI
+  // Sync with MarketDataService & compute REAL indicator-based signals
   useEffect(() => {
     if (pairs.length === 0) return;
 
-    const getTimeframeSignal = (pair, tf) => {
-        // Deterministic signal generation based on Timeframe + Time Bucket + Pair
-        const tfDurations = { 
-            'M1': 60000, 
-            'M5': 300000, 
-            'M15': 900000, 
-            'H1': 3600000, 
-            'H4': 14400000, 
-            'D1': 86400000 
-        };
-        const duration = tfDurations[tf] || 3600000;
-        const bucket = Math.floor(Date.now() / duration);
-
-        // Simple hash function
-        const seed = pair.symbol + tf + bucket;
-        let hash = 0;
-        for (let i = 0; i < seed.length; i++) {
-            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-            hash |= 0;
-        }
-        const rand = Math.abs(hash);
-
-        // Calculate Confidence (Base + Volatility Noise)
-        const baseConfidence = 60 + (rand % 35); // 60-95%
-
-        // Determine Direction
-        // Strong bias towards 24h trend if confidence is high
-        const trend = pair.change_24h > 0 ? 'BUY' : 'SELL';
-        const counterTrend = pair.change_24h > 0 ? 'SELL' : 'BUY';
-
-        // 70% chance to follow trend, 30% chance for counter-trend/correction
-        const direction = (rand % 100) < 70 ? trend : counterTrend;
-
-        // Only signal if confidence > 75
-        let signal = 'NEUTRAL';
-        if (baseConfidence > 75) {
-            signal = direction;
-        }
-
-        return { signal, confidence: baseConfidence };
-    };
-
-    const interval = setInterval(async () => {
-      // Ensure we have the latest data
+    // Tick accumulator: fires every second for live price feed
+    const tickInterval = setInterval(async () => {
       await MarketDataService.fetchAll();
 
       setLiveData(prev => {
         const next = { ...prev };
-
         pairs.forEach(pair => {
-            // Get real price from service
-            const realPrice = MarketDataService.getPrice(pair.symbol);
+          const realPrice = MarketDataService.getPrice(pair.symbol);
+          // Record tick into SignalEngine history store
+          recordTick(pair.symbol, realPrice);
 
-            // Init or Get Current State
-            let current = next[pair.id];
-            if (!current) {
-                const history = [];
-                // Backfill dummy history
-                for (let i = 0; i < 20; i++) {
-                   history.push({ time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002) });
-                }
-                current = {
-                    current_price: realPrice,
-                    change_24h: pair.change_24h,
-                    history,
-                    ai_confidence: 0,
-                    ai_signal: 'NEUTRAL',
-                    signal_timestamp: Date.now()
-                };
-            }
-
-            // Update Price History
-            const newHistory = [...current.history.slice(1), { time: Date.now(), price: realPrice }];
-
-            // Get Stable Signal for current timeframe
-            const { signal, confidence } = getTimeframeSignal(pair, timeframe);
-
-            // Track when signal last changed
-            const signalChanged = current.ai_signal !== signal;
-            const signalTimestamp = signalChanged ? Date.now() : (current.signal_timestamp || Date.now());
-
-            next[pair.id] = {
-                ...current,
-                current_price: realPrice,
-                change_24h: pair.change_24h, 
-                history: newHistory,
-                ai_confidence: confidence,
-                ai_signal: signal,
-                signal_timestamp: signalTimestamp
-            };
+          let current = next[pair.id];
+          if (!current) {
+            const history = Array.from({ length: 20 }, (_, i) => ({
+              time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002)
+            }));
+            current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: 0, ai_signal: 'NEUTRAL', signal_timestamp: Date.now() };
+          }
+          const newHistory = [...current.history.slice(-49), { time: Date.now(), price: realPrice }];
+          next[pair.id] = { ...current, current_price: realPrice, change_24h: pair.change_24h, history: newHistory };
         });
-
         return next;
       });
-    }, 1000); 
+    }, 1000);
 
-    return () => clearInterval(interval);
+    // Signal recalculator: fires every 30 seconds using real indicators
+    const signalInterval = setInterval(() => {
+      pairs.forEach(pair => {
+        const price = MarketDataService.getPrice(pair.symbol);
+        if (!price || price <= 0) return;
+
+        const result = computeSignal(pair.symbol, timeframe, price);
+
+        setLiveData(prev => {
+          const current = prev[pair.id] || {};
+          const signalChanged = current.ai_signal !== result.signal;
+          return {
+            ...prev,
+            [pair.id]: {
+              ...current,
+              ai_signal: result.signal,
+              ai_confidence: result.confidence,
+              signal_timestamp: signalChanged ? Date.now() : (current.signal_timestamp || Date.now())
+            }
+          };
+        });
+
+        // Store indicators + chart candles + factors for the modal
+        setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
+        setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
+        setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
+      });
+    }, 30000);
+
+    // Run signal calculation immediately on mount / timeframe change
+    setTimeout(() => {
+      pairs.forEach(pair => {
+        const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
+        const result = computeSignal(pair.symbol, timeframe, price);
+        setLiveData(prev => ({
+          ...prev,
+          [pair.id]: {
+            ...(prev[pair.id] || {}),
+            ai_signal: result.signal,
+            ai_confidence: result.confidence,
+            signal_timestamp: Date.now()
+          }
+        }));
+        setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
+        setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
+        setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
+      });
+    }, 1500);
+
+    return () => { clearInterval(tickInterval); clearInterval(signalInterval); };
   }, [pairs, timeframe]);
 
   const sendSignal = useMutation({
@@ -266,86 +246,15 @@ export default function Pairs() {
     setDetailsModalOpen(true);
     
     // Always recalculate indicators when modal opens
-    const calculatePairIndicators = async () => {
-      try {
-        const response = await base44.functions.invoke('analyzeMarket', {
-          pairs: [pair.symbol],
-          marketData: { [pair.symbol]: pair.current_price },
-          minConfidence: 50,
-          indicators: ['RSI', 'MACD', 'Bollinger Bands', 'EMA', 'Stochastic'],
-          timeframe
-        });
-        
-        const result = response.data || response;
-        
-        // analyzeMarket returns a single signal with calculated_indicators snapshot.
-        // Build normalised indicator object for IndicatorPanel.
-        const raw = result.calculated_indicators || {};
-        const price = pair.current_price || 1;
-        const pipSize = (pair.symbol || '').toUpperCase().includes('JPY') ? 0.01 : 0.0001;
-
-        const indicators = {
-          rsi: typeof raw.rsi === 'number' ? raw.rsi : 50,
-          macd: {
-            value:     typeof raw.macd_value === 'number' ? raw.macd_value : 0.0002,
-            signal:    typeof raw.macd_signal_line === 'number' ? raw.macd_signal_line : 0.0001,
-            histogram: typeof raw.macd_histogram === 'number' ? raw.macd_histogram
-                       : (raw.macd_signal === 'Bullish' ? 0.0003 : raw.macd_signal === 'Bearish' ? -0.0003 : 0)
-          },
-          bollingerBands: {
-            upper:    price * 1.002,
-            middle:   price,
-            lower:    price * 0.998,
-            percentB: typeof raw.bb_position === 'string'
-              ? (raw.bb_position.toLowerCase().includes('upper') ? 80 : raw.bb_position.toLowerCase().includes('lower') ? 20 : 50)
-              : 50
-          },
-          stochastic: {
-            k: typeof raw.stochastic === 'number' ? raw.stochastic : 50,
-            d: typeof raw.stochastic === 'number' ? raw.stochastic * 0.95 : 48
-          },
-          ema200: raw.ema_trend === 'Bullish' ? price * 0.995 : price * 1.005,
-          atr: { value: price * 0.003 }
-        };
-
-        setPairIndicators(prev => ({ ...prev, [pair.id]: indicators }));
-
-        // Build 50-candle synthetic historical series so IndicatorCharts has data to render.
-        const candles = [];
-        let p = price * 0.99;
-        for (let i = 0; i < 50; i++) {
-          p = p * (1 + (Math.random() - 0.49) * 0.0012);
-          const spread = p * 0.001;
-          // Simulate indicator values that converge towards the snapshot at the last bar
-          const t = i / 49; // 0 → 1
-          const rsiVal = 50 + (indicators.rsi - 50) * t + (Math.random() - 0.5) * 8;
-          const macdHist = indicators.macd.histogram * t + (Math.random() - 0.5) * 0.0002;
-          candles.push({
-            close: p,
-            high:  p + spread,
-            low:   p - spread,
-            indicators: {
-              rsi:         Math.min(100, Math.max(0, rsiVal)),
-              macdHistogram: macdHist,
-              macdValue:   indicators.macd.value * t,
-              macdSignal:  indicators.macd.signal * t,
-              bbUpper:     p * (1 + 0.002 * (1 + (1 - t) * 0.5)),
-              bbMiddle:    p,
-              bbLower:     p * (1 - 0.002 * (1 + (1 - t) * 0.5)),
-              stochK:      50 + (indicators.stochastic.k - 50) * t + (Math.random() - 0.5) * 10,
-              stochD:      50 + (indicators.stochastic.d - 50) * t + (Math.random() - 0.5) * 8,
-              ema200:      indicators.ema200
-            }
-          });
-        }
-
-        setPairChartData(prev => ({ ...prev, [pair.id]: candles }));
-      } catch (e) {
-        console.error('Failed to calculate indicators:', e);
-      }
-    };
-    
-    calculatePairIndicators();
+    // Indicators are already computed by the SignalEngine every 30s.
+    // If not yet available (first open), compute immediately.
+    if (!pairIndicators[pair.id]) {
+      const price = pair.current_price || 1;
+      const result = computeSignal(pair.symbol, timeframe, price);
+      setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
+      setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
+      setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
+    }
   };
 
   const getManualPipSize = (symbol) => {
@@ -549,12 +458,12 @@ export default function Pairs() {
              />
           </div>
 
-          {/* AI Analysis Section */}
+          {/* Signal Section */}
           <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/50 mb-4">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-1.5">
                 <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-xs font-semibold text-slate-300">AI Analysis</span>
+                <span className="text-xs font-semibold text-slate-300">Technical Signal</span>
               </div>
               <div className="flex items-center gap-1.5">
                 {signalAge && (
@@ -563,9 +472,9 @@ export default function Pairs() {
                     <span>{signalAge}</span>
                   </div>
                 )}
-                <Badge className={`text-[10px] h-5 px-2 ${
-                  pair.ai_signal === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 
-                  pair.ai_signal === 'SELL' ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 
+                <Badge className={`text-[10px] h-5 px-2 font-bold ${
+                  pair.ai_signal === 'BUY'  ? 'bg-emerald-500/20 text-emerald-400' : 
+                  pair.ai_signal === 'SELL' ? 'bg-rose-500/20 text-rose-400' : 
                   'bg-slate-700/20 text-slate-400'
                 }`}>
                   {pair.ai_signal || 'NEUTRAL'}
@@ -575,16 +484,28 @@ export default function Pairs() {
             
             <div className="space-y-1.5">
               <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Confidence</span>
-                <span className={pair.ai_confidence > 80 ? 'text-emerald-400' : 'text-slate-300'}>
+                <span>Indicator Confidence</span>
+                <span className={pair.ai_confidence > 80 ? 'text-emerald-400' : pair.ai_confidence > 65 ? 'text-amber-400' : 'text-slate-300'}>
                   {pair.ai_confidence || 0}%
                 </span>
               </div>
               <Progress 
                 value={pair.ai_confidence || 0} 
                 className="h-1 bg-slate-800" 
-                indicatorClassName={pair.ai_signal === 'SELL' ? 'bg-rose-500' : 'bg-emerald-500'} 
+                indicatorClassName={pair.ai_signal === 'SELL' ? 'bg-rose-500' : pair.ai_signal === 'BUY' ? 'bg-emerald-500' : 'bg-slate-600'} 
               />
+              {/* Mini factor pills */}
+              {pairFactors[pair.id]?.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {pairFactors[pair.id].slice(0, 4).map((f, i) => (
+                    <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${
+                      f.direction === 'BUY'  ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' :
+                      f.direction === 'SELL' ? 'border-rose-500/30 text-rose-400 bg-rose-500/10' :
+                      'border-slate-700 text-slate-500'
+                    }`}>{f.name.replace(' (Bullish)', '').replace(' (Bearish)', '')}</span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           
@@ -857,7 +778,7 @@ export default function Pairs() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-6">
-            {selectedPairDetails && pairIndicators[selectedPairDetails.id] ? (
+            {selectedPairDetails && pairIndicators[selectedPairDetails.id] && pairChartData[selectedPairDetails.id]?.length > 0 ? (
               <>
                 {/* Chart Mode Toggle */}
                 <div className="flex justify-end">
@@ -893,6 +814,27 @@ export default function Pairs() {
                   )}
                 </div>
                 
+                {/* Signal Factor Breakdown */}
+                {pairFactors[selectedPairDetails.id]?.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                      <BrainCircuit className="w-4 h-4 text-purple-400" /> Signal Factor Breakdown
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {pairFactors[selectedPairDetails.id].map((f, i) => (
+                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border text-xs ${
+                          f.direction === 'BUY'  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' :
+                          f.direction === 'SELL' ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' :
+                          'bg-slate-800/50 border-slate-700 text-slate-400'
+                        }`}>
+                          <span>{f.name}</span>
+                          <span className="font-bold ml-2">{f.direction === 'NEUTRAL' ? '—' : `+${f.score}`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Values Panel */}
                 <div>
                   <h3 className="text-sm font-semibold text-slate-300 mb-3">Current Values</h3>
