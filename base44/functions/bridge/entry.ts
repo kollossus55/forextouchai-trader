@@ -154,11 +154,22 @@ Deno.serve(async (req) => {
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
                 if (conns?.length > 0) {
-                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, updateData);
+                    // Also backfill owner_email if missing (e.g. accounts added before this fix)
+                    const patch = { ...updateData };
+                    if (!conns[0].owner_email) {
+                        const keyRec = await base44.asServiceRole.entities.EaApiKey.list('-created_date', 1).catch(() => []);
+                        if (keyRec?.[0]?.owner_email) patch.owner_email = keyRec[0].owner_email;
+                    }
+                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, patch);
                 } else {
+                    // Lookup owner from EaApiKey so signals route correctly to new accounts
+                    let ownerEmailNew = null;
+                    const keyRec = await base44.asServiceRole.entities.EaApiKey.list('-created_date', 1).catch(() => []);
+                    if (keyRec?.[0]?.owner_email) ownerEmailNew = keyRec[0].owner_email;
                     await base44.asServiceRole.entities.BrokerConnection.create({
                         ...updateData, account_number: acctKey,
                         server_name: server_name || 'Unknown', platform: platform || 'MT4',
+                        ...(ownerEmailNew && { owner_email: ownerEmailNew }),
                     });
                 }
             })().catch(e => console.error('[BRIDGE] Connection update error:', e.message));
