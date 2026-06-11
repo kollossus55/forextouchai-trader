@@ -444,12 +444,69 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                     )}
                 </div>
             </div>
-              {formData.use_ai_risk && (
+              {/* Advanced Risk Controls */}
+              <div className="p-4 rounded border border-slate-800 bg-slate-950/30 space-y-4">
+                <Label className="text-rose-200">Advanced Controls</Label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-400">Max Spread (Pips)</Label>
+                    <Input
+                      type="number" step="0.5" min="0"
+                      value={formData.max_spread_pips ?? 3}
+                      onChange={e => setFormData({...formData, max_spread_pips: parseFloat(e.target.value)})}
+                      className="bg-slate-950 border-slate-800 h-8 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">Skip trade if spread exceeds this.</p>
+                  </div>
+                  <div className="flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-slate-400">Hide SL/TP from Broker</Label>
+                      <Switch
+                        checked={formData.hide_sl_tp || false}
+                        onCheckedChange={v => setFormData({...formData, hide_sl_tp: v})}
+                        className="data-[state=checked]:bg-amber-600"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-slate-400">News Filter</Label>
+                      <Switch
+                        checked={formData.enable_news_filter || false}
+                        onCheckedChange={v => setFormData({...formData, enable_news_filter: v})}
+                        className="data-[state=checked]:bg-blue-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-400 flex justify-between">Close All at Profit % <span className="text-emerald-400">0 = off</span></Label>
+                    <Input
+                      type="number" step="0.5" min="0"
+                      value={formData.close_all_at_profit_percent ?? 0}
+                      onChange={e => setFormData({...formData, close_all_at_profit_percent: parseFloat(e.target.value)})}
+                      className="bg-slate-950 border-slate-800 h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-400 flex justify-between">Close All at Loss % <span className="text-rose-400">0 = off</span></Label>
+                    <Input
+                      type="number" step="0.5" min="0"
+                      value={formData.close_all_at_loss_percent ?? 0}
+                      onChange={e => setFormData({...formData, close_all_at_loss_percent: parseFloat(e.target.value)})}
+                      className="bg-slate-950 border-slate-800 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+               {formData.use_ai_risk && (
                    <div className="text-xs text-emerald-400 text-center italic">
                        AI will automatically override manual settings based on real-time market conditions.
                    </div>
-              )}
-            </TabsContent>
+               )}
+              </TabsContent>
 
             {/* Schedule Tab */}
             <TabsContent value="schedule" className="space-y-4 mt-4 bg-gradient-to-br from-blue-900/10 to-slate-900/50 p-4 rounded-lg border border-blue-500/20">
@@ -560,6 +617,42 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                   placeholder="0 for unlimited"
                 />
                 <p className="text-xs text-slate-500">Maximum trades per day (0 = unlimited). Prevents overtrading.</p>
+              </div>
+
+              {/* Trailing Stop Section */}
+              <div className="p-4 rounded border border-purple-800/40 bg-purple-950/20 space-y-4 mt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-purple-200 flex items-center gap-2">
+                    <Zap className="w-3 h-3" /> Trailing Stop Loss
+                  </Label>
+                  <Switch
+                    checked={formData.enable_trailing_stop || false}
+                    onCheckedChange={v => setFormData({...formData, enable_trailing_stop: v})}
+                    className="data-[state=checked]:bg-purple-600"
+                  />
+                </div>
+                {formData.enable_trailing_stop && (
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-400">Trail Distance (Pips)</Label>
+                      <Input
+                        type="number" min="1"
+                        value={formData.trailing_stop_pips ?? 20}
+                        onChange={e => setFormData({...formData, trailing_stop_pips: parseInt(e.target.value)})}
+                        className="bg-slate-950 border-slate-800 h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-400">Start Trailing After (Pips)</Label>
+                      <Input
+                        type="number" min="1"
+                        value={formData.trailing_start_pips ?? 30}
+                        onChange={e => setFormData({...formData, trailing_start_pips: parseInt(e.target.value)})}
+                        className="bg-slate-950 border-slate-800 h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
