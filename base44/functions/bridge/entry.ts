@@ -1,5 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ─── Global request lock: serialize bridge processing to prevent rate-limit exhaustion ──
+// When both MT4 and MT5 call simultaneously, the combined DB operations (10+ per call)
+// overwhelm Base44 API rate limits. This lock ensures one account processes at a time.
+let globalLockPromise = null; // Promise | null — all requests queue behind this
+const GLOBAL_LOCK_TIMEOUT_MS = 15_000; // max wait time before proceeding anyway
+let globalLockOwner = null; // account currently holding the lock
+let globalLockAcquiredAt = 0;
+
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
 const MIN_CALL_INTERVAL_MS = 10_000; // 10 seconds minimum between calls per account
@@ -63,6 +71,8 @@ Deno.serve(async (req) => {
 
     try {
         const base44 = createClientFromRequest(req);
+        let releaseLock = null; // declared early so catch block can reference it safely
+        let lockSafetyTimer = null;
 
         const rawText = await req.text();
         const cleanText = rawText.replace(/\0/g, '').trim();
@@ -98,6 +108,39 @@ Deno.serve(async (req) => {
 
         const acctKey = String(account_number);
 
+        // ── Global request lock: serialize processing to prevent dual-account rate limit exhaustion ──
+        // Without this, MT4+MT5 calling simultaneously each trigger 10+ DB ops → Base44 rate limits → 500s
+        if (globalLockPromise) {
+            const lockAge = now - globalLockAcquiredAt;
+            if (globalLockOwner === acctKey && lockAge < 2000) {
+                // Same account re-calling within 2s — skip lock, process immediately (EA heartbeat retry)
+            } else if (lockAge < GLOBAL_LOCK_TIMEOUT_MS) {
+                // Different account or same account after 2s — wait for lock to release
+                try {
+                    await Promise.race([
+                        globalLockPromise,
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('lock_timeout')), GLOBAL_LOCK_TIMEOUT_MS - lockAge))
+                    ]);
+                } catch (_) {
+                    // Timeout or lock rejection — proceed anyway with warning
+                    console.warn(`[BRIDGE] Global lock timeout for ${acctKey} — proceeding without lock`);
+                }
+            }
+            // Lock released or timed out — continue
+        }
+
+        // Acquire the global lock
+        globalLockPromise = new Promise(resolve => { releaseLock = resolve; });
+        globalLockOwner = acctKey;
+        globalLockAcquiredAt = now;
+        // Safety timeout: auto-release lock after 30s if something crashes mid-processing
+        lockSafetyTimer = setTimeout(() => {
+            if (globalLockOwner === acctKey && globalLockPromise) {
+                console.warn(`[BRIDGE] Safety timeout releasing global lock for ${acctKey}`);
+                if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
+            }
+        }, 30_000);
+
         // ── Rate limit: reject if called too frequently ───────────────────────
         const lastCall = lastCallTs[acctKey] || 0;
         const isRateLimited = (now - lastCall) < MIN_CALL_INTERVAL_MS;
@@ -114,6 +157,7 @@ Deno.serve(async (req) => {
         }
 
         if (isRateLimited) {
+            if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
             return Response.json({
                 success: true,
                 account: acctKey,
@@ -206,6 +250,7 @@ Deno.serve(async (req) => {
             [allPendingSignals, riskSettingsList] = await Promise.all([signalsPromise, riskPromise]);
         } catch (e) {
             console.warn('[BRIDGE] Rate limited on signals/risk fetch — returning empty signals:', e.message);
+            if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
             return Response.json({
                 success: true,
                 account: acctKey,
@@ -254,6 +299,7 @@ Deno.serve(async (req) => {
         // Guard: if trading is paused, skip signal dispatch but return success (reconcile already ran above)
         if (riskSettings?.is_trading_paused === true) {
             console.log(`[BRIDGE] Trading paused for ${acctKey} — returning no signals`);
+            if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
             return Response.json({
                 success: true,
                 account: acctKey,
@@ -386,6 +432,7 @@ Deno.serve(async (req) => {
         const sanitizedSignals = freshSignals.map(s => sanitizeSignal(s, livePriceMap));
         console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals');
 
+        if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
         return Response.json({
             success: true,
             account: acctKey,
@@ -398,6 +445,7 @@ Deno.serve(async (req) => {
         }, { headers: corsHeaders() });
 
     } catch (error) {
+        if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
         console.error('[BRIDGE ERROR]', error.message);
 
         // Write an alert record (throttled per account to avoid spam)
