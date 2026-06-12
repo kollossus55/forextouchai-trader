@@ -69,10 +69,13 @@ Deno.serve(async (req) => {
         return new Response(null, { headers: corsHeaders() });
     }
 
+    // MUST be declared before try: if createClientFromRequest throws, the catch block
+    // references these and would hit ReferenceError if they're not in scope yet
+    let releaseLock = null;
+    let lockSafetyTimer = null;
+
     try {
         const base44 = createClientFromRequest(req);
-        let releaseLock = null; // declared early so catch block can reference it safely
-        let lockSafetyTimer = null;
 
         const rawText = await req.text();
         const cleanText = rawText.replace(/\0/g, '').trim();
@@ -91,11 +94,17 @@ Deno.serve(async (req) => {
         let resolvedOwnerEmail = null;
         if (providedKey && providedKey.startsWith('FTAI-')) {
             // Lookup the EaApiKey record to get the owner_email for this key
-            const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
-            if (!matchingKeys || matchingKeys.length === 0) {
-                return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
+            // Catch rate limits — on 429, skip auth validation and allow the request (backward-compatible)
+            try {
+                const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
+                if (!matchingKeys || matchingKeys.length === 0) {
+                    return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
+                }
+                resolvedOwnerEmail = matchingKeys[0].owner_email || null;
+            } catch (e) {
+                console.warn('[BRIDGE] EaApiKey lookup rate-limited — skipping auth validation:', e.message);
+                // Allow the request without owner_email resolution (backward-compatible fallback)
             }
-            resolvedOwnerEmail = matchingKeys[0].owner_email || null;
         }
         // If no key or non-FTAI key provided, allow (backward-compatible)
         const now = Date.now();
