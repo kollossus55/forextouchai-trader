@@ -388,9 +388,11 @@ export default function Overview() {
             </CardContent>
           </Card>
 
-          <DailyPerformanceCard balance={mt4Account.balance} />
         </div>
       </div>
+
+      {/* Bottom: Daily Performance - Full Width */}
+      <DailyPerformanceCard balance={mt4Account.balance} />
     </div>
   );
 }

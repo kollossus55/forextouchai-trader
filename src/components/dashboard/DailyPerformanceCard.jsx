@@ -27,32 +27,69 @@ export default function DailyPerformanceCard({ balance }) {
   const profitPct = balance > 0 ? (totalProfit / balance) * 100 : 0;
   const winRate = todayTrades.length > 0 ? (wins / todayTrades.length) * 100 : 0;
 
+  const largestWin = todayTrades.reduce((max, t) => ((t.pnl || 0) > (max.pnl || 0) ? t : max), { pnl: -Infinity });
+  const largestLoss = todayTrades.reduce((min, t) => ((t.pnl || 0) < (min.pnl || 0) ? t : min), { pnl: Infinity });
+  const hasLargestWin = largestWin?.pnl > 0;
+  const hasLargestLoss = largestLoss?.pnl < 0;
+
   return (
-    <Card className="bg-gradient-to-br from-emerald-900/20 to-slate-900 border-emerald-500/20">
+    <Card className="bg-gradient-to-br from-emerald-900/20 to-slate-900 border-emerald-500/20 shadow-xl">
       <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-white">Daily Performance</h3>
-          <Badge className={`border-0 ${totalProfit >= 0 ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-white">Daily Performance</h3>
+          <Badge className={`border-0 text-sm px-3 ${totalProfit >= 0 ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
             {totalProfit >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
           </Badge>
         </div>
-        <div className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">P&L Today</span>
-            <span className={`font-mono ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div className="bg-slate-950/80 rounded-lg p-3 border border-slate-800/50">
+            <p className="text-xs text-slate-500 mb-1">P&L Today</p>
+            <p className={`text-xl font-bold font-mono ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}
-            </span>
+            </p>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Trades</span>
-            <span className="text-slate-200 font-mono">{todayTrades.length} ({wins} Wins)</span>
+
+          <div className="bg-slate-950/80 rounded-lg p-3 border border-slate-800/50">
+            <p className="text-xs text-slate-500 mb-1">Trades</p>
+            <p className="text-xl font-bold text-white font-mono">{todayTrades.length}</p>
+            <p className="text-xs text-slate-400">{wins} Wins · {todayTrades.length - wins} Losses</p>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Lots</span>
-            <span className="text-slate-200 font-mono">{totalLots.toFixed(2)}</span>
+
+          <div className="bg-slate-950/80 rounded-lg p-3 border border-slate-800/50">
+            <p className="text-xs text-slate-500 mb-1">Largest Win</p>
+            {hasLargestWin ? (
+              <>
+                <p className="text-xl font-bold text-emerald-400 font-mono">+${largestWin.pnl.toFixed(2)}</p>
+                <p className="text-xs text-slate-400">{largestWin.pair?.replace('/', '')} · {largestWin.lot_size} lots</p>
+              </>
+            ) : (
+              <p className="text-xl font-bold text-slate-600 font-mono">--</p>
+            )}
           </div>
-          <Progress value={winRate} className="h-1.5 mt-2 bg-slate-800" indicatorClassName={winRate >= 50 ? "bg-emerald-500" : "bg-rose-500"} />
-          <p className="text-[10px] text-slate-500 text-right">{winRate.toFixed(0)}% win rate today</p>
+
+          <div className="bg-slate-950/80 rounded-lg p-3 border border-slate-800/50">
+            <p className="text-xs text-slate-500 mb-1">Largest Loss</p>
+            {hasLargestLoss ? (
+              <>
+                <p className="text-xl font-bold text-rose-400 font-mono">${largestLoss.pnl.toFixed(2)}</p>
+                <p className="text-xs text-slate-400">{largestLoss.pair?.replace('/', '')} · {largestLoss.lot_size} lots</p>
+              </>
+            ) : (
+              <p className="text-xl font-bold text-slate-600 font-mono">--</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-slate-500">Win Rate</span>
+              <span className="text-slate-300 font-mono">{winRate.toFixed(0)}%</span>
+            </div>
+            <Progress value={winRate} className="h-1.5 bg-slate-800" indicatorClassName={winRate >= 50 ? "bg-emerald-500" : "bg-rose-500"} />
+          </div>
+          <span className="text-xs text-slate-500 whitespace-nowrap">{totalLots.toFixed(2)} lots traded</span>
         </div>
       </CardContent>
     </Card>
