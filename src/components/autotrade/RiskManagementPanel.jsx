@@ -77,18 +77,17 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const resetMutation = useMutation({
     mutationFn: async () => {
       if (!existingRecord?.id) return;
-      // Reset limits/counters back to defaults but preserve is_trading_paused —
-      // pausing/resuming is a separate deliberate action via the Pause button
-      const { is_trading_paused: _keep, ...defaults } = DEFAULT_SETTINGS;
+      // Only reset tracking fields — keep all config settings (limits, thresholds, etc.) intact
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, {
-        ...defaults,
-        account_number: acctKey,
-        last_reset_date: new Date().toISOString()
+        daily_loss_current: 0,
+        peak_equity: conn.equity || conn.balance || 0,
+        last_reset_date: new Date().toISOString().split('T')[0],
+        is_trading_paused: false,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['risk-settings']);
-      toast.success(`Counters reset for account ${acctKey}`);
+      toast.success(`Counters reset for account ${acctKey} — settings preserved`);
     },
     onError: (err) => toast.error(`Reset failed: ${err.message}`)
   });
@@ -215,7 +214,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending || !existingRecord?.id}
             className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-9 text-sm">
-            <RotateCcw className="w-3 h-3 mr-1" /> Reset
+            <RotateCcw className="w-3 h-3 mr-1" /> Reset Counters
           </Button>
           <Button onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending} className="h-9 text-sm">
             <Save className="w-3 h-3 mr-1" /> Save
