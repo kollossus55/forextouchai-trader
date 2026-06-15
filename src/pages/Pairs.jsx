@@ -347,9 +347,10 @@ export default function Pairs() {
       };
   });
 
-  // Deduplicate pairs by symbol (keep the most recent one)
+  // Deduplicate pairs by symbol (normalize slash format, keep the most recent)
+  const normalizeSymbol = (s) => (s || '').replace('/', '').toUpperCase();
   const uniquePairs = mergedPairs.reduce((acc, pair) => {
-    const existing = acc.find(p => p.symbol === pair.symbol);
+    const existing = acc.find(p => normalizeSymbol(p.symbol) === normalizeSymbol(pair.symbol));
     if (!existing) {
       acc.push(pair);
     } else if (new Date(pair.created_date) > new Date(existing.created_date)) {
