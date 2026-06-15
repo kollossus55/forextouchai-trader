@@ -23,9 +23,11 @@ const DEFAULT_SETTINGS = {
   stop_trading_on_limit: true,
   daily_profit_target_percent: 0,
   daily_reset_hour: 0,
+  auto_resume_hours: 0,
   daily_loss_current: 0,
   peak_equity: 0,
-  is_trading_paused: false
+  is_trading_paused: false,
+  limit_hit_at: null
 };
 
 function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSaved }) {
@@ -128,6 +130,28 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const isAtRisk = dailyLossRisk >= formData.alert_threshold_percent || drawdownRisk >= formData.alert_threshold_percent || tradesRisk >= formData.alert_threshold_percent;
   const isBreached = dailyLossRisk >= 100 || drawdownRisk >= 100;
 
+  // Auto-resume countdown
+  const [countdown, setCountdown] = useState(null);
+  useEffect(() => {
+    if (!formData.is_trading_paused || !formData.auto_resume_hours || !formData.limit_hit_at) {
+      setCountdown(null);
+      return;
+    }
+    const calc = () => {
+      const hitAt = new Date(formData.limit_hit_at).getTime();
+      const resumeAt = hitAt + formData.auto_resume_hours * 60 * 60 * 1000;
+      const remaining = Math.max(0, resumeAt - Date.now());
+      if (remaining <= 0) { setCountdown(null); return; }
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      setCountdown(`${h}h ${m}m ${s}s`);
+    };
+    calc();
+    const iv = setInterval(calc, 1000);
+    return () => clearInterval(iv);
+  }, [formData.is_trading_paused, formData.auto_resume_hours, formData.limit_hit_at]);
+
   return (
     <div className="space-y-5">
       {/* Status bar */}
@@ -137,6 +161,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
           {isBreached && !formData.is_trading_paused && <Badge variant="destructive" className="animate-pulse flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Limit Breached</Badge>}
           {isAtRisk && !isBreached && <Badge className="bg-yellow-500/20 text-yellow-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> At Risk</Badge>}
           {!isAtRisk && !formData.is_trading_paused && <Badge className="bg-emerald-500/10 text-emerald-400">Normal</Badge>}
+          {countdown && <Badge className="bg-cyan-500/10 text-cyan-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Resume in {countdown}</Badge>}
         </div>
         <Button
           size="sm"
@@ -177,6 +202,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
             { label: 'Daily Profit Target (%) — 0=off', field: 'daily_profit_target_percent', step: 0.5, min: 0 },
             { label: 'Risk Per Trade (%)', field: 'risk_per_trade_percent', step: 0.1, min: 0.1 },
             { label: 'Daily Reset Hour (UTC 0–23)', field: 'daily_reset_hour', step: 1, min: 0, max: 23 },
+             { label: 'Auto-Resume Hours (0=off)', field: 'auto_resume_hours', step: 0.5, min: 0, max: 24 },
           ].map(({ label, field, step, min = 0, max = 100 }) => (
             <div key={field} className="space-y-1">
               <Label className="text-xs text-slate-300">{label}</Label>

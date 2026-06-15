@@ -43,6 +43,26 @@ Deno.serve(async (req) => {
             const equity = conn.equity || 0;
             if (!balance) continue;
 
+            // ── Auto-resume: if paused and auto_resume_hours is set, check if cooldown has elapsed ──
+            const autoResumeHours = riskSettings.auto_resume_hours || 0;
+            const limitHitAt = riskSettings.limit_hit_at ? new Date(riskSettings.limit_hit_at) : null;
+            if (riskSettings.is_trading_paused && autoResumeHours > 0 && limitHitAt) {
+                const elapsedMs = now.getTime() - limitHitAt.getTime();
+                const cooldownMs = autoResumeHours * 60 * 60 * 1000;
+                if (elapsedMs >= cooldownMs) {
+                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
+                        is_trading_paused: false,
+                        daily_loss_current: 0,
+                        last_reset_date: now.toISOString().split('T')[0],
+                        limit_hit_at: null,
+                    });
+                    console.log(`[monitorRiskLimits] Auto-resumed account ${acctKey} after ${autoResumeHours}h cooldown`);
+                    // Re-fetch riskSettings after the update so downstream checks use the fresh state
+                    const [refreshed] = await base44.asServiceRole.entities.RiskManagementSettings.filter({ account_number: acctKey }, '-created_date', 1);
+                    Object.assign(riskSettings, refreshed || { is_trading_paused: false, daily_loss_current: 0 });
+                }
+            }
+
             // Reset daily loss counter based on configurable reset hour (UTC)
             // e.g. daily_reset_hour=5 means reset happens at 05:00 UTC each day
             const resetHour = riskSettings.daily_reset_hour ?? 0;
@@ -117,7 +137,7 @@ Deno.serve(async (req) => {
                         type: 'ERROR',
                     });
                     if (riskSettings.stop_trading_on_limit) {
-                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
+                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                     }
                 } else if (dailyLossPercent >= riskSettings.max_daily_loss_percent * alertThreshold) {
                     alerts.push({
@@ -140,7 +160,7 @@ Deno.serve(async (req) => {
                         type: 'ERROR',
                     });
                     if (riskSettings.stop_trading_on_limit) {
-                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
+                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                     }
                 } else if (drawdownPercent >= riskSettings.max_drawdown_percent * alertThreshold) {
                     alerts.push({
@@ -171,7 +191,7 @@ Deno.serve(async (req) => {
 
                     // Pause trading FIRST — this is the primary dedup guard.
                     // Any subsequent monitor run will see is_trading_paused=true and skip this block entirely.
-                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true });
+                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
 
                     // Double-check: don't fire alert if one already exists for today for this account
                     const todayAlertTitle = `🎯 Daily Profit Target Reached! (Acct ${acctKey})`;

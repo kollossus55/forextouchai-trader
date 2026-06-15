@@ -67,6 +67,13 @@
       "maximum": 23,
       "description": "UTC hour at which the daily counters reset and trading resumes (0 = midnight UTC)"
     },
+    "auto_resume_hours": {
+      "type": "number",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 24,
+      "description": "Auto-resume trading this many hours after a limit breach or profit target pause (0 = disabled, only resets at daily_reset_hour)"
+    },
     "daily_loss_current": {
       "type": "number",
       "default": 0,
@@ -86,6 +93,11 @@
       "type": "boolean",
       "default": false,
       "description": "Flag indicating if trading is paused for this account due to risk limits"
+    },
+    "limit_hit_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the last limit breach or profit target pause occurred; used for auto-resume"
     }
   },
   "required": [],
