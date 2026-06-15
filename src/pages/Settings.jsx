@@ -338,15 +338,15 @@ export default function Settings() {
   };
 
   const handleResetTrades = async () => {
-      if (!window.confirm("Are you sure you want to delete ALL trades? This action cannot be undone.")) return;
+      if (!window.confirm("⚠️ This will DELETE all trades, signals, alerts AND reset risk counters. This cannot be undone. Continue?")) return;
 
       setIsResetting(true);
       try {
-          await base44.functions.invoke('resetData', { target: 'trades' });
-          toast.success("All trades have been reset successfully");
+          const res = await base44.functions.invoke('resetData', {});
+          toast.success(`Reset complete: ${res.data?.results?.trades_deleted || 0} trades, ${res.data?.results?.signals_deleted || 0} signals, ${res.data?.results?.alerts_deleted || 0} alerts cleared`);
       } catch (e) {
           console.error(e);
-          toast.error("Failed to reset trades");
+          toast.error("Failed to reset data");
       } finally {
           setIsResetting(false);
       }
@@ -1412,7 +1412,7 @@ string GetJsonValue(string json, string key) {
                         <Database className="w-5 h-5 text-rose-400" /> Data Management
                     </CardTitle>
                     <CardDescription className="text-slate-400">
-                        Reset simulation data and clear history
+                        Wipes all trades, signals, alerts and resets risk counters for a fresh start
                     </CardDescription>
                   </div>
                   <Button 
@@ -1422,7 +1422,7 @@ string GetJsonValue(string json, string key) {
                     disabled={isResetting}
                     className="bg-rose-600 hover:bg-rose-700"
                   >
-                    {isResetting ? 'Clearing...' : 'Reset All Trades'}
+                    {isResetting ? 'Clearing...' : 'Reset Everything'}
                   </Button>
               </CardHeader>
           </Card>
