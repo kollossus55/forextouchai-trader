@@ -1199,6 +1199,10 @@ Also provide:
                 }
                 strategyAiMaps[strategy] = map;
                 console.log(`[generateBotSignals] ${strategy}: AI analyzed ${Object.keys(map).length} pairs`);
+                // Debug: log raw AI response for gold
+                if (strategy === 'GOLD_XAUUSD') {
+                    console.log(`[DEBUG GOLD] Raw AI result:`, JSON.stringify(result?.signals || []));
+                }
             } catch (e) {
                 console.error(`[generateBotSignals] AI call failed for ${strategy}:`, e.message);
                 strategyAiMaps[strategy] = {};
@@ -1287,12 +1291,12 @@ Also provide:
                     const strategyKey = bot.strategy_type || 'AI_PREDICTIVE';
                     const strategyMap = strategyAiMaps[strategyKey] || strategyAiMaps['AI_PREDICTIVE'] || {};
                     const analysis = strategyMap[pairRaw] || strategyMap[pair];
-                    if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis`); continue; }
-                    if (analysis.type === 'NEUTRAL') continue;
+                    if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis. strategyMap keys:`, Object.keys(strategyMap)); continue; }
+                    if (analysis.type === 'NEUTRAL') { console.log(`[Skip] ${bot.name} ${pair}: AI returned NEUTRAL (conf: ${analysis.confidence})`); continue; }
                     // Normalize confidence: AI sometimes returns 0-1 fractions, we need 0-100
                     const rawConf = analysis.confidence || 0;
                     const normalizedConf = rawConf <= 1 ? rawConf * 100 : rawConf;
-                    if (normalizedConf < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${normalizedConf.toFixed(1)} < ${minConf}`); continue; }
+                    if (normalizedConf < minConf) { console.log(`[Skip] ${bot.name} ${pair}: conf ${normalizedConf.toFixed(1)} < ${minConf} (raw: ${rawConf}, type: ${analysis.type})`); continue; }
 
                     // Calculate SL/TP
                     let slPips = bot.stop_loss_pips || 30;
