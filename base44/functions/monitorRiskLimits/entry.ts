@@ -57,6 +57,31 @@ Deno.serve(async (req) => {
                         limit_hit_at: null,
                     });
                     console.log(`[monitorRiskLimits] Auto-resumed account ${acctKey} after ${autoResumeHours}h cooldown`);
+
+                    // Create alert for auto-resume
+                    const resumeTitle = `✅ Trading Auto-Resumed (Acct ${acctKey})`;
+                    const recentResumeAlerts = await base44.asServiceRole.entities.Alert.filter({ title: resumeTitle }, '-created_date', 5);
+                    const alreadyResumeAlerted = recentResumeAlerts.some(a => {
+                        const d = a.created_date || '';
+                        return String(d).startsWith(now.toISOString().split('T')[0]);
+                    });
+                    if (!alreadyResumeAlerted) {
+                        await base44.asServiceRole.entities.Alert.create({
+                            title: resumeTitle,
+                            message: `Account ${acctKey}: Trading has automatically resumed after the ${autoResumeHours}h cooldown period. Risk counters have been reset.`,
+                            type: 'SUCCESS',
+                        });
+                        // Send email notification
+                        const connOwner = conn.owner_email || (conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null);
+                        if (connOwner) {
+                            await base44.asServiceRole.integrations.Core.SendEmail({
+                                to: connOwner,
+                                subject: `✅ ForexTouchAI — Trading Auto-Resumed (Acct ${acctKey})`,
+                                body: `Account ${acctKey}: Trading has automatically resumed after the ${autoResumeHours}h cooldown period.\n\nAll risk counters have been reset and your bots can now resume trading.\n\nForexTouchAI — Automated Risk Monitor`
+                            }).catch(e => console.error(`[monitorRiskLimits] Resume email failed for ${connOwner}:`, e.message));
+                        }
+                    }
+
                     // Re-fetch riskSettings after the update so downstream checks use the fresh state
                     const [refreshed] = await base44.asServiceRole.entities.RiskManagementSettings.filter({ account_number: acctKey }, '-created_date', 1);
                     Object.assign(riskSettings, refreshed || { is_trading_paused: false, daily_loss_current: 0 });
