@@ -78,6 +78,16 @@ Deno.serve(async (req) => {
             ownerAccountSet[email] = new Set(accts);
         }
 
+        // Build fallback open-trade count map from BrokerConnection.open_trade_count
+        // (Trade entity table may be out of sync — this guards against blind over-trading)
+        const connectionOpenCountMap = {};
+        for (const conn of brokerConnections) {
+            if (conn.account_number && conn.open_trade_count !== undefined) {
+                connectionOpenCountMap[conn.account_number] = conn.open_trade_count;
+            }
+        }
+        console.log(`[generateBotSignals] Connection open counts:`, JSON.stringify(connectionOpenCountMap));
+
         // Build price map from CurrencyPair table
         const priceMap = {};
         for (const p of pairsList) {
@@ -1261,8 +1271,12 @@ Also provide:
 
                 const maxOpen = bot.max_open_trades || 15;
                 // Only skip this bot if ALL active accounts are already at capacity
+                // USE FALLBACK: if Trade table shows fewer open trades than BrokerConnection.open_trade_count,
+                // trust the broker connection count (bridge reconcile keeps this accurate even when Trade entity syncs lag)
                 const allAccountsAtCapacity = activeAcctNums.every(acctNum => {
-                    const acctCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                    const dbCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                    const connCount = connectionOpenCountMap[acctNum] || 0;
+                    const acctCount = Math.max(dbCount, connCount);
                     return acctCount >= maxOpen;
                 });
                 if (allAccountsAtCapacity) {
@@ -1277,7 +1291,9 @@ Also provide:
                 for (const pair of (bot.pairs || [])) {
                     // Break if ALL accounts are full (including queued signals)
                     const allAcctsFull = activeAcctNums.every(acctNum => {
-                        const acctOpen = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const dbOpen = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const connCount = connectionOpenCountMap[acctNum] || 0;
+                        const acctOpen = Math.max(dbOpen, connCount);
                         const acctQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
                         return acctOpen + acctQueued >= maxOpen;
                     });
@@ -1334,7 +1350,9 @@ Also provide:
                         // Per-account max trades check
                         const acctRisk = getRiskForAccount(acctNum);
                         const acctMaxTrades = acctRisk.max_concurrent_trades || 100;
-                        const acctOpenCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const dbOpenCount = openTrades.filter(t => t.owner_email === acctNum).length;
+                        const connCount = connectionOpenCountMap[acctNum] || 0;
+                        const acctOpenCount = Math.max(dbOpenCount, connCount);
                         const acctPendingCount = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
                         if (acctOpenCount + acctPendingCount >= acctMaxTrades) {
                             console.log(`[Skip] ${acctNum} at max concurrent trades (${acctOpenCount + acctPendingCount}/${acctMaxTrades})`);
