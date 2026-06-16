@@ -141,23 +141,31 @@ export default function AutoTrade() {
   }, [brokerConnections]);
 
   // Calculate performance for each bot
-  // Primary: match by bot_id. Fallback: sum all closed trades on the bot owner's accounts.
+  // Match trades by bot_id first, then by configured pairs for the bot owner's accounts
   const botPerformance = React.useMemo(() => {
     const closedTrades = allTrades.filter(t => t.status === 'CLOSED');
     const performance = {};
     const performanceSource = {};
     bots.forEach(bot => {
-      // Try bot_id match first
+      // 1) Direct bot_id match
       const byBotId = closedTrades.filter(t => t.bot_id === bot.id);
       if (byBotId.length > 0) {
         performance[bot.id] = byBotId.reduce((sum, t) => sum + (t.pnl || 0), 0);
         performanceSource[bot.id] = 'bot';
         return;
       }
-      // Fallback: account-level P&L for this bot's owner
+      // 2) Match by configured pairs on this bot owner's accounts
       const ownerEmail = bot.owner_email || bot.created_by;
       const accountNums = ownerAccountMap[ownerEmail] || new Set();
-      if (accountNums.size > 0) {
+      const botPairSet = new Set((bot.pairs || []).map(p => p.replace('/', '')));
+      if (accountNums.size > 0 && botPairSet.size > 0) {
+        const pairTrades = closedTrades.filter(t =>
+          accountNums.has(t.owner_email) && botPairSet.has((t.pair || '').replace('/', ''))
+        );
+        performance[bot.id] = pairTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        performanceSource[bot.id] = pairTrades.length > 0 ? 'pairs' : 'account';
+      } else if (accountNums.size > 0) {
+        // 3) Fallback: account-level P&L for bot owner (no pairs configured)
         const acctTrades = closedTrades.filter(t => accountNums.has(t.owner_email));
         performance[bot.id] = acctTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
         performanceSource[bot.id] = 'account';
@@ -490,7 +498,7 @@ export default function AutoTrade() {
                       <div className={`font-semibold ${(botPerformance.values[bot.id] || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {(botPerformance.values[bot.id] || 0) >= 0 ? '+' : ''}${(botPerformance.values[bot.id] || 0).toFixed(2)}
                         <span className="text-slate-500 text-xs font-normal ml-1">
-                          {botPerformance.sources[bot.id] === 'account' ? 'account P&L' : 'total P&L'}
+                          {botPerformance.sources[bot.id] === 'pairs' ? 'per-pair P&L' : botPerformance.sources[bot.id] === 'bot' ? 'bot P&L' : botPerformance.sources[bot.id] === 'account' ? 'account P&L' : ''}
                         </span>
                       </div>
                     </div>
