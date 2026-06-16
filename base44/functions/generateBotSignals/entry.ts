@@ -1141,16 +1141,16 @@ Analyze XAUUSD across M15 and H1 timeframes using ALL of the following gold-spec
    - London close (16:00-17:00 UTC): Potential reversals as positions close
    - Avoid signals during very low liquidity (22:00-00:00 UTC)
 
-7. CONFLUENCE REQUIREMENTS (must have at least 4):
-   - Higher timeframe trend alignment (H1 EMA direction)
-   - RSI supports the signal direction (not in opposing extreme zone)
-   - MACD histogram confirms momentum
-   - Price at or near a key level (support/resistance, round number, pivot)
-   - Candlestick confirmation candle in signal direction
-   - Active or upcoming high-liquidity session
+7. CONFLUENCE REQUIREMENTS (must have at least 2 — gold often moves fast off fewer confirmations):
+   - H1 EMA direction supports the signal (price above EMA50 = bullish bias, below = bearish)
+   - RSI supports the signal direction (RSI > 40 for BUY, RSI < 60 for SELL — wider tolerance than forex)
+   - MACD histogram or signal line confirms momentum direction
+   - Price at or near a key level (support/resistance, round number like 4300/4350/4400, pivot)
+   - Candlestick confirmation candle in signal direction — can be on M15 or M30, not just H1
+   - Active or upcoming high-liquidity session (London/NY)
 
-Only signal BUY or SELL when 4+ confluence factors strongly align. Otherwise output NEUTRAL.
-Minimum confidence threshold: 80%. Gold moves fast — precision over frequency.
+Only output NEUTRAL when there is NO directional bias at all (RSI dead-centre 48-52, EMAs flat/tangled, no levels nearby). Otherwise signal BUY or SELL with appropriate confidence.
+Minimum confidence threshold: 70%. Gold gives fewer but bigger moves — don't miss entries by being too strict.
 
 Also provide:
 - rsi: current RSI value (0-100)
