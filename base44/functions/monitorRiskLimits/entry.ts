@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
                     daily_loss_current: 0,
                     last_reset_date: periodKey,
                     is_trading_paused: false,
+                    limit_hit_at: null,
                 });
                 console.log(`[monitorRiskLimits] Daily reset for account ${acctKey} at hour ${resetHour} UTC — period ${periodKey}`);
             }
@@ -148,11 +149,20 @@ Deno.serve(async (req) => {
             console.log(`[monitorRiskLimits] Account ${acctKey}: ${rawAcctClosed.length} raw closed → ${dedupedClosed.length} deduped | todayPnl=$${acctTodayPnl.toFixed(2)} floatingPnl=$${acctFloatingPnl.toFixed(2)}`);
             const acctOpenCount = openTrades.filter(t => t.owner_email === acctKey).length;
 
+            // Update the tracked daily_loss_current so the UI and downstream logic stay in sync
+            const trackedLoss = Math.max(0, -totalDailyPnl);
+            await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
+                daily_loss_current: trackedLoss
+            });
+
             const alerts = [];
 
             // --- Check: Max Daily Loss ---
-            if (riskSettings.max_daily_loss_percent > 0 && totalDailyPnl < 0) {
-                const dailyLossPercent = Math.abs(totalDailyPnl / balance) * 100;
+            // Use tracked daily_loss_current instead of recalculating — this way
+            // an explicit "Reset Counters" (which zeroes daily_loss_current) actually
+            // prevents immediate re-pausing.
+            if (riskSettings.max_daily_loss_percent > 0 && trackedLoss > 0) {
+                const dailyLossPercent = (trackedLoss / balance) * 100;
                 const alertThreshold = (riskSettings.alert_threshold_percent || 80) / 100;
 
                 if (dailyLossPercent >= riskSettings.max_daily_loss_percent) {

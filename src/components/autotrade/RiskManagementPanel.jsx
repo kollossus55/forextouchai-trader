@@ -78,6 +78,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
       if (!isPaused) {
         updateData.daily_loss_current = 0;
         updateData.last_reset_date = new Date().toISOString().split('T')[0];
+        updateData.limit_hit_at = null;
       }
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, updateData);
     },
@@ -97,6 +98,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         peak_equity: conn.equity || conn.balance || 0,
         last_reset_date: new Date().toISOString().split('T')[0],
         is_trading_paused: false,
+        limit_hit_at: null,
       });
     },
     onSuccess: () => {
