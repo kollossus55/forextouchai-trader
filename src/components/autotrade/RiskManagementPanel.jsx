@@ -134,7 +134,13 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const closedPnl = todayClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const dailyPnl = closedPnl + floatingPnl;
-  const dailyLossPercent = balance > 0 && dailyPnl < 0 ? Math.abs((dailyPnl / balance) * 100) : 0;
+  // Use tracked daily_loss_current when risk settings exist (monitorRiskLimits keeps it updated)
+  // Falls back to computed trade PnL for accounts without risk tracking
+  const hasTracking = !!existingRecord;
+  const dailyLossAmount = hasTracking
+    ? Math.abs(formData.daily_loss_current || 0)
+    : Math.max(0, -dailyPnl);
+  const dailyLossPercent = balance > 0 ? (dailyLossAmount / balance) * 100 : 0;
 
   const dailyLossRisk = formData.max_daily_loss_percent > 0 ? (dailyLossPercent / formData.max_daily_loss_percent) * 100 : 0;
   const drawdownRisk = formData.max_drawdown_percent > 0 ? (drawdown / formData.max_drawdown_percent) * 100 : 0;
