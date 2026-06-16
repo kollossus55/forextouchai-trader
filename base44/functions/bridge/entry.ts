@@ -357,6 +357,19 @@ Deno.serve(async (req) => {
 
         const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
 
+        // Load running bot configs for trading-hours enforcement at dispatch time
+        let botConfigMap = {}; // bot_id → bot config (for trading hours check)
+        if (candidateSignals.length > 0) {
+            try {
+                const runningBots = await base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50);
+                for (const bot of runningBots) {
+                    botConfigMap[bot.id] = bot;
+                }
+            } catch (e) {
+                console.warn('[BRIDGE] Could not fetch bot configs for hour check:', e.message);
+            }
+        }
+
         // Route signals: if signal has owner_email set, only dispatch to matching account number
         const dispatchedPairsThisCycle = new Set(); // prevent multi-signal same pair in one heartbeat
 
@@ -405,6 +418,28 @@ Deno.serve(async (req) => {
                 if (now - lastDispatch < PAIR_COOLDOWN_MS) {
                     console.log(`[BRIDGE] Pair ${pairRaw} cooldown active for ${acctKey} — skipping`);
                     return false;
+                }
+                // Trading hours check at dispatch time — prevent signals dispatched outside bot's configured window
+                if (s.bot_id && botConfigMap[s.bot_id]) {
+                    const bot = botConfigMap[s.bot_id];
+                    if (bot.trading_start_time && bot.trading_end_time) {
+                        const nowUtc = new Date();
+                        const [startH, startM] = bot.trading_start_time.split(':').map(Number);
+                        const [endH, endM] = bot.trading_end_time.split(':').map(Number);
+                        const nowMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes();
+                        const startMins = startH * 60 + startM;
+                        const endMins = endH * 60 + endM;
+                        const inWindow = startMins <= endMins
+                            ? nowMins >= startMins && nowMins < endMins
+                            : nowMins >= startMins || nowMins < endMins;
+                        if (!inWindow) {
+                            console.log(`[BRIDGE] Bot "${bot.name}" outside trading hours (${bot.trading_start_time}–${bot.trading_end_time} UTC) — expiring signal ${s.id} for ${pairRaw}`);
+                            // Expire this signal so it doesn't keep retrying
+                            base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' }).catch(() => {});
+                            cache.signals = { data: null, ts: 0 };
+                            return false;
+                        }
+                    }
                 }
                 dispatchedPairsThisCycle.add(pairRaw);
                 return true;
