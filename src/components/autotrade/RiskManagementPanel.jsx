@@ -77,7 +77,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
       // On resume: reset daily counters so tracking starts fresh
       if (!isPaused) {
         updateData.daily_loss_current = 0;
-        updateData.last_reset_date = new Date().toISOString().split('T')[0];
+        updateData.last_reset_date = new Date().toISOString(); // full timestamp signals manual reset to monitor
         updateData.limit_hit_at = null;
       }
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, updateData);
@@ -96,7 +96,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
       return await base44.entities.RiskManagementSettings.update(existingRecord.id, {
         daily_loss_current: 0,
         peak_equity: conn.equity || conn.balance || 0,
-        last_reset_date: new Date().toISOString().split('T')[0],
+        last_reset_date: new Date().toISOString(), // full timestamp signals manual reset to monitor
         is_trading_paused: false,
         limit_hit_at: null,
       });

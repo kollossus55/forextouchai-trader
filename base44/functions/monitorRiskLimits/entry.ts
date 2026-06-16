@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { peak_equity: newPeak });
             }
 
-            // Filter closed trades since the start of the current reset period for this account
+            // Filter closed trades since the LAST RESET for this account (either daily reset hour or manual reset)
             const resetHourForFilter = riskSettings.daily_reset_hour ?? 0;
             const periodStartForFilter = new Date(now);
             periodStartForFilter.setUTCMinutes(0, 0, 0);
@@ -127,9 +127,17 @@ Deno.serve(async (req) => {
                 periodStartForFilter.setUTCDate(periodStartForFilter.getUTCDate() - 1);
             }
             periodStartForFilter.setUTCHours(resetHourForFilter);
+            // If user manually reset counters (last_reset_date is a full ISO timestamp, not just period key),
+            // use the later of periodStartForFilter and the manual reset time — this makes the reset stick
+            const manualResetTime = riskSettings.last_reset_date && riskSettings.last_reset_date.includes('T')
+                ? new Date(riskSettings.last_reset_date)
+                : null;
+            const effectiveFilterStart = manualResetTime && manualResetTime > periodStartForFilter
+                ? manualResetTime
+                : periodStartForFilter;
             const todayClosedTrades = closedTrades.filter(t => {
                 const d = t.updated_date || t.created_date;
-                return d && new Date(d) >= periodStartForFilter;
+                return d && new Date(d) >= effectiveFilterStart;
             });
 
             // Calculate PnL for this account — deduplicate closed trades by ticket first

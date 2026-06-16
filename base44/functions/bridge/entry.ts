@@ -761,8 +761,14 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             ticketCreateLock[lockKey] = true;
 
             try {
-                // Safe to create — add to memory BEFORE the async create call
-                // (cold-start init already loaded all existing tickets from DB, so no per-ticket DB check needed)
+                // ── Cross-isolate guard: check DB for this ticket before creating ──
+                // Without this, two isolates can both see memTickets.has()===false and create duplicates
+                const existingWithTicket = await base44.asServiceRole.entities.Trade.filter({ ticket: t.ticket, owner_email: acctKey }, '-created_date', 1);
+                if (existingWithTicket.length > 0) {
+                    console.log('[BRIDGE] Ticket', t.ticket, 'already exists in DB — skipping creation (cross-isolate guard)');
+                    memTickets.add(t.ticket); // mark known so we don't try again
+                    continue;
+                }
                 memTickets.add(t.ticket);
                 const sym = (t.pair || t.symbol || '').replace('/', '');
                 // Use explicit check (> 0) so we don't skip a valid open_price of 0
@@ -823,17 +829,24 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     if (toClose.length > 0) {
         console.log('[BRIDGE] Closing', toClose.length, 'trades for', acctKey);
         for (let i = 0; i < toClose.length; i += 2) {
-            await Promise.all(toClose.slice(i, i + 2).map(t => {
+            await Promise.all(toClose.slice(i, i + 2).map(async (t) => {
+                // ── Cross-isolate guard: re-verify trade is still OPEN before closing ──
+                // Another isolate may have already closed this trade since we fetched existingDbTrades
+                try {
+                    const fresh = await base44.asServiceRole.entities.Trade.filter({ id: t.id, status: 'OPEN' }, '-created_date', 1);
+                    if (fresh.length === 0) {
+                        console.log('[BRIDGE] Ticket', t.ticket, 'already closed by another isolate — skipping');
+                        memTickets.delete(t.ticket);
+                        return;
+                    }
+                } catch (_) { /* proceed with close even if verification fails */ }
                 const finalPnl = t.pnl || 0;
-                // Only compute close_price if we have a valid open_price — otherwise store 0
-                // (MT4 sometimes sends trades with open_price=0; don't produce garbage tiny decimals)
                 let closePrice = 0;
                 if (t.open_price > 0) {
                     const lotMultiplier = (t.lot_size || 0.1) * 100000;
                     const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
                     closePrice = parseFloat((t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove).toFixed(5));
                 }
-                // Remove from memory set so it doesn't block future re-opens of same ticket
                 memTickets.delete(t.ticket);
                 return base44.asServiceRole.entities.Trade.update(t.id, {
                     status: 'CLOSED',
