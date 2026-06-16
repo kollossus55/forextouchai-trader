@@ -630,7 +630,7 @@ function sanitizeSignal(s, livePriceMap) {
     }
 
     // Determine order comment based on strategy/pair — ensures trades are tagged correctly in MT4/MT5
-    const isGoldSignal = (pair === 'XAUUSD' || s.strategy === 'GOLD_XAUUSD');
+    const isGoldSignal = (pair === 'XAUUSD' || pair === 'GOLD' || pair === 'XAU' || s.strategy === 'GOLD_XAUUSD');
     const orderComment = isGoldSignal ? 'GoldForexTouchAI' : 'ForexTouchAI';
 
     return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
