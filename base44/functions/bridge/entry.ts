@@ -322,11 +322,11 @@ Deno.serve(async (req) => {
             }, { headers: corsHeaders() });
         }
 
-        const fiveMinutesAgo = new Date(now - 20 * 60 * 1000).toISOString(); // 20min expiry window (index instruments need more time)
+        const twentyMinAgo = new Date(now - 20 * 60 * 1000).toISOString(); // 20min expiry window (index instruments need more time)
         // Also expire ACTIVE signals older than 10 minutes (stuck signals that MT5 never acknowledged)
         const fiveMinAgo = new Date(now - 10 * 60 * 1000).toISOString();
         const stale = (allPendingSignals || []).filter(s =>
-            s.created_date < fiveMinutesAgo ||
+            s.created_date < twentyMinAgo ||
             (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < fiveMinAgo)
         ); // expire stale signals
         if (stale.length > 0) {
@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
         }
 
         // Only do the expensive open-trades + connection lookup if there are actually signals to dispatch
-        const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= fiveMinutesAgo);
+        const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= twentyMinAgo);
 
         let acctOpenTrades = [];
         let ownerEmail = null;
@@ -894,40 +894,4 @@ async function updateCurrencyPrices(base44, eaPrices) {
         await Promise.all(ops.slice(i, i + 5)).catch(e => console.warn('[BRIDGE] Price batch error:', e.message));
     }
     console.log('[BRIDGE] Updated', ops.length, 'prices');
-}
-
-// ─── Daily profit target check ────────────────────────────────────────────────
-async function checkDailyProfitTarget(base44, riskSettings, balance, openTrades) {
-    const today = new Date().toISOString().split('T')[0];
-    // HARDENED: filter by account + status, limit 500 — never fetch all closed trades
-    const acctKey = riskSettings.account_number || null;
-    const closedToday = await base44.asServiceRole.entities.Trade.filter(
-        acctKey ? { status: 'CLOSED', owner_email: acctKey } : { status: 'CLOSED' },
-        '-updated_date', 500
-    );
-    const todayProfit = closedToday
-        .filter(t => (t.updated_date || t.created_date)?.startsWith(today))
-        .reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const dailyProfitPercent = ((todayProfit + floatingPnl) / balance) * 100;
-
-    if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
-        console.log(`[BRIDGE] Daily profit target reached: ${dailyProfitPercent.toFixed(2)}%`);
-        for (let i = 0; i < openTrades.length; i += 3) {
-            await Promise.all(openTrades.slice(i, i + 3).map(t =>
-                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
-            ));
-        }
-        const profitAlertOps = [
-            base44.asServiceRole.entities.Alert.create({
-                title: '🎯 Daily Profit Target Reached!',
-                message: `Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`,
-                type: 'SUCCESS',
-            }),
-        ];
-        if (riskSettings.stop_trading_on_limit) {
-            profitAlertOps.push(base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true }));
-        }
-        await Promise.all(profitAlertOps);
-    }
 }

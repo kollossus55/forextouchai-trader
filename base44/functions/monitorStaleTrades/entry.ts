@@ -46,12 +46,16 @@ Deno.serve(async (req) => {
             return `• ${t.type} ${t.pair} | Account: ${t.owner_email} | Open: ${hoursOpen}h | PnL: $${(t.pnl || 0).toFixed(2)} | Ticket: ${t.ticket || 'N/A'}`;
         }).join('\n');
 
-        // Get unique owner emails to notify
+        // Get unique owner emails to notify — batch by account to avoid N+1 queries
+        const accountNumbers = [...new Set(staleTrades.map(t => t.owner_email).filter(Boolean))];
         const ownerEmails = new Set();
+        const connsByAccount = {};
+        await Promise.all(accountNumbers.map(async (acctNum) => {
+            const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctNum }, '-created_date', 5);
+            connsByAccount[acctNum] = connections || [];
+        }));
         for (const trade of staleTrades) {
-            // Find broker connection owner for this account
-            const connections = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: trade.owner_email }, '-created_date', 5);
-            for (const conn of connections) {
+            for (const conn of (connsByAccount[trade.owner_email] || [])) {
                 const email = conn.owner_email || (conn.created_by && !conn.created_by.includes('service+') ? conn.created_by : null);
                 if (email) ownerEmails.add(email);
             }
