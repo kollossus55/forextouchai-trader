@@ -103,7 +103,22 @@ Deno.serve(async (req) => {
             const periodKey = `${currentPeriodStart.toISOString().split('T')[0]}@${String(resetHour).padStart(2,'0')}`;
 
             const lastResetKey = riskSettings.last_reset_date || null;
-            if (lastResetKey !== periodKey) {
+            const isManualReset = lastResetKey && lastResetKey.includes('T');  // full ISO timestamp = manual reset
+
+            if (isManualReset) {
+                // Manual reset: only override if it's from a previous period (stale)
+                const manualResetTime = new Date(lastResetKey);
+                if (manualResetTime < currentPeriodStart) {
+                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
+                        daily_loss_current: 0,
+                        last_reset_date: periodKey,
+                        is_trading_paused: false,
+                        limit_hit_at: null,
+                    });
+                    console.log(`[monitorRiskLimits] Stale manual reset for account ${acctKey} replaced with daily reset — period ${periodKey}`);
+                }
+                // else: keep manual reset — it's the most recent; don't touch last_reset_date or daily_loss_current
+            } else if (lastResetKey !== periodKey) {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
                     daily_loss_current: 0,
                     last_reset_date: periodKey,
