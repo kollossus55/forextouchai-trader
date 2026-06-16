@@ -570,6 +570,8 @@ void ExecuteSignalObj(string obj) {
    double sigSL    = StringToDouble(GetJsonValue(obj, "stop_loss"));
    double sigTP    = StringToDouble(GetJsonValue(obj, "take_profit"));
    double sigLot   = StringToDouble(GetJsonValue(obj, "lot_size"));
+   string orderComment = GetJsonValue(obj, "comment");
+   if(StringLen(orderComment) == 0) orderComment = "ForexTouchAI";
 
    if(StringLen(id) == 0 || StringLen(pair) == 0 || StringLen(type) == 0) return;
    if(id == lastSignalId) return;
@@ -605,8 +607,8 @@ void ExecuteSignalObj(string obj) {
    Print("[BRIDGE MT5] Executing: ", type, " ", pair, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
 
    bool ok = isBuy
-      ? trade.Buy(lot, pair, price, finalSL, finalTP, "ForexTouchAI")
-      : trade.Sell(lot, pair, price, finalSL, finalTP, "ForexTouchAI");
+      ? trade.Buy(lot, pair, price, finalSL, finalTP, orderComment)
+      : trade.Sell(lot, pair, price, finalSL, finalTP, orderComment);
 
    if(ok) {
       Print("[BRIDGE MT5] Trade opened! Signal=", id, " RetCode=", trade.ResultRetcode());
@@ -1072,7 +1074,9 @@ string GetJsonValue(string json, string key) {
          double sigSL    = StringToDouble(GetJsonValue(obj, "stop_loss"));
          double sigTP    = StringToDouble(GetJsonValue(obj, "take_profit"));
          double sigLot   = StringToDouble(GetJsonValue(obj, "lot_size"));
-         
+         string orderComment = GetJsonValue(obj, "comment");
+         if(StringLen(orderComment) == 0) orderComment = "ForexTouchAI";
+
          if(StringLen(id) == 0 || StringLen(pair) == 0 || StringLen(type) == 0) return;
          if(id == lastSignalId) return; // already executed
          
@@ -1118,7 +1122,7 @@ string GetJsonValue(string json, string key) {
          
          Print("[BRIDGE] Executing: ", type, " ", pair, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
          
-         int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, "ForexTouchAI", 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
+         int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
          
          if(ticket > 0) {
             Print("[BRIDGE] Trade opened! Ticket=", ticket, " Signal=", id);

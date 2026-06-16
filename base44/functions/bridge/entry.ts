@@ -629,7 +629,11 @@ function sanitizeSignal(s, livePriceMap) {
         safeSL = 0; safeTP = 0;
     }
 
-    return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0 };
+    // Determine order comment based on strategy/pair — ensures trades are tagged correctly in MT4/MT5
+    const isGoldSignal = (pair === 'XAUUSD' || s.strategy === 'GOLD_XAUUSD');
+    const orderComment = isGoldSignal ? 'GoldForexTouchAI' : 'ForexTouchAI';
+
+    return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────

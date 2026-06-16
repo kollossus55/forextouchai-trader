@@ -209,6 +209,8 @@ void ExecuteSignal(string obj) {
     double lotSize  = ExtractDbl(obj, "lot_size");
     double sl       = ExtractDbl(obj, "stop_loss");
     double tp       = ExtractDbl(obj, "take_profit");
+    string orderComment = ExtractStr(obj, "comment");
+    if (StringLen(orderComment) == 0) orderComment = "GoldForexTouchAI";
 
     if (lotSize <= 0) lotSize = 0.01;
     bool isBuy = (type == "BUY");
@@ -229,8 +231,8 @@ void ExecuteSignal(string obj) {
     Print("[GoldEA MT5] Executing GOLD ", type, " @ ", price, " SL=", sl, " TP=", tp, " Lot=", lotSize);
 
     bool ok = isBuy
-        ? trade.Buy(lotSize, GoldSymbol, price, sl, tp, "GoldForexTouchAI")
-        : trade.Sell(lotSize, GoldSymbol, price, sl, tp, "GoldForexTouchAI");
+        ? trade.Buy(lotSize, GoldSymbol, price, sl, tp, orderComment)
+        : trade.Sell(lotSize, GoldSymbol, price, sl, tp, orderComment);
 
     if (ok) {
         ulong ticket = trade.ResultOrder();
@@ -446,6 +448,8 @@ void ExecuteSignal(string obj) {
     double lotSize  = ExtractDbl(obj, "lot_size");
     double sl       = ExtractDbl(obj, "stop_loss");
     double tp       = ExtractDbl(obj, "take_profit");
+    string orderComment = ExtractStr(obj, "comment");
+    if (StringLen(orderComment) == 0) orderComment = "GoldForexTouchAI";
 
     if (lotSize <= 0) lotSize = 0.01;
     int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
@@ -464,7 +468,7 @@ void ExecuteSignal(string obj) {
 
     Print("[GoldEA] Executing GOLD ", type, " @ ", price, " SL=", sl, " TP=", tp, " Lot=", lotSize);
 
-    int ticket = OrderSend(GoldSymbol, cmd, lotSize, price, Slippage, sl, tp, "GoldForexTouchAI", MagicNumber, 0, cmd == OP_BUY ? clrGold : clrOrangeRed);
+    int ticket = OrderSend(GoldSymbol, cmd, lotSize, price, Slippage, sl, tp, orderComment, MagicNumber, 0, cmd == OP_BUY ? clrGold : clrOrangeRed);
 
     if (ticket > 0) {
         Print("[GoldEA] Gold order placed! Ticket=", ticket);
