@@ -151,6 +151,15 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
 
         string obj = StringSubstr(signalsArray, objStart, objEnd - objStart + 1);
+        string sigPair = ExtractJsonString(obj, "pair");
+        
+        // Skip Gold/XAUUSD signals — handled by GoldForexTouchAI EA
+        if (sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold") {
+            Print("[ForexTouchAI] Skipping XAUUSD signal — use GoldForexTouchAI EA for Gold trades.");
+            pos = objEnd + 1;
+            continue;
+        }
+        
         ExecuteSignal(obj);
 
         pos = objEnd + 1;

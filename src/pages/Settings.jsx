@@ -546,7 +546,17 @@ void ProcessPendingSignals(string json) {
       if(objStart < 0) break;
       int objEnd = StringFind(arr, "}", objStart);
       if(objEnd < 0) break;
-      ExecuteSignalObj(StringSubstr(arr, objStart, objEnd - objStart + 1));
+      string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+      string sigPair = GetJsonValue(obj, "pair");
+      
+      // Skip Gold/XAUUSD signals — handled by GoldForexTouchAI EA
+      if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold") {
+         Print("[BRIDGE MT5] Skipping XAUUSD signal — use GoldForexTouchAI EA for Gold trades.");
+         pos = objEnd + 1;
+         continue;
+      }
+      
+      ExecuteSignalObj(obj);
       pos = objEnd + 1;
    }
 }
@@ -1036,6 +1046,15 @@ string GetJsonValue(string json, string key) {
             if(objEnd < 0) break;
             
             string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+            string sigPair = GetJsonValue(obj, "pair");
+            
+            // Skip Gold/XAUUSD signals — handled by GoldForexTouchAI EA
+            if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold") {
+               Print("[BRIDGE] Skipping XAUUSD signal — use GoldForexTouchAI EA for Gold trades.");
+               pos = objEnd + 1;
+               continue;
+            }
+            
             ExecuteSignalObj(obj);
             
             pos = objEnd + 1;
