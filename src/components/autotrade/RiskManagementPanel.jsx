@@ -44,10 +44,22 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
+      const settingsData = {
+        max_daily_loss_percent: data.max_daily_loss_percent,
+        max_drawdown_percent: data.max_drawdown_percent,
+        max_position_size_percent: data.max_position_size_percent,
+        max_concurrent_trades: data.max_concurrent_trades,
+        risk_per_trade_percent: data.risk_per_trade_percent,
+        alert_threshold_percent: data.alert_threshold_percent,
+        stop_trading_on_limit: data.stop_trading_on_limit,
+        daily_profit_target_percent: data.daily_profit_target_percent,
+        daily_reset_hour: data.daily_reset_hour,
+        auto_resume_hours: data.auto_resume_hours,
+      };
       if (existingRecord?.id) {
-        return await base44.entities.RiskManagementSettings.update(existingRecord.id, data);
+        return await base44.entities.RiskManagementSettings.update(existingRecord.id, settingsData);
       } else {
-        return await base44.entities.RiskManagementSettings.create({ ...data, account_number: acctKey });
+        return await base44.entities.RiskManagementSettings.create({ ...settingsData, account_number: acctKey });
       }
     },
     onSuccess: () => {
