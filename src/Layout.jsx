@@ -16,7 +16,8 @@ import {
   X,
   Search,
   LogOut,
-  Activity
+  Activity,
+  Heart
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -202,6 +203,7 @@ export default function Layout({ children }) {
         { label: 'Admin Overview', icon: Activity, path: '/AdminOverview' },
         { label: 'Signals', icon: Zap, path: '/SignalsDashboard' },
       ] : []),
+      { label: 'System Health', icon: Heart, path: '/SystemHealth' },
     ];
   }, [user?.role, isLoadingAuth]);
 

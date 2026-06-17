@@ -9,6 +9,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import AdminOverview from './pages/AdminOverview';
 import SignalsDashboard from './pages/SignalsDashboard';
+import SystemHealth from './pages/SystemHealth';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -64,6 +65,7 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/AdminOverview" element={<LayoutWrapper currentPageName="AdminOverview"><AdminOverview /></LayoutWrapper>} />
       <Route path="/SignalsDashboard" element={<LayoutWrapper currentPageName="SignalsDashboard"><SignalsDashboard /></LayoutWrapper>} />
+      <Route path="/SystemHealth" element={<LayoutWrapper currentPageName="SystemHealth"><SystemHealth /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
