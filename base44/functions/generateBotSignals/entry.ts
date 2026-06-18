@@ -1285,6 +1285,20 @@ Also provide:
                     continue;
                 }
 
+                // Max daily trades check
+                if (bot.max_daily_trades && bot.max_daily_trades > 0) {
+                    const todayStart = new Date();
+                    todayStart.setUTCHours(0, 0, 0, 0);
+                    const todayDbCount = userPendingSignals.filter(s =>
+                        s.bot_id === bot.id && s.created_date && new Date(s.created_date) >= todayStart
+                    ).length;
+                    const todayQueuedCount = allSignalsToCreate.filter(s => s.bot_id === bot.id).length;
+                    if (todayDbCount + todayQueuedCount >= bot.max_daily_trades) {
+                        console.log(`[Skip] ${bot.name}: max_daily_trades reached (${todayDbCount + todayQueuedCount}/${bot.max_daily_trades})`);
+                        continue;
+                    }
+                }
+
                 const minConf = bot.min_confidence || 75;
                 const maxPerPair = bot.max_trades_per_pair || 1;
 
