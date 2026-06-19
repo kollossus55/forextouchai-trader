@@ -113,11 +113,17 @@ export default function SystemHealth() {
     const stoppedBots = bots.filter(b => b.status === 'STOPPED').length;
     const pausedBots = bots.filter(b => b.status === 'PAUSED').length;
 
-    // Risk
+    // Risk — balance map for correct % calculation
+    const balanceMap = {};
+    connections.forEach(c => { if (c.account_number) balanceMap[c.account_number] = c.balance || 0; });
+
     const pausedAccounts = riskSettings.filter(r => r.is_trading_paused).length;
     const accountsNearLimit = riskSettings.filter(r => {
-      if (!r.max_daily_loss_percent || !r.daily_loss_current || !r.max_daily_loss_percent) return false;
-      return (r.daily_loss_current / r.max_daily_loss_percent) >= (r.alert_threshold_percent || 80) / 100;
+      if (!r.max_daily_loss_percent || !r.daily_loss_current || !r.account_number) return false;
+      const bal = balanceMap[r.account_number] || 0;
+      if (bal <= 0) return false;
+      const actualPct = (r.daily_loss_current / bal) * 100;
+      return (actualPct / r.max_daily_loss_percent) >= (r.alert_threshold_percent || 80) / 100;
     }).length;
 
     // Overall status (worst of all subsystems)
@@ -410,8 +416,10 @@ export default function SystemHealth() {
                 {riskSettings.map(r => {
                   const accountLabel = r.account_number || 'Global';
                   const isPaused = r.is_trading_paused;
-                  const lossPct = r.max_daily_loss_percent && r.daily_loss_current != null
-                    ? Math.round((r.daily_loss_current / r.max_daily_loss_percent) * 100)
+                  const bal = connections.find(c => c.account_number === r.account_number)?.balance || 0;
+                  const actualLossPct = bal > 0 ? (r.daily_loss_current / bal) * 100 : 0;
+                  const lossPct = r.max_daily_loss_percent > 0
+                    ? Math.round((actualLossPct / r.max_daily_loss_percent) * 100)
                     : 0;
                   const nearLimit = lossPct >= (r.alert_threshold_percent || 80);
                   const atLimit = lossPct >= 100;
@@ -430,8 +438,8 @@ export default function SystemHealth() {
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 text-xs w-16">Daily Loss</span>
                         <Progress value={Math.min(lossPct, 100)} className={`flex-1 h-1.5 [&>div]:${barColor}`} />
-                        <span className="text-slate-500 text-xs w-16 text-right">
-                          ${fmt(r.daily_loss_current)} / ${fmt(r.max_daily_loss_percent)}
+                        <span className="text-slate-500 text-xs w-20 text-right">
+                          {actualLossPct.toFixed(1)}% / {r.max_daily_loss_percent}%
                         </span>
                       </div>
                       {r.limit_hit_at && (
