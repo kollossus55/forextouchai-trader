@@ -32,28 +32,28 @@ const STATUS = {
 export default function SystemHealth() {
   const { user } = useAuth();
 
-  const { data: connections = [], refetch, isFetching } = useQuery({
+  const { data: connections = [], refetch: refetchConnections, isFetching: f1 } = useQuery({
     queryKey: ['sh-connections'],
     queryFn: () => base44.entities.BrokerConnection.list('-updated_date', 100),
     refetchInterval: 15000,
     initialData: []
   });
 
-  const { data: openTrades = [] } = useQuery({
+  const { data: openTrades = [], refetch: refetchTrades, isFetching: f2 } = useQuery({
     queryKey: ['sh-open-trades'],
     queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
     refetchInterval: 30000,
     initialData: []
   });
 
-  const { data: bots = [] } = useQuery({
+  const { data: bots = [], refetch: refetchBots, isFetching: f3 } = useQuery({
     queryKey: ['sh-bots'],
     queryFn: () => base44.entities.BotConfig.list('-updated_date', 50),
     refetchInterval: 30000,
     initialData: []
   });
 
-  const { data: allSignals = [] } = useQuery({
+  const { data: allSignals = [], refetch: refetchSignals, isFetching: f4 } = useQuery({
     queryKey: ['sh-signals'],
     queryFn: async () => {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -70,12 +70,15 @@ export default function SystemHealth() {
     initialData: []
   });
 
-  const { data: riskSettings = [] } = useQuery({
+  const { data: riskSettings = [], refetch: refetchRisk, isFetching: f5 } = useQuery({
     queryKey: ['sh-risk'],
     queryFn: () => base44.entities.RiskManagementSettings.list('-created_date', 100),
     refetchInterval: 60000,
     initialData: []
   });
+
+  const isFetching = f1 || f2 || f3 || f4 || f5;
+  const refetch = () => { refetchConnections(); refetchTrades(); refetchBots(); refetchSignals(); refetchRisk(); };
 
   // ── Aggregated health metrics ──
   const health = useMemo(() => {
@@ -128,9 +131,9 @@ export default function SystemHealth() {
 
     // Overall status (worst of all subsystems)
     let overallStatus = 'healthy';
-    if (criticalCount > 0 || expired > 10 || pausedAccounts > 0) overallStatus = 'critical';
-    else if (warningCount > 0 || expired > 5 || accountsNearLimit > 0) overallStatus = 'warning';
-    else if (offlineCount === connections.length && connections.length > 0) overallStatus = 'offline';
+    if (offlineCount === connections.length && connections.length > 0) overallStatus = 'offline';
+    else if (criticalCount > 0 || pausedAccounts > 0) overallStatus = 'critical';
+    else if (warningCount > 0 || accountsNearLimit > 0 || (expired > 20 && dispatchRate < 20)) overallStatus = 'warning';
 
     return {
       accountHealth, liveCount, warningCount, criticalCount, offlineCount,
