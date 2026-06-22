@@ -211,7 +211,7 @@ export default function SystemHealth() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="text-white">Reset All Trading Data?</AlertDialogTitle>
                 <AlertDialogDescription className="text-slate-400">
-                  This will permanently delete all <strong className="text-slate-200">Trades</strong>, <strong className="text-slate-200">Signals</strong>, and <strong className="text-slate-200">Alerts</strong>, and reset all <strong className="text-slate-200">Risk counters</strong> (daily loss, drawdown, paused state) back to zero. Broker connections and bot configurations are kept. This cannot be undone.
+                  This will permanently delete all <strong className="text-slate-200">Trades</strong>, <strong className="text-slate-200">Signals</strong>, and <strong className="text-slate-200">Alerts</strong>, reset all <strong className="text-slate-200">Risk counters</strong> (daily loss, drawdown, paused state), and clear <strong className="text-slate-200">Broker Connection</strong> stats (balance, equity, sync status) back to zero. Bot configurations are kept. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

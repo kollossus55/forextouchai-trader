@@ -58,6 +58,31 @@ Deno.serve(async (req) => {
       results.risk_reset = riskCount;
     }
 
+    // Always reset broker connection stats so stale balance/equity/sync info is cleared
+    if (!target || target === 'connections') {
+      let connCount = 0;
+      while (true) {
+        const batch = await base44.asServiceRole.entities.BrokerConnection.filter({}, null, 50);
+        if (!batch || batch.length === 0) break;
+        for (const c of batch) {
+          await base44.asServiceRole.entities.BrokerConnection.update(c.id, {
+            connection_status: 'DISCONNECTED',
+            last_sync: null,
+            balance: 0,
+            equity: 0,
+            margin: 0,
+            free_margin: 0,
+            margin_level: 0,
+            open_trade_count: 0,
+          });
+          connCount++;
+        }
+        if (batch.length < 50) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      results.connections_reset = connCount;
+    }
+
     return Response.json({ success: true, message: 'Data reset complete', results });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
