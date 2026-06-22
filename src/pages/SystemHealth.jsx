@@ -93,6 +93,14 @@ export default function SystemHealth() {
     try {
       await base44.functions.invoke('resetData', {});
       await new Promise(r => setTimeout(r, 5000));
+
+      // Restart all bots that were paused by the reset
+      const allBots = await base44.entities.BotConfig.list('-created_date', 100);
+      const pausedBots = allBots.filter(b => b.status === 'PAUSED' || b.status === 'STOPPED');
+      if (pausedBots.length > 0) {
+        await Promise.all(pausedBots.map(b => base44.entities.BotConfig.update(b.id, { status: 'RUNNING' })));
+      }
+
       // Clear the entire cache and force fresh fetches
       queryClient.clear();
       await Promise.all([
@@ -219,7 +227,7 @@ export default function SystemHealth() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="text-white">Reset All Trading Data?</AlertDialogTitle>
                 <AlertDialogDescription className="text-slate-400">
-                  This will permanently delete all <strong className="text-slate-200">Trades</strong>, <strong className="text-slate-200">Signals</strong>, and <strong className="text-slate-200">Alerts</strong>, reset all <strong className="text-slate-200">Risk counters</strong>, and clear <strong className="text-slate-200">Broker Connection</strong> stats back to zero. Any running bots will be <strong className="text-slate-200">paused temporarily</strong> to allow the reset to complete — restart them afterwards. This cannot be undone.
+                  This will permanently delete all <strong className="text-slate-200">Trades</strong>, <strong className="text-slate-200">Signals</strong>, and <strong className="text-slate-200">Alerts</strong>, reset all <strong className="text-slate-200">Risk counters</strong>, and clear <strong className="text-slate-200">Broker Connection</strong> stats back to zero. Bots will be <strong className="text-slate-200">paused during the reset and automatically restarted</strong> when complete. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
