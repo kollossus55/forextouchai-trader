@@ -790,6 +790,27 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 });
                 createdTickets.push(t.ticket);
                 console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey);
+
+                // Auto-close the matching ACTIVE signal for this account+pair
+                // This handles the case where EA executes the trade but never calls confirmExecution
+                try {
+                    const pairNorm = sym.toUpperCase();
+                    const pairWithSlash = pairNorm.length === 6 ? pairNorm.slice(0, 3) + '/' + pairNorm.slice(3) : pairNorm;
+                    const matchingSignals = await base44.asServiceRole.entities.Signal.filter({
+                        status: 'ACTIVE',
+                        owner_email: acctKey,
+                    }, '-created_date', 10);
+                    const matchedSignal = matchingSignals.find(s =>
+                        (s.pair || '').replace('/', '').toUpperCase() === pairNorm
+                    );
+                    if (matchedSignal) {
+                        await base44.asServiceRole.entities.Signal.update(matchedSignal.id, { status: 'CLOSED' });
+                        console.log('[BRIDGE] Auto-closed signal', matchedSignal.id, 'for', pairNorm, acctKey);
+                    }
+                } catch (sigErr) {
+                    console.warn('[BRIDGE] Signal auto-close error:', sigErr.message);
+                }
+
                 // Small delay between creates to avoid 429 rate limiting
                 await new Promise(r => setTimeout(r, 200));
             } catch (e) {
