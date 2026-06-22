@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,9 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Heart, Signal, Zap, Activity, CheckCircle, XCircle, AlertTriangle,
-  Clock, TrendingUp, TrendingDown, Radio, Bot, Shield, RefreshCw, Server, Wifi, WifiOff
+  Clock, TrendingUp, TrendingDown, Radio, Bot, Shield, RefreshCw, Server, Wifi, WifiOff, Trash2
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 const fmt = (n) => n == null ? '–' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const timeAgo = (iso) => {
@@ -31,6 +35,23 @@ const STATUS = {
 
 export default function SystemHealth() {
   const { user } = useAuth();
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  const handleReset = async () => {
+    setIsResetting(true);
+    setResetDone(false);
+    try {
+      await base44.functions.invoke('resetData', {});
+      setResetDone(true);
+      refetch();
+      setTimeout(() => setResetDone(false), 4000);
+    } catch (e) {
+      console.error('Reset failed:', e);
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const { data: connections = [], refetch: refetchConnections, isFetching: f1 } = useQuery({
     queryKey: ['sh-connections'],
@@ -173,6 +194,35 @@ export default function SystemHealth() {
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                disabled={isResetting}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-sm transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isResetting ? 'Resetting…' : resetDone ? '✓ Done' : 'Reset Data'}
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-slate-900 border-slate-700 text-slate-100">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white">Reset All Trading Data?</AlertDialogTitle>
+                <AlertDialogDescription className="text-slate-400">
+                  This will permanently delete all <strong className="text-slate-200">Trades</strong>, <strong className="text-slate-200">Signals</strong>, and <strong className="text-slate-200">Alerts</strong>, and reset all <strong className="text-slate-200">Risk counters</strong> (daily loss, drawdown, paused state) back to zero. Broker connections and bot configurations are kept. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleReset}
+                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  Yes, Reset Everything
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
