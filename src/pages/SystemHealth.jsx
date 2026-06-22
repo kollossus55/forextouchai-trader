@@ -129,18 +129,20 @@ export default function SystemHealth() {
       return (actualPct / r.max_daily_loss_percent) >= (r.alert_threshold_percent || 80) / 100;
     }).length;
 
+    const highExpiry = expired > 20 && dispatchRate < 20;
+
     // Overall status (worst of all subsystems)
     let overallStatus = 'healthy';
     if (offlineCount === connections.length && connections.length > 0) overallStatus = 'offline';
     else if (criticalCount > 0 || pausedAccounts > 0) overallStatus = 'critical';
-    else if (warningCount > 0 || accountsNearLimit > 0 || (expired > 20 && dispatchRate < 20)) overallStatus = 'warning';
+    else if (warningCount > 0 || accountsNearLimit > 0 || highExpiry) overallStatus = 'warning';
 
     return {
       accountHealth, liveCount, warningCount, criticalCount, offlineCount,
       pending, active, closed, expired, skipped, dispatchRate,
       runningBots, stoppedBots, pausedBots,
       pausedAccounts, accountsNearLimit,
-      overallStatus,
+      overallStatus, highExpiry,
       totalConnections: connections.length,
       totalOpenTrades: openTrades.length,
     };
@@ -175,7 +177,7 @@ export default function SystemHealth() {
       </div>
 
       {/* Alerts banner */}
-      {(health.criticalCount > 0 || health.pausedAccounts > 0 || health.warningCount > 0 || health.accountsNearLimit > 0) && (
+      {(health.criticalCount > 0 || health.pausedAccounts > 0 || health.warningCount > 0 || health.accountsNearLimit > 0 || health.highExpiry) && (
         <div className="flex flex-col gap-2">
           {health.criticalCount > 0 && (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300">
@@ -199,6 +201,12 @@ export default function SystemHealth() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm font-medium">{health.accountsNearLimit} account(s) are approaching their daily loss limit — see Risk Status below.</span>
+            </div>
+          )}
+          {health.highExpiry && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium">High signal expiry rate — {health.expired} signals expired vs {health.closed} executed (dispatch rate: {health.dispatchRate}%). The EA is receiving signals but not confirming execution. Check that auto-execution is enabled on your bot and the EA is actively trading.</span>
             </div>
           )}
         </div>
