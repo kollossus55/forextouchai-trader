@@ -362,9 +362,23 @@ export default function AutoTrade() {
           </p>
         </div>
         
-        <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
-            <Plus className="w-4 h-4 mr-2" /> Create New Bot
-        </Button>
+        <div className="flex gap-2">
+          {bots.some(b => b.status !== 'RUNNING') && (
+            <Button
+              onClick={() => {
+                const stoppedBots = bots.filter(b => b.status !== 'RUNNING');
+                Promise.all(stoppedBots.map(bot => base44.entities.BotConfig.update(bot.id, { status: 'RUNNING' })))
+                  .then(() => queryClient.invalidateQueries(['bots']));
+              }}
+              className="bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500/40"
+            >
+              <Play className="w-4 h-4 mr-2" /> Start All Bots
+            </Button>
+          )}
+          <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20">
+              <Plus className="w-4 h-4 mr-2" /> Create New Bot
+          </Button>
+        </div>
         <BotConfigDialog 
             open={isConfigOpen} 
             onOpenChange={setIsConfigOpen} 
