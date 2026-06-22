@@ -45,7 +45,7 @@ const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
 // keyed by "acctKey:pairRaw" → timestamp of last dispatch
 const pairDispatchCooldown = {}; // e.g. { "1511587:EURUSD": 1716200000000 }
-const PAIR_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (reduced from 10 to allow faster retry after expiry)
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
@@ -322,12 +322,13 @@ Deno.serve(async (req) => {
             }, { headers: corsHeaders() });
         }
 
-        const twentyMinAgo = new Date(now - 20 * 60 * 1000).toISOString(); // 20min expiry window (index instruments need more time)
-        // Also expire ACTIVE signals older than 10 minutes (stuck signals that MT5 never acknowledged)
-        const fiveMinAgo = new Date(now - 10 * 60 * 1000).toISOString();
+        const thirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString(); // 30min expiry window (was 20min — gives EA more time to execute)
+        // Also expire ACTIVE signals older than 20 minutes (stuck signals that MT5 never acknowledged)
+        // Was 10 minutes — too aggressive, caused valid trades to expire before EA could confirm
+        const twentyMinAgo = new Date(now - 20 * 60 * 1000).toISOString();
         const stale = (allPendingSignals || []).filter(s =>
-            s.created_date < twentyMinAgo ||
-            (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < fiveMinAgo)
+            s.created_date < thirtyMinAgo ||
+            (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < twentyMinAgo)
         ); // expire stale signals
         if (stale.length > 0) {
             Promise.all(stale.map(s =>
@@ -337,7 +338,7 @@ Deno.serve(async (req) => {
         }
 
         // Only do the expensive open-trades + connection lookup if there are actually signals to dispatch
-        const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= twentyMinAgo);
+        const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= thirtyMinAgo);
 
         let acctOpenTrades = [];
         let ownerEmail = null;
@@ -433,10 +434,8 @@ Deno.serve(async (req) => {
                             ? nowMins >= startMins && nowMins < endMins
                             : nowMins >= startMins || nowMins < endMins;
                         if (!inWindow) {
-                            console.log(`[BRIDGE] Bot "${bot.name}" outside trading hours (${bot.trading_start_time}–${bot.trading_end_time} UTC) — expiring signal ${s.id} for ${pairRaw}`);
-                            // Expire this signal so it doesn't keep retrying
-                            base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' }).catch(() => {});
-                            cache.signals = { data: null, ts: 0 };
+                            console.log(`[BRIDGE] Bot "${bot.name}" outside trading hours (${bot.trading_start_time}–${bot.trading_end_time} UTC) — skipping signal ${s.id} for ${pairRaw} (will retry when in window)`);
+                            // SKIP (not expire) — the signal should be dispatched when the trading window opens
                             return false;
                         }
                     }
