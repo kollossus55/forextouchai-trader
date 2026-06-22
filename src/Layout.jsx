@@ -99,6 +99,38 @@ export default function Layout({ children }) {
   const [disconnectTime, setDisconnectTime] = React.useState(null);
   const [hasShownReconnection, setHasShownReconnection] = React.useState(false);
   const [connectionChangeTimeout, setConnectionChangeTimeout] = React.useState(null);
+
+  // Real-time trade notifications
+  React.useEffect(() => {
+    const unsubscribe = base44.entities.Trade.subscribe((event) => {
+      const t = event.data;
+      if (!t) return;
+
+      if (event.type === 'create' && t.status === 'OPEN') {
+        toast.success(`📈 Trade Opened — ${t.pair}`, {
+          description: `${t.type} ${t.lot_size} lots @ ${t.open_price} | Account: ${t.owner_email || 'N/A'}`,
+          duration: 6000,
+        });
+      }
+
+      if (event.type === 'update' && t.status === 'CLOSED') {
+        const pnl = t.pnl ?? 0;
+        const isWin = pnl >= 0;
+        if (isWin) {
+          toast.success(`✅ Trade Closed — ${t.pair} +$${pnl.toFixed(2)}`, {
+            description: `${t.type} closed @ ${t.close_price ?? '–'} | Account: ${t.owner_email || 'N/A'}`,
+            duration: 7000,
+          });
+        } else {
+          toast.error(`❌ Trade Closed — ${t.pair} -$${Math.abs(pnl).toFixed(2)}`, {
+            description: `${t.type} closed @ ${t.close_price ?? '–'} | Account: ${t.owner_email || 'N/A'}`,
+            duration: 7000,
+          });
+        }
+      }
+    });
+    return unsubscribe;
+  }, []);
   
   React.useEffect(() => {
     console.log('[Connection Monitor] isConnected:', isConnected, 'lastConnectionState:', lastConnectionState);
