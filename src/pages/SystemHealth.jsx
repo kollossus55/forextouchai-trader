@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,23 +35,9 @@ const STATUS = {
 
 export default function SystemHealth() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isResetting, setIsResetting] = useState(false);
   const [resetDone, setResetDone] = useState(false);
-
-  const handleReset = async () => {
-    setIsResetting(true);
-    setResetDone(false);
-    try {
-      await base44.functions.invoke('resetData', {});
-      setResetDone(true);
-      refetch();
-      setTimeout(() => setResetDone(false), 4000);
-    } catch (e) {
-      console.error('Reset failed:', e);
-    } finally {
-      setIsResetting(false);
-    }
-  };
 
   const { data: connections = [], refetch: refetchConnections, isFetching: f1 } = useQuery({
     queryKey: ['sh-connections'],
@@ -100,6 +86,22 @@ export default function SystemHealth() {
 
   const isFetching = f1 || f2 || f3 || f4 || f5;
   const refetch = () => { refetchConnections(); refetchTrades(); refetchBots(); refetchSignals(); refetchRisk(); };
+
+  const handleReset = async () => {
+    setIsResetting(true);
+    setResetDone(false);
+    try {
+      await base44.functions.invoke('resetData', {});
+      // Invalidate all cached queries so the UI shows fresh empty data
+      await queryClient.invalidateQueries();
+      setResetDone(true);
+      setTimeout(() => setResetDone(false), 4000);
+    } catch (e) {
+      console.error('Reset failed:', e);
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // ── Aggregated health metrics ──
   const health = useMemo(() => {
