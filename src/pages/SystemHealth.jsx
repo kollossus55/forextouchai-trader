@@ -92,9 +92,16 @@ export default function SystemHealth() {
     setResetDone(false);
     try {
       await base44.functions.invoke('resetData', {});
-      // Wait a moment for the backend to finish all deletes, then clear cache and refetch
-      await new Promise(r => setTimeout(r, 2000));
-      await queryClient.resetQueries();
+      await new Promise(r => setTimeout(r, 2500));
+      // Clear the entire cache and force fresh fetches
+      queryClient.clear();
+      await Promise.all([
+        refetchConnections(),
+        refetchTrades(),
+        refetchBots(),
+        refetchSignals(),
+        refetchRisk(),
+      ]);
       setResetDone(true);
       setTimeout(() => setResetDone(false), 4000);
     } catch (e) {
