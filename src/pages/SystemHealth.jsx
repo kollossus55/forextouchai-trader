@@ -174,8 +174,8 @@ export default function SystemHealth() {
         </div>
       </div>
 
-      {/* Critical alerts banner */}
-      {(health.criticalCount > 0 || health.pausedAccounts > 0) && (
+      {/* Alerts banner */}
+      {(health.criticalCount > 0 || health.pausedAccounts > 0 || health.warningCount > 0 || health.accountsNearLimit > 0) && (
         <div className="flex flex-col gap-2">
           {health.criticalCount > 0 && (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300">
@@ -184,9 +184,21 @@ export default function SystemHealth() {
             </div>
           )}
           {health.pausedAccounts > 0 && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300">
+              <XCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium">{health.pausedAccounts} account(s) have trading paused due to risk limits being breached.</span>
+            </div>
+          )}
+          {health.warningCount > 0 && (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm font-medium">{health.pausedAccounts} account(s) have trading paused due to risk limits.</span>
+              <span className="text-sm font-medium">{health.warningCount} connection(s) last synced 1–5 minutes ago — EA heartbeat is delayed. Check your EA is running.</span>
+            </div>
+          )}
+          {health.accountsNearLimit > 0 && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium">{health.accountsNearLimit} account(s) are approaching their daily loss limit — see Risk Status below.</span>
             </div>
           )}
         </div>
