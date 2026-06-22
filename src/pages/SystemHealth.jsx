@@ -92,8 +92,9 @@ export default function SystemHealth() {
     setResetDone(false);
     try {
       await base44.functions.invoke('resetData', {});
-      // Invalidate all cached queries so the UI shows fresh empty data
-      await queryClient.invalidateQueries();
+      // Wait a moment for the backend to finish all deletes, then clear cache and refetch
+      await new Promise(r => setTimeout(r, 2000));
+      await queryClient.resetQueries();
       setResetDone(true);
       setTimeout(() => setResetDone(false), 4000);
     } catch (e) {
