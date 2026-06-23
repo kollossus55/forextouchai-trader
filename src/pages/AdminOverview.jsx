@@ -138,7 +138,11 @@ export default function AdminOverview() {
     const recentTrades = closedTrades.filter(t => (t.updated_date || t.created_date || '') >= sevenDaysAgo);
 
     return bots.map(bot => {
-      const botTrades = recentTrades.filter(t => t.bot_id === bot.id);
+      // Match by bot_id first; fall back to owner_email (most trades from EA have no bot_id)
+      const botTrades = recentTrades.filter(t =>
+        (t.bot_id && t.bot_id === bot.id) ||
+        (!t.bot_id && bot.owner_email && t.owner_email === bot.owner_email)
+      );
       const wins = botTrades.filter(t => (t.pnl || 0) > 0).length;
       const losses = botTrades.filter(t => (t.pnl || 0) < 0).length;
       const total = wins + losses;
