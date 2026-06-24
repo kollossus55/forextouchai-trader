@@ -10,6 +10,7 @@ import PageNotFound from './lib/PageNotFound';
 import AdminOverview from './pages/AdminOverview';
 import SignalsDashboard from './pages/SignalsDashboard';
 import SystemHealth from './pages/SystemHealth';
+import Home from './pages/Home';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -47,11 +48,7 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
-      } />
+      <Route path="/" element={<Home />} />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}
