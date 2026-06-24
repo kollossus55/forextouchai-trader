@@ -92,7 +92,7 @@ export default function SystemHealth() {
     setResetDone(false);
     try {
       await base44.functions.invoke('resetData', {});
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise(r => setTimeout(r, 2000));
 
       // Restart all bots that were paused by the reset
       const allBots = await base44.entities.BotConfig.list('-created_date', 100);

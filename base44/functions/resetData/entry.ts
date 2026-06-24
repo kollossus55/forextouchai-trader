@@ -1,37 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Delete a small batch, retry once on rate limit
-async function deleteBatch(base44, entityName, ids) {
-  for (const id of ids) {
-    try {
-      await base44.asServiceRole.entities[entityName].delete(id);
-    } catch (e) {
-      if (e.message?.includes('Rate limit')) {
-        await new Promise(r => setTimeout(r, 2000));
-        await base44.asServiceRole.entities[entityName].delete(id);
-      }
-    }
-    await new Promise(r => setTimeout(r, 150));
-  }
-}
-
 async function clearEntity(base44, entityName) {
-  let total = 0;
-  while (true) {
-    let batch;
-    try {
-      batch = await base44.asServiceRole.entities[entityName].filter({}, null, 10);
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 3000));
-      batch = await base44.asServiceRole.entities[entityName].filter({}, null, 10);
-    }
+  let deleted = 0;
+  for (let pass = 0; pass < 50; pass++) {
+    const batch = await base44.asServiceRole.entities[entityName].filter({}, null, 25).catch(() => []);
     if (!batch || batch.length === 0) break;
-    await deleteBatch(base44, entityName, batch.map(i => i.id));
-    total += batch.length;
-    if (batch.length < 10) break;
-    await new Promise(r => setTimeout(r, 1000));
+    // Delete sequentially with a small delay to avoid rate limits
+    for (const item of batch) {
+      await base44.asServiceRole.entities[entityName].delete(item.id).catch(() => {});
+      await new Promise(r => setTimeout(r, 80));
+    }
+    deleted += batch.length;
+    if (batch.length < 25) break;
+    await new Promise(r => setTimeout(r, 500));
   }
-  return total;
+  return deleted;
 }
 
 Deno.serve(async (req) => {
@@ -42,86 +25,52 @@ Deno.serve(async (req) => {
 
     const results = {};
 
-    // Pause all running bots first to stop bridge traffic during reset
+    // Pause all running bots first
     try {
       const runningBots = await base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, null, 50);
       if (runningBots && runningBots.length > 0) {
-        for (const bot of runningBots) {
-          await base44.asServiceRole.entities.BotConfig.update(bot.id, { status: 'PAUSED' });
-          await new Promise(r => setTimeout(r, 200));
+        for (const b of runningBots) {
+          await base44.asServiceRole.entities.BotConfig.update(b.id, { status: 'PAUSED' });
         }
         results.bots_paused = runningBots.length;
       }
-      // Wait for in-flight bridge requests to settle
-      await new Promise(r => setTimeout(r, 3000));
-    } catch (e) {
-      // non-fatal — proceed anyway
-    }
+    } catch (e) { /* non-fatal */ }
 
-    // Clear entities one at a time to minimise concurrent API pressure
+    // Clear entities sequentially
     results.trades_deleted = await clearEntity(base44, 'Trade');
-    await new Promise(r => setTimeout(r, 1000));
     results.signals_deleted = await clearEntity(base44, 'Signal');
-    await new Promise(r => setTimeout(r, 1000));
     results.alerts_deleted = await clearEntity(base44, 'Alert');
 
-    // Reset risk settings
-    let riskBatch;
+    // Reset risk settings counters
     try {
-      riskBatch = await base44.asServiceRole.entities.RiskManagementSettings.filter({}, null, 100);
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 2000));
-      riskBatch = await base44.asServiceRole.entities.RiskManagementSettings.filter({}, null, 100);
-    }
-    if (riskBatch && riskBatch.length > 0) {
-      for (const r of riskBatch) {
-        try {
+      const riskBatch = await base44.asServiceRole.entities.RiskManagementSettings.filter({}, null, 100);
+      if (riskBatch && riskBatch.length > 0) {
+        for (const r of riskBatch) {
           await base44.asServiceRole.entities.RiskManagementSettings.update(r.id, {
             daily_loss_current: 0, peak_equity: 0,
             last_reset_date: new Date().toISOString().split('T')[0],
             is_trading_paused: false, limit_hit_at: null,
           });
-        } catch (e) {
-          await new Promise(r => setTimeout(r, 1500));
-          await base44.asServiceRole.entities.RiskManagementSettings.update(r.id, {
-            daily_loss_current: 0, peak_equity: 0,
-            last_reset_date: new Date().toISOString().split('T')[0],
-            is_trading_paused: false, limit_hit_at: null,
-          });
+          await new Promise(r2 => setTimeout(r2, 100));
         }
-        await new Promise(r => setTimeout(r, 300));
+        results.risk_reset = riskBatch.length;
       }
-      results.risk_reset = riskBatch.length;
-    }
+    } catch (e) { results.risk_error = e.message; }
 
-    // Reset broker connection stats
-    let connBatch;
+    // Reset broker connection trade counts
     try {
-      connBatch = await base44.asServiceRole.entities.BrokerConnection.filter({}, null, 100);
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 2000));
-      connBatch = await base44.asServiceRole.entities.BrokerConnection.filter({}, null, 100);
-    }
-    if (connBatch && connBatch.length > 0) {
-      for (const c of connBatch) {
-        try {
+      const connBatch = await base44.asServiceRole.entities.BrokerConnection.filter({}, null, 100);
+      if (connBatch && connBatch.length > 0) {
+        for (const c of connBatch) {
           await base44.asServiceRole.entities.BrokerConnection.update(c.id, {
-            connection_status: 'DISCONNECTED', last_sync: null,
-            balance: 0, equity: 0, margin: 0, free_margin: 0,
-            margin_level: 0, open_trade_count: 0,
+            open_trade_count: 0,
+            balance: 0, equity: 0, margin: 0, free_margin: 0, margin_level: 0,
           });
-        } catch (e) {
-          await new Promise(r => setTimeout(r, 1500));
-          await base44.asServiceRole.entities.BrokerConnection.update(c.id, {
-            connection_status: 'DISCONNECTED', last_sync: null,
-            balance: 0, equity: 0, margin: 0, free_margin: 0,
-            margin_level: 0, open_trade_count: 0,
-          });
+          await new Promise(r => setTimeout(r, 100));
         }
-        await new Promise(r => setTimeout(r, 300));
+        results.connections_reset = connBatch.length;
       }
-      results.connections_reset = connBatch.length;
-    }
+    } catch (e) { results.connections_error = e.message; }
 
     return Response.json({ success: true, message: 'Data reset complete', results });
   } catch (error) {
