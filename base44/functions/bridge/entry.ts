@@ -10,7 +10,7 @@ let globalLockAcquiredAt = 0;
 
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
-const MIN_CALL_INTERVAL_MS = 10_000; // 10 seconds minimum between calls per account
+const MIN_CALL_INTERVAL_MS = 25_000; // 25 seconds minimum between calls per account
 
 // ─── In-memory state (survives across requests within same isolate) ───────────
 const cache = {
@@ -49,7 +49,7 @@ const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (reduced from 10 to allow f
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
-    signals:    15_000,  // 15s  — reduced from 5s to cut DB hammering
+    signals:     5_000,  // 5s   — short TTL so expired signals clear fast
     trades:     60_000,  // 60s  — trade list cache
     risk:      180_000,  // 3min — risk settings (was 2min)
     connection: 30_000,  // 30s  — heartbeat throttle (was 20s)
