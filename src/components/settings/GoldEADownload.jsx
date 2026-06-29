@@ -526,6 +526,14 @@ export default function GoldEADownload() {
                     <p className="text-xs text-amber-300/80 font-semibold mb-3">
                         ⚠ Attach this EA to a separate XAUUSD chart alongside your standard bridge EA.
                     </p>
+                    <div className="bg-red-500/10 border border-red-500/30 rounded p-3 mb-3">
+                        <p className="text-xs text-red-300 font-semibold mb-1">⚠ MT4: Two URLs must be whitelisted in Tools → Options → Expert Advisors → Allow WebRequest:</p>
+                        <code className="text-xs text-red-200/80 block">https://forex-ai-trader-cc744e2a.base44.app/functions/bridge</code>
+                        <code className="text-xs text-red-200/80 block">https://forex-ai-trader-cc744e2a.base44.app/functions/confirmExecution</code>
+                        <p className="text-xs text-red-200/60 mt-1">Both are required — missing the second causes "WebRequest failed" after trade execution.</p>
+                    </div>
+                    <p className="text-xs text-amber-300/80 font-semibold mb-3 hidden">
+                    </p>
                     <div className="flex gap-2 flex-wrap">
                         <Button
                             onClick={() => download(GOLD_EA_CODE, "GoldForexTouchAI_EA.mq4")}
