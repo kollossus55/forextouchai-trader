@@ -245,7 +245,7 @@ void ExecuteSignal(string obj) {
 }
 
 void ConfirmExecution(string signalId, long ticket, string type, double lots, double price) {
-    string confirmUrl = StringSubstr(BridgeURL, 0, StringFind(BridgeURL, "bridge")) + "confirmExecution";
+    string confirmUrl = "https://forex-ai-trader-cc744e2a.base44.app/functions/confirmExecution";
     string payload = StringFormat(
         "{\\\"signal_id\\\":\\\"%s\\\",\\\"ticket\\\":%I64d,\\\"pair\\\":\\\"%s\\\",\\\"type\\\":\\\"%s\\\",\\\"lot_size\\\":%.2f,\\\"open_price\\\":%.2f,\\\"account_number\\\":\\\"%I64d\\\"}",
         signalId, ticket, GoldSymbol, type, lots, price, AccountInfoInteger(ACCOUNT_LOGIN)
@@ -479,7 +479,7 @@ void ExecuteSignal(string obj) {
 }
 
 void ConfirmExecution(string signalId, int ticket, string type, double lots, double price) {
-    string confirmUrl = StringSubstr(BridgeURL, 0, StringFind(BridgeURL, "bridge")) + "confirmExecution";
+    string confirmUrl = "https://forex-ai-trader-cc744e2a.base44.app/functions/confirmExecution";
     string payload = StringFormat(
         "{\\\"signal_id\\\":\\\"%s\\\",\\\"ticket\\\":%d,\\\"pair\\\":\\\"%s\\\",\\\"type\\\":\\\"%s\\\",\\\"lot_size\\\":%.2f,\\\"open_price\\\":%.2f,\\\"account_number\\\":\\\"%s\\\"}",
         signalId, ticket, GoldSymbol, type, lots, price, IntegerToString(AccountNumber())
