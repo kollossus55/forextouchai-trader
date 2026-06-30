@@ -117,6 +117,14 @@ Deno.serve(async (req) => {
 
         const acctKey = String(account_number);
 
+        // Detect if this is a Gold EA heartbeat (only sends XAUUSD price)
+        const eaPricesRaw = body.prices || acct.prices;
+        const isGoldEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
+            ['XAUUSD', 'GOLD', 'XAU'].includes((eaPricesRaw[0]?.symbol || '').toUpperCase());
+
+        // Gold EA uses a separate rate-limit slot so it's never blocked by the standard EA calling the same account
+        const rateLimitKey = isGoldEA ? `${acctKey}:gold` : acctKey;
+
         // ── Global request lock: serialize processing to prevent dual-account rate limit exhaustion ──
         // Without this, MT4+MT5 calling simultaneously each trigger 10+ DB ops → Base44 rate limits → 500s
         if (globalLockPromise) {
@@ -151,7 +159,7 @@ Deno.serve(async (req) => {
         }, 30_000);
 
         // ── Rate limit: reject if called too frequently ───────────────────────
-        const lastCall = lastCallTs[acctKey] || 0;
+        const lastCall = lastCallTs[rateLimitKey] || 0;
         const isRateLimited = (now - lastCall) < MIN_CALL_INTERVAL_MS;
 
         // Always run trade reconcile even when rate-limited — trade sync must not be blocked
@@ -176,7 +184,7 @@ Deno.serve(async (req) => {
                 pending_signals: [],
             }, { status: 200, headers: corsHeaders() });
         }
-        lastCallTs[acctKey] = now;
+        lastCallTs[rateLimitKey] = now;
 
         // ── Periodic memory cleanup (every ~100 calls) to prevent unbounded growth ──
         if (dispatchedSignalIds.size > MAX_DISPATCHED_IDS) {
@@ -395,6 +403,16 @@ Deno.serve(async (req) => {
                     dispatchedPairsThisCycle.add(`manual:${pairRaw}`);
                     console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown/open-pair checks`);
                     return true;
+                }
+
+                // Detect Gold signals
+                const isGoldPair = ['XAUUSD', 'GOLD', 'XAU'].includes(pairRaw.toUpperCase()) || s.strategy === 'GOLD_XAUUSD';
+
+                // Gold EA: only dispatch Gold signals; Standard EA: skip Gold signals (handled by Gold EA)
+                if (isGoldEA && !isGoldPair) return false;
+                if (!isGoldEA && isGoldPair) {
+                    console.log(`[BRIDGE] Skipping Gold signal for standard EA — Gold EA handles XAUUSD`);
+                    return false;
                 }
 
                 // If a signal for this pair is already ACTIVE in DB, skip — trade likely already open
