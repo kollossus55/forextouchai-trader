@@ -571,8 +571,12 @@ function sanitizeSignal(s, livePriceMap) {
     let safeTP = s.take_profit || 0;
 
     if (basePrice > 0) {
-        // Detect Gold/XAUUSD: price > 500 means it's a commodity priced in dollars
-        const isGold = basePrice > 500;
+        // Instrument classification by symbol name and price range
+        const pairUpper = pair.toUpperCase();
+        const isGold = pairUpper === 'XAUUSD' || pairUpper === 'GOLD' || pairUpper === 'XAU' || s.strategy === 'GOLD_XAUUSD';
+        // Indices/CFDs: named instruments like UK100, US30, AUS200, GER40, NAS100, SPX500, etc.
+        const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
+        const isIndex = INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && basePrice > 1000);
 
         // Validate SL direction — reset if wrong side of price
         if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
@@ -600,9 +604,26 @@ function sanitizeSignal(s, livePriceMap) {
                     ? parseFloat((basePrice + defaultTpDist).toFixed(2))
                     : parseFloat((basePrice - defaultTpDist).toFixed(2));
             }
-            // Ensure SL/TP are rounded to 2dp for Gold
             safeSL = parseFloat(safeSL.toFixed(2));
             safeTP = parseFloat(safeTP.toFixed(2));
+        } else if (isIndex) {
+            // Indices/CFDs: use percentage-based distances (0.5% SL, 1% TP) — wide enough for all brokers
+            const defaultSlDist = basePrice * 0.005; // 0.5%
+            const defaultTpDist = basePrice * 0.010; // 1.0%
+
+            if (safeSL === 0) {
+                safeSL = type === 'BUY'
+                    ? parseFloat((basePrice - defaultSlDist).toFixed(2))
+                    : parseFloat((basePrice + defaultSlDist).toFixed(2));
+            }
+            if (safeTP === 0) {
+                safeTP = type === 'BUY'
+                    ? parseFloat((basePrice + defaultTpDist).toFixed(2))
+                    : parseFloat((basePrice - defaultTpDist).toFixed(2));
+            }
+            safeSL = parseFloat(safeSL.toFixed(2));
+            safeTP = parseFloat(safeTP.toFixed(2));
+            console.log(`[BRIDGE] sanitizeSignal ${pair} detected as INDEX — using % distances | SL dist: ${defaultSlDist.toFixed(2)} TP dist: ${defaultTpDist.toFixed(2)}`);
         } else {
             // Standard Forex: pip-based SL/TP
             const pipSize = basePrice > 50 ? 0.01 : 0.0001; // JPY pairs use 0.01
@@ -621,7 +642,8 @@ function sanitizeSignal(s, livePriceMap) {
             }
         }
 
-        console.log(`[BRIDGE] sanitizeSignal ${pair} ${type} @ ${basePrice} | SL: ${safeSL} | TP: ${safeTP}${isGold ? ' [GOLD]' : ''}`);
+        const instrumentType = isGold ? '[GOLD]' : isIndex ? '[INDEX]' : '[FOREX]';
+        console.log(`[BRIDGE] sanitizeSignal ${pair} ${type} @ ${basePrice} | SL: ${safeSL} | TP: ${safeTP} ${instrumentType}`);
     } else {
         // No price available at all — log and send 0s (EA will reject the signal anyway)
         console.warn(`[BRIDGE] sanitizeSignal: no price for ${pair} — signal ${s.id} sent without SL/TP`);
