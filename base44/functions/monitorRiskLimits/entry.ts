@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
         const now = new Date();
         const today = now.toISOString().split('T')[0];
 
-        // ── Step 1: Fetch only what we need to decide if there's anything to do ──
+        // ── Step 1: Fetch essential data only ──
         const [riskSettingsList, brokerConnections] = await Promise.all([
             base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 50),
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 20),
@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No connected broker accounts with balance — skipping' });
         }
 
-        // ── Step 2: Fetch trades with tighter limits ──
+        // ── Step 2: Fetch trades once for all accounts ──
         const [openTrades, closedTrades] = await Promise.all([
-            base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
-            base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 200),
+            base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
+            base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 100),
         ]);
 
         // Build risk settings maps
@@ -29,6 +29,11 @@ Deno.serve(async (req) => {
         for (const r of riskSettingsList) {
             if (r.account_number) accountSettingsMap[r.account_number] = r;
         }
+
+        // Fetch recent alerts ONCE for all accounts (avoid per-account queries)
+        const recentAlerts = await base44.asServiceRole.entities.Alert.filter({ is_read: false }, '-created_date', 50);
+        const recentAlertTitles = new Set(recentAlerts.map(a => a.title));
+        const newAlertTitlesThisRun = new Set(); // prevent duplicates within same run
 
         const totalAlerts = [];
         const results = [];
@@ -60,20 +65,18 @@ Deno.serve(async (req) => {
                     riskSettings.daily_loss_current = 0;
 
                     const resumeTitle = `✅ Trading Auto-Resumed (Acct ${acctKey})`;
-                    const recentResumeAlerts = await base44.asServiceRole.entities.Alert.filter({ title: resumeTitle }, '-created_date', 3);
-                    const alreadyResumeAlerted = recentResumeAlerts.some(a => String(a.created_date || '').startsWith(today));
-                    if (!alreadyResumeAlerted) {
+                    if (!recentAlertTitles.has(resumeTitle) && !newAlertTitlesThisRun.has(resumeTitle)) {
+                        newAlertTitlesThisRun.add(resumeTitle);
                         await base44.asServiceRole.entities.Alert.create({
                             title: resumeTitle,
                             message: `Account ${acctKey}: Trading automatically resumed after ${autoResumeHours}h cooldown.`,
                             type: 'SUCCESS',
                         });
-                        const connOwner = conn.owner_email || null;
-                        if (connOwner) {
+                        if (conn.owner_email) {
                             base44.asServiceRole.integrations.Core.SendEmail({
-                                to: connOwner,
+                                to: conn.owner_email,
                                 subject: `✅ ForexTouchAI — Trading Auto-Resumed (Acct ${acctKey})`,
-                                body: `Account ${acctKey}: Trading resumed after the ${autoResumeHours}h cooldown period. Risk counters reset.\n\nForexTouchAI — Automated Risk Monitor`
+                                body: `Account ${acctKey}: Trading resumed after the ${autoResumeHours}h cooldown period.\n\nForexTouchAI — Automated Risk Monitor`
                             }).catch(e => console.error(`[monitorRiskLimits] Resume email failed:`, e.message));
                         }
                     }
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
                 console.log(`[monitorRiskLimits] Daily reset for ${acctKey} — period ${periodKey}`);
             }
 
-            // ── Peak equity ──
+            // ── Peak equity — only write if changed ──
             const newPeak = Math.max(riskSettings.peak_equity || 0, equity);
             if (newPeak > (riskSettings.peak_equity || 0)) {
                 await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { peak_equity: newPeak });
@@ -132,7 +135,10 @@ Deno.serve(async (req) => {
             const acctOpenCount = acctOpenForAcct.length;
             const trackedLoss = Math.max(0, -totalDailyPnl);
 
-            await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { daily_loss_current: trackedLoss });
+            // Only write daily_loss_current if it changed by more than $0.50 (reduces DB writes)
+            if (Math.abs(trackedLoss - (riskSettings.daily_loss_current || 0)) > 0.5) {
+                await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { daily_loss_current: trackedLoss });
+            }
             console.log(`[monitorRiskLimits] ${acctKey}: todayPnl=$${acctTodayPnl.toFixed(2)} floating=$${acctFloatingPnl.toFixed(2)} loss=$${trackedLoss.toFixed(2)}`);
 
             const alerts = [];
@@ -175,12 +181,11 @@ Deno.serve(async (req) => {
             if (riskSettings.daily_profit_target_percent > 0 && !riskSettings.is_trading_paused) {
                 const dailyProfitPercent = ((acctTodayPnl + acctFloatingPnl) / balance) * 100;
                 if (dailyProfitPercent >= riskSettings.daily_profit_target_percent) {
-                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                     const todayAlertTitle = `🎯 Daily Profit Target Reached! (Acct ${acctKey})`;
-                    const recentProfitAlerts = await base44.asServiceRole.entities.Alert.filter({ title: todayAlertTitle }, '-created_date', 3);
-                    const alreadyAlerted = recentProfitAlerts.some(a => String(a.created_date || '').startsWith(today));
-                    if (!alreadyAlerted) {
-                        // Close open trades
+                    if (!recentAlertTitles.has(todayAlertTitle) && !newAlertTitlesThisRun.has(todayAlertTitle)) {
+                        await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
+                        newAlertTitlesThisRun.add(todayAlertTitle);
+                        // Close open trades in batches
                         for (let i = 0; i < acctOpenForAcct.length; i += 3) {
                             await Promise.all(acctOpenForAcct.slice(i, i + 3).map(t =>
                                 base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
@@ -196,20 +201,18 @@ Deno.serve(async (req) => {
                 }
             }
 
-            // ── Deduplicated alerts ──
-            if (alerts.length > 0) {
-                const recentAlerts = await base44.asServiceRole.entities.Alert.filter({ is_read: false }, '-created_date', 20);
-                for (const alert of alerts) {
-                    if (!recentAlerts.some(a => a.title === alert.title)) {
-                        await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
-                        console.log(`[monitorRiskLimits] Alert for ${acctKey}: ${alert.title}`);
-                        if (connOwner) {
-                            base44.asServiceRole.integrations.Core.SendEmail({
-                                to: connOwner,
-                                subject: `${alert.type === 'ERROR' ? '🚨' : '⚠️'} ForexTouchAI — ${alert.title}`,
-                                body: `${alert.message}\n\nLog in to ForexTouchAI to review your account.\n\nForexTouchAI — Automated Risk Monitor`
-                            }).catch(e => console.error(`[monitorRiskLimits] Email failed:`, e.message));
-                        }
+            // ── Deduplicated alerts (using in-memory set — no extra DB queries) ──
+            for (const alert of alerts) {
+                if (!recentAlertTitles.has(alert.title) && !newAlertTitlesThisRun.has(alert.title)) {
+                    newAlertTitlesThisRun.add(alert.title);
+                    await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
+                    console.log(`[monitorRiskLimits] Alert for ${acctKey}: ${alert.title}`);
+                    if (connOwner) {
+                        base44.asServiceRole.integrations.Core.SendEmail({
+                            to: connOwner,
+                            subject: `${alert.type === 'ERROR' ? '🚨' : '⚠️'} ForexTouchAI — ${alert.title}`,
+                            body: `${alert.message}\n\nLog in to ForexTouchAI to review your account.\n\nForexTouchAI — Automated Risk Monitor`
+                        }).catch(e => console.error(`[monitorRiskLimits] Email failed:`, e.message));
                     }
                 }
             }
