@@ -113,17 +113,18 @@ export default function Layout({ children }) {
         });
       }
 
-      if (event.type === 'update' && t.status === 'CLOSED') {
+      // Only show close toast for real EA closes — must have a valid close_price (not DB cleanup/dedup)
+      if (event.type === 'update' && t.status === 'CLOSED' && t.close_price > 0) {
         const pnl = t.pnl ?? 0;
         const isWin = pnl >= 0;
         if (isWin) {
           toast.success(`✅ Trade Closed — ${t.pair} +$${pnl.toFixed(2)}`, {
-            description: `${t.type} closed @ ${t.close_price ?? '–'} | Account: ${t.owner_email || 'N/A'}`,
+            description: `${t.type} closed @ ${t.close_price} | Account: ${t.owner_email || 'N/A'}`,
             duration: 7000,
           });
         } else {
           toast.error(`❌ Trade Closed — ${t.pair} -$${Math.abs(pnl).toFixed(2)}`, {
-            description: `${t.type} closed @ ${t.close_price ?? '–'} | Account: ${t.owner_email || 'N/A'}`,
+            description: `${t.type} closed @ ${t.close_price} | Account: ${t.owner_email || 'N/A'}`,
             duration: 7000,
           });
         }
