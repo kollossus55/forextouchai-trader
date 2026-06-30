@@ -576,7 +576,8 @@ function buildPriceMap(eaPrices) {
 }
 
 function sanitizeSignal(s, livePriceMap) {
-    const pair = (s.pair || '').replace('/', '');
+    const originalPair = s.pair || ''; // preserve original pair name (e.g. AUS/200) for EA
+    const pair = originalPair.replace('/', ''); // bare symbol for price lookups only
     const type = s.type;
     const liveAsk = livePriceMap[pair + '_ask'] || livePriceMap[pair] || 0;
     const liveBid = livePriceMap[pair] || 0;
@@ -672,7 +673,7 @@ function sanitizeSignal(s, livePriceMap) {
     const isGoldSignal = (pair === 'XAUUSD' || pair === 'GOLD' || pair === 'XAU' || s.strategy === 'GOLD_XAUUSD');
     const orderComment = isGoldSignal ? 'GoldForexTouchAI' : 'ForexTouchAI';
 
-    return { id: s.id, pair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
+    return { id: s.id, pair: originalPair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
