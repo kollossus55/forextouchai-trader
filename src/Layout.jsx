@@ -113,8 +113,9 @@ export default function Layout({ children }) {
         });
       }
 
-      // Only show close toast for real EA closes — must have a valid close_price (not DB cleanup/dedup)
-      if (event.type === 'update' && t.status === 'CLOSED' && t.close_price > 0) {
+      // Only show close toast for real EA closes — must have a valid close_price AND non-zero PnL
+      // Bridge reconcile closes use pnl: 0 with a calculated close_price — skip those
+      if (event.type === 'update' && t.status === 'CLOSED' && t.close_price > 0 && (t.pnl ?? 0) !== 0) {
         const pnl = t.pnl ?? 0;
         const isWin = pnl >= 0;
         if (isWin) {
