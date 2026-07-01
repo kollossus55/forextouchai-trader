@@ -10,7 +10,7 @@ let globalLockAcquiredAt = 0;
 
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
-const MIN_CALL_INTERVAL_MS = 25_000; // 25 seconds minimum between calls per account
+const MIN_CALL_INTERVAL_MS = 45_000; // 45 seconds minimum between calls per account
 
 // ─── In-memory state (survives across requests within same isolate) ───────────
 const cache = {
@@ -49,11 +49,11 @@ const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (reduced from 10 to allow f
 
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
-    signals:     5_000,  // 5s   — short TTL so expired signals clear fast
+    signals:    10_000,  // 10s  — short TTL so expired signals clear fast
     trades:     60_000,  // 60s  — trade list cache
-    risk:      180_000,  // 3min — risk settings (was 2min)
-    connection: 30_000,  // 30s  — heartbeat throttle (was 20s)
-    pairMap:   300_000,  // 5min — currency pair map
+    risk:      300_000,  // 5min — risk settings
+    connection: 45_000,  // 45s  — heartbeat throttle (matches min call interval)
+    pairMap:   600_000,  // 10min — currency pair map
 };
 
 // How often the EA should heartbeat (returned in response so EA can self-throttle)
@@ -150,6 +150,8 @@ Deno.serve(async (req) => {
         globalLockPromise = new Promise(resolve => { releaseLock = resolve; });
         globalLockOwner = acctKey;
         globalLockAcquiredAt = now;
+        // Small stagger delay after lock acquired to spread DB load across accounts
+        await new Promise(r => setTimeout(r, 300));
         // Safety timeout: auto-release lock after 30s if something crashes mid-processing
         lockSafetyTimer = setTimeout(() => {
             if (globalLockOwner === acctKey && globalLockPromise) {
@@ -686,7 +688,7 @@ const lastDedupTs = {};
 async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     // ── Deduplication cleanup: throttled to once per 5 min per account ──
     const nowTs = Date.now();
-    const shouldDedup = !lastDedupTs[acctKey] || (nowTs - lastDedupTs[acctKey]) > 300_000;
+    const shouldDedup = !lastDedupTs[acctKey] || (nowTs - lastDedupTs[acctKey]) > 600_000; // 10 min
     if (shouldDedup) lastDedupTs[acctKey] = nowTs;
 
     if (shouldDedup) try {
@@ -742,14 +744,21 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         if (!initPromise[acctKey]) {
             initPromise[acctKey] = (async () => {
                 knownTickets[acctKey] = new Set();
-                try {
-                    // Only load recent trades (last 500) to avoid rate limit on large accounts
-                    const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 500);
-                    allTrades.forEach(t => { if (t.ticket) knownTickets[acctKey].add(t.ticket); });
-                    console.log('[BRIDGE] Cold-start init: loaded', knownTickets[acctKey].size, 'tickets for', acctKey);
-                } catch (e) {
-                    console.warn('[BRIDGE] Cold-start init failed:', e.message);
-                    knownTickets[acctKey] = new Set(); // empty but set — won't re-init
+                // Retry up to 3 times with backoff on rate limit
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        const allTrades = await base44.asServiceRole.entities.Trade.filter({ owner_email: acctKey }, '-created_date', 300);
+                        allTrades.forEach(t => { if (t.ticket) knownTickets[acctKey].add(t.ticket); });
+                        console.log('[BRIDGE] Cold-start init: loaded', knownTickets[acctKey].size, 'tickets for', acctKey);
+                        break;
+                    } catch (e) {
+                        if (attempt < 2) {
+                            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+                        } else {
+                            console.warn('[BRIDGE] Cold-start init failed after retries:', e.message);
+                            knownTickets[acctKey] = new Set();
+                        }
+                    }
                 }
             })();
         }
@@ -775,7 +784,7 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     let closedTickets = new Set();
     try {
         const recentClosed = await base44.asServiceRole.entities.Trade.filter(
-            { owner_email: acctKey, status: 'CLOSED' }, '-updated_date', 200
+            { owner_email: acctKey, status: 'CLOSED' }, '-updated_date', 100
         );
         recentClosed.forEach(t => { if (t.ticket) { closedTickets.add(t.ticket); memTickets.add(t.ticket); } });
     } catch (e) {
