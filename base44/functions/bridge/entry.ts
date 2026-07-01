@@ -166,7 +166,8 @@ Deno.serve(async (req) => {
         const eaTradesEarly = body.trades || acct.trades;
         const eaPricesEarly = body.prices || acct.prices;
         const livePriceMapEarly = buildPriceMap(eaTradesEarly?.length ? eaPricesEarly : []);
-        if (isRateLimited && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey]) {
+        const isColdStartEarly = !knownTickets[acctKey];
+        if (isRateLimited && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
             reconcileLock[acctKey] = true;
             reconcileTrades(base44, eaTradesEarly, acctKey, livePriceMapEarly)
                 .catch(e => console.error('[BRIDGE] Rate-limited reconcile error:', e.message))
@@ -285,7 +286,9 @@ Deno.serve(async (req) => {
         // NOTE: Reconcile runs ALWAYS even when trading is paused, so DB stays in sync with EA
         const eaTrades = body.trades || acct.trades;
         const lastReconcile = body.last_reconcile || 0;
-        const shouldReconcile = (now - lastReconcile) > 30_000 && Array.isArray(eaTrades) && !reconcileLock[acctKey];
+        // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
+        const isColdStart = !knownTickets[acctKey];
+        const shouldReconcile = (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
