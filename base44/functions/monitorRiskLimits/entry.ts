@@ -17,11 +17,17 @@ Deno.serve(async (req) => {
             return Response.json({ success: true, message: 'No connected broker accounts with balance — skipping' });
         }
 
-        // ── Step 2: Fetch trades once for all accounts ──
-        const [openTrades, closedTrades] = await Promise.all([
-            base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
-            base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-updated_date', 100),
-        ]);
+        // ── Step 2: Fetch trades per connected account (avoids full-table timeout) ──
+        const acctNumbers = connectedAccounts.map(c => c.account_number).filter(Boolean);
+        const tradeResults = await Promise.all(
+            acctNumbers.flatMap(acct => [
+                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acct }, '-created_date', 50),
+                base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED', owner_email: acct }, '-updated_date', 50),
+            ])
+        );
+        // Interleaved: [open0, closed0, open1, closed1, ...]
+        const openTrades = tradeResults.filter((_, i) => i % 2 === 0).flat();
+        const closedTrades = tradeResults.filter((_, i) => i % 2 === 1).flat();
 
         // Build risk settings maps
         const globalSettings = riskSettingsList.find(r => !r.account_number) || null;
