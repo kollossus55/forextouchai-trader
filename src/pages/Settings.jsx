@@ -575,6 +575,11 @@ void ExecuteSignalObj(string obj) {
 
    if(StringLen(id) == 0 || StringLen(pair) == 0 || StringLen(type) == 0) return;
    if(id == lastSignalId) return;
+   // Strip slash from pair for MT5 symbol lookup (e.g. EUR/USD -> EURUSD)
+   string symbol = pair;
+   int slashPos = StringFind(pair, "/");
+   if(slashPos != -1)
+      symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
    if(MaxOpenTrades > 0 && PositionsTotal() >= MaxOpenTrades) {
       Print("[BRIDGE MT5] Rejected: max open trades");
       return;
@@ -585,10 +590,10 @@ void ExecuteSignalObj(string obj) {
    }
 
    bool isBuy = (type == "BUY");
-   double price   = isBuy ? SymbolInfoDouble(pair, SYMBOL_ASK) : SymbolInfoDouble(pair, SYMBOL_BID);
-   int    digits  = (int)SymbolInfoInteger(pair, SYMBOL_DIGITS);
+   double price   = isBuy ? SymbolInfoDouble(symbol, SYMBOL_ASK) : SymbolInfoDouble(symbol, SYMBOL_BID);
+   int    digits  = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    if(price == 0) {
-      Print("[BRIDGE MT5] Cannot get price for ", pair, " - add to Market Watch");
+      Print("[BRIDGE MT5] Cannot get price for ", symbol, " - add to Market Watch");
       return;
    }
 
@@ -604,11 +609,11 @@ void ExecuteSignalObj(string obj) {
    }
 
    double lot = (sigLot > 0) ? sigLot : FixedLotSize;
-   Print("[BRIDGE MT5] Executing: ", type, " ", pair, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
+   Print("[BRIDGE MT5] Executing: ", type, " ", symbol, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
 
    bool ok = isBuy
-      ? trade.Buy(lot, pair, price, finalSL, finalTP, orderComment)
-      : trade.Sell(lot, pair, price, finalSL, finalTP, orderComment);
+      ? trade.Buy(lot, symbol, price, finalSL, finalTP, orderComment)
+      : trade.Sell(lot, symbol, price, finalSL, finalTP, orderComment);
 
    if(ok) {
       Print("[BRIDGE MT5] Trade opened! Signal=", id, " RetCode=", trade.ResultRetcode());
@@ -1090,12 +1095,18 @@ string GetJsonValue(string json, string key) {
             return;
          }
          
+         // Strip slash from pair for MT4 symbol lookup (e.g. EUR/USD -> EURUSD)
+         string symbol = pair;
+         int slashPos = StringFind(pair, "/");
+         if(slashPos != -1)
+            symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
+
          int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
-         double currentPrice = MarketInfo(pair, (cmd == OP_BUY ? MODE_ASK : MODE_BID));
-         int digits = (int)MarketInfo(pair, MODE_DIGITS);
+         double currentPrice = MarketInfo(symbol, (cmd == OP_BUY ? MODE_ASK : MODE_BID));
+         int digits = (int)MarketInfo(symbol, MODE_DIGITS);
          
          if(currentPrice == 0) {
-            Print("[BRIDGE] ERROR: Cannot get price for ", pair, " - add symbol to Market Watch");
+            Print("[BRIDGE] ERROR: Cannot get price for ", symbol, " - add symbol to Market Watch");
             return;
          }
          
@@ -1120,9 +1131,9 @@ string GetJsonValue(string json, string key) {
          double displayTP = HideSLTP ? 0 : finalTP;
          double finalLot  = (sigLot > 0) ? sigLot : FixedLotSize;
          
-         Print("[BRIDGE] Executing: ", type, " ", pair, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
+         Print("[BRIDGE] Executing: ", type, " ", symbol, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
          
-         int ticket = OrderSend(pair, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
+         int ticket = OrderSend(symbol, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
          
          if(ticket > 0) {
             Print("[BRIDGE] Trade opened! Ticket=", ticket, " Signal=", id);
