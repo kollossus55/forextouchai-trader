@@ -42,26 +42,27 @@ export default function SystemHealth() {
   const { data: connections = [], refetch: refetchConnections, isFetching: f1 } = useQuery({
     queryKey: ['sh-connections'],
     queryFn: () => base44.entities.BrokerConnection.list('-updated_date', 100),
-    refetchInterval: 15000,
+    refetchInterval: 60000,
     initialData: []
   });
 
   const { data: openTrades = [], refetch: refetchTrades, isFetching: f2 } = useQuery({
     queryKey: ['sh-open-trades'],
     queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 200),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
     initialData: []
   });
 
   const { data: bots = [], refetch: refetchBots, isFetching: f3 } = useQuery({
     queryKey: ['sh-bots'],
     queryFn: () => base44.entities.BotConfig.list('-updated_date', 50),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
     initialData: []
   });
 
   const { data: allSignals = [], refetch: refetchSignals, isFetching: f4 } = useQuery({
     queryKey: ['sh-signals'],
+    refetchInterval: 60000,
     queryFn: async () => {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const results = await Promise.all([
@@ -73,7 +74,6 @@ export default function SystemHealth() {
       ]);
       return results.flat().filter(s => s.created_date >= cutoff);
     },
-    refetchInterval: 15000,
     initialData: []
   });
 
