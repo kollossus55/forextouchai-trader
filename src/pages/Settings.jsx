@@ -377,6 +377,8 @@ input double TrailingStopPips  = 20;
 input double TrailingStartPips = 30;
 input string TradingStartTime  = "00:00";
 input string TradingEndTime    = "23:59";
+input bool   CountAllTrades   = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
+input int    MagicNumber      = 12345;
 
 // --- GLOBALS ---
 string Endpoint;
@@ -395,6 +397,7 @@ int OnInit() {
    if(len > 0 && StringSubstr(url, len-1, 1) == "/")
       url = StringSubstr(url, 0, len-1);
    Endpoint = url + "/functions/bridge";
+   trade.SetExpertMagicNumber(MagicNumber);
 
    Print("===================================");
    Print("ForexTouchAI Bridge EA MT5 v", EA_VERSION);
@@ -580,8 +583,17 @@ void ExecuteSignalObj(string obj) {
    int slashPos = StringFind(pair, "/");
    if(slashPos != -1)
       symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
-   if(MaxOpenTrades > 0 && PositionsTotal() >= MaxOpenTrades) {
-      Print("[BRIDGE MT5] Rejected: max open trades");
+   int myOpenCount = 0;
+   if(CountAllTrades) {
+      myOpenCount = PositionsTotal();
+   } else {
+      for(int ci = 0; ci < PositionsTotal(); ci++) {
+         ulong ct = PositionGetTicket(ci);
+         if(PositionSelectByTicket(ct) && PositionGetInteger(POSITION_MAGIC) == MagicNumber) myOpenCount++;
+      }
+   }
+   if(MaxOpenTrades > 0 && myOpenCount >= MaxOpenTrades) {
+      Print("[BRIDGE MT5] Rejected: max open trades (", myOpenCount, "/", MaxOpenTrades, CountAllTrades ? " [ALL]" : " [EA-only]", ")");
       return;
    }
    if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
@@ -679,6 +691,8 @@ string GetJsonValue(string json, string key) {
       input double CloseAllAtLossPercent = 0; // 0 = disabled
       input string TradingStartTime = "00:00"; // HH:MM format
       input string TradingEndTime = "23:59"; // HH:MM format
+      input bool CountAllTrades = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
+      input int MagicNumber = 12345;
 
       // --- GLOBALS ---
       string ServiceUrl;
@@ -1086,8 +1100,19 @@ string GetJsonValue(string json, string key) {
          if(id == lastSignalId) return; // already executed
          
          // Risk checks
-         if(MaxOpenTrades > 0 && OrdersTotal() >= MaxOpenTrades) {
-            Print("[BRIDGE] Signal rejected: Max open trades (", MaxOpenTrades, ")");
+         int myOpenCount = 0;
+         if(CountAllTrades) {
+            myOpenCount = OrdersTotal();
+         } else {
+            for(int ci = 0; ci < OrdersTotal(); ci++) {
+               if(OrderSelect(ci, SELECT_BY_POS, MODE_TRADES)) {
+                  if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+                  if(OrderMagicNumber() == MagicNumber) myOpenCount++;
+               }
+            }
+         }
+         if(MaxOpenTrades > 0 && myOpenCount >= MaxOpenTrades) {
+            Print("[BRIDGE] Signal rejected: Max open trades (", myOpenCount, "/", MaxOpenTrades, CountAllTrades ? " [ALL]" : " [EA-only]", ")");
             return;
          }
          if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
@@ -1133,7 +1158,7 @@ string GetJsonValue(string json, string key) {
          
          Print("[BRIDGE] Executing: ", type, " ", symbol, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
          
-         int ticket = OrderSend(symbol, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, 0, 0, cmd == OP_BUY ? clrGreen : clrRed);
+         int ticket = OrderSend(symbol, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, MagicNumber, 0, cmd == OP_BUY ? clrGreen : clrRed);
          
          if(ticket > 0) {
             Print("[BRIDGE] Trade opened! Ticket=", ticket, " Signal=", id);
