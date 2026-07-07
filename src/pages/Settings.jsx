@@ -379,6 +379,7 @@ input string TradingStartTime  = "00:00";
 input string TradingEndTime    = "23:59";
 input bool   CountAllTrades   = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
 input int    MagicNumber      = 12345;
+input string FilterByComment  = "";    // Only count trades with this exact comment (empty = use CountAllTrades/MagicNumber). e.g. "ForexTouchAI"
 
 // --- GLOBALS ---
 string Endpoint;
@@ -584,7 +585,12 @@ void ExecuteSignalObj(string obj) {
    if(slashPos != -1)
       symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
    int myOpenCount = 0;
-   if(CountAllTrades) {
+   if(StringLen(FilterByComment) > 0) {
+      for(int ci = 0; ci < PositionsTotal(); ci++) {
+         ulong ct = PositionGetTicket(ci);
+         if(PositionSelectByTicket(ct) && PositionGetString(POSITION_COMMENT) == FilterByComment) myOpenCount++;
+      }
+   } else if(CountAllTrades) {
       myOpenCount = PositionsTotal();
    } else {
       for(int ci = 0; ci < PositionsTotal(); ci++) {
@@ -593,7 +599,7 @@ void ExecuteSignalObj(string obj) {
       }
    }
    if(MaxOpenTrades > 0 && myOpenCount >= MaxOpenTrades) {
-      Print("[BRIDGE MT5] Rejected: max open trades (", myOpenCount, "/", MaxOpenTrades, CountAllTrades ? " [ALL]" : " [EA-only]", ")");
+      Print("[BRIDGE MT5] Rejected: max open trades (", myOpenCount, "/", MaxOpenTrades, StringLen(FilterByComment) > 0 ? " [Comment:" + FilterByComment + "]" : (CountAllTrades ? " [ALL]" : " [EA-only]"), ")");
       return;
    }
    if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
@@ -693,6 +699,7 @@ string GetJsonValue(string json, string key) {
       input string TradingEndTime = "23:59"; // HH:MM format
       input bool CountAllTrades = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
       input int MagicNumber = 12345;
+      input string FilterByComment = "";  // Only count trades with this exact comment (empty = use CountAllTrades/MagicNumber). e.g. "ForexTouchAI"
 
       // --- GLOBALS ---
       string ServiceUrl;
@@ -1101,7 +1108,14 @@ string GetJsonValue(string json, string key) {
          
          // Risk checks
          int myOpenCount = 0;
-         if(CountAllTrades) {
+         if(StringLen(FilterByComment) > 0) {
+            for(int ci = 0; ci < OrdersTotal(); ci++) {
+               if(OrderSelect(ci, SELECT_BY_POS, MODE_TRADES)) {
+                  if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+                  if(OrderComment() == FilterByComment) myOpenCount++;
+               }
+            }
+         } else if(CountAllTrades) {
             myOpenCount = OrdersTotal();
          } else {
             for(int ci = 0; ci < OrdersTotal(); ci++) {
@@ -1112,7 +1126,7 @@ string GetJsonValue(string json, string key) {
             }
          }
          if(MaxOpenTrades > 0 && myOpenCount >= MaxOpenTrades) {
-            Print("[BRIDGE] Signal rejected: Max open trades (", myOpenCount, "/", MaxOpenTrades, CountAllTrades ? " [ALL]" : " [EA-only]", ")");
+            Print("[BRIDGE] Signal rejected: Max open trades (", myOpenCount, "/", MaxOpenTrades, StringLen(FilterByComment) > 0 ? " [Comment:" + FilterByComment + "]" : (CountAllTrades ? " [ALL]" : " [EA-only]"), ")");
             return;
          }
          if(MaxDailyTrades > 0 && TradesToday >= MaxDailyTrades) {
