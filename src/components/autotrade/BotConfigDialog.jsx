@@ -60,7 +60,8 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     'PATTERN_TRADING': 'H4',
     'CANDLESTICK': 'M30',
     'HYBRID_ALL': 'H1',
-    'GOLD_XAUUSD': 'H1'
+    'GOLD_XAUUSD': 'H1',
+    'SP500_AI': 'H1'
   };
 
   useEffect(() => {
@@ -224,6 +225,7 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                       <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
                       <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
                       <SelectItem value="GOLD_XAUUSD">⭐ Gold / XAUUSD Specialist</SelectItem>
+                      <SelectItem value="SP500_AI">📊 SP500 AI Indicator (Multi-Confluence)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

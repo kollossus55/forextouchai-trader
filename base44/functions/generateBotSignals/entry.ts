@@ -1181,6 +1181,21 @@ Also provide:
             const pairs = [...pairSet];
             if (!pairs.length) return;
             try {
+                // SP500_AI: deterministic indicator calculation (no AI call)
+                if (strategy === 'SP500_AI') {
+                    const map = {};
+                    for (const pair of pairs) {
+                        try {
+                            const signal = await calculateSp500AiSignal(pair, priceMap);
+                            if (signal) map[pair.replace('/', '')] = signal;
+                        } catch (e) {
+                            console.error(`[generateBotSignals] SP500_AI calc error for ${pair}:`, e.message);
+                        }
+                    }
+                    strategyAiMaps[strategy] = map;
+                    console.log(`[generateBotSignals] SP500_AI: analyzed ${Object.keys(map).length} pairs`);
+                    return;
+                }
                 const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: buildPrompt(strategy, pairs, priceMap),
                     response_json_schema: {
@@ -1429,3 +1444,361 @@ Also provide:
         return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// SP500_AI Strategy — Deterministic indicator calculation (ported from Pine Script)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─── Basic indicator math (pure JS, Deno-compatible) ────────────────────────
+
+function _sma(values, period) {
+    if (values.length < period) return [];
+    const out = [];
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+        sum += values[i];
+        if (i >= period) sum -= values[i - period];
+        if (i >= period - 1) out.push(sum / period);
+    }
+    return out;
+}
+
+function _ema(values, period) {
+    if (values.length < period) return [];
+    const k = 2 / (period + 1);
+    // seed with SMA of first `period` values
+    let prev = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    const out = [prev];
+    for (let i = period; i < values.length; i++) {
+        prev = values[i] * k + prev * (1 - k);
+        out.push(prev);
+    }
+    return out;
+}
+
+function _wilderRsi(closes, period) {
+    if (closes.length < period + 1) return [];
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 1; i <= period; i++) {
+        const ch = closes[i] - closes[i - 1];
+        if (ch >= 0) avgGain += ch; else avgLoss += -ch;
+    }
+    avgGain /= period;
+    avgLoss /= period;
+    const out = [avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)];
+    for (let i = period + 1; i < closes.length; i++) {
+        const ch = closes[i] - closes[i - 1];
+        const gain = ch >= 0 ? ch : 0;
+        const loss = ch < 0 ? -ch : 0;
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        out.push(avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss));
+    }
+    return out;
+}
+
+function _wilderAtr(highs, lows, closes, period) {
+    if (closes.length < period + 1) return [];
+    const trs = [];
+    for (let i = 1; i < closes.length; i++) {
+        trs.push(Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+        ));
+    }
+    let prev = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    const out = [prev];
+    for (let i = period; i < trs.length; i++) {
+        prev = (prev * (period - 1) + trs[i]) / period;
+        out.push(prev);
+    }
+    return out;
+}
+
+// ─── Pine Script indicator port ─────────────────────────────────────────────
+
+function calcHeikinAshi(candles) {
+    const ha = [];
+    let prevOpen = (candles[0].open + candles[0].close) / 2;
+    let prevClose = (candles[0].open + candles[0].high + candles[0].low + candles[0].close) / 4;
+    ha.push({ open: prevOpen, close: prevClose, high: candles[0].high, low: candles[0].low });
+    for (let i = 1; i < candles.length; i++) {
+        const c = candles[i];
+        const haClose = (c.open + c.high + c.low + c.close) / 4;
+        const haOpen = (prevOpen + prevClose) / 2;
+        const haHigh = Math.max(c.high, haOpen, haClose);
+        const haLow = Math.min(c.low, haOpen, haClose);
+        ha.push({ open: haOpen, close: haClose, high: haHigh, low: haLow });
+        prevOpen = haOpen;
+        prevClose = haClose;
+    }
+    return ha;
+}
+
+function calcCmo(closes, period) {
+    if (closes.length < period + 1) return null;
+    const momUp = [], momDown = [];
+    for (let i = 1; i < closes.length; i++) {
+        const ch = closes[i] - closes[i - 1];
+        momUp.push(ch > 0 ? ch : 0);
+        momDown.push(ch < 0 ? -ch : 0);
+    }
+    const smaUp = _sma(momUp, period);
+    const smaDown = _sma(momDown, period);
+    const idx = smaUp.length - 1;
+    if (idx < 0) return null;
+    const sumUp = smaUp[idx] * period;
+    const sumDown = smaDown[idx] * period;
+    const denom = sumUp + sumDown;
+    return denom === 0 ? 0 : ((sumUp - sumDown) / denom) * 100;
+}
+
+function calcSslChannel(highs, lows, closes, period) {
+    if (closes.length < period) return null;
+    const smaHigh = _sma(highs, period);
+    const smaLow = _sma(lows, period);
+    let hlv = 0;
+    const offset = closes.length - smaHigh.length;
+    for (let i = 0; i < smaHigh.length; i++) {
+        const c = closes[i + offset];
+        if (c > smaHigh[i]) hlv = 1;
+        else if (c < smaLow[i]) hlv = -1;
+    }
+    return { sslBullish: hlv > 0, sslBearish: hlv < 0, hlv };
+}
+
+function calcAiRsi(closes, shortLen, longLen, signalLen) {
+    if (closes.length < longLen + signalLen + 5) return null;
+    const rsiShort = _wilderRsi(closes, shortLen);
+    const rsiLong = _wilderRsi(closes, longLen);
+    // align to same length (rsiShort is longer because shortLen < longLen)
+    const diff = rsiShort.length - rsiLong.length;
+    const aiRsiValues = [];
+    for (let i = 0; i < rsiLong.length; i++) {
+        aiRsiValues.push(rsiShort[i + diff] - rsiLong[i]);
+    }
+    const aiRsiSignal = _sma(aiRsiValues, signalLen);
+    const lastIdx = aiRsiValues.length - 1;
+    const sigIdx = aiRsiSignal.length - 1;
+    if (lastIdx < 0 || sigIdx < 0) return null;
+    const aiRsiValue = aiRsiValues[lastIdx];
+    const aiRsiSig = aiRsiSignal[sigIdx];
+    const totalRsi = rsiShort[lastIdx + diff] + rsiLong[lastIdx];
+    return {
+        aiRSIBullish: aiRsiValue > aiRsiSig && totalRsi > 100,
+        aiRSIBearish: aiRsiValue < aiRsiSig && totalRsi <= 100,
+        totalRsi,
+    };
+}
+
+function calcTmo(closes, tmoLength, calcLength, smoothLength) {
+    if (closes.length < tmoLength + calcLength + smoothLength * 2 + 5) return null;
+    const tmoDataArr = [];
+    for (let i = tmoLength; i < closes.length; i++) {
+        let val = 0;
+        for (let j = 0; j <= tmoLength; j++) {
+            if (closes[i] > closes[i - j]) val += 1;
+            else if (closes[i] < closes[i - j]) val -= 1;
+        }
+        tmoDataArr.push(val);
+    }
+    const ema5 = _ema(tmoDataArr, calcLength);
+    const tmoMain = _ema(ema5, smoothLength);
+    const tmoSignal = _ema(tmoMain, smoothLength);
+    const lastIdx = tmoMain.length - 1;
+    if (lastIdx < 1) return null;
+    return {
+        tmoBullish: tmoMain[lastIdx] > tmoSignal[lastIdx] && tmoMain[lastIdx] > 0,
+        tmoBearish: tmoMain[lastIdx] < tmoSignal[lastIdx] && tmoMain[lastIdx] < 0,
+    };
+}
+
+function calcMoneyFlow(highs, lows, volumes, length) {
+    if (highs.length < length + 2) return null;
+    const multipliers = [];
+    for (let i = 1; i < highs.length; i++) {
+        const division = (highs[i] - lows[i - 1]) + (highs[i - 1] - lows[i]);
+        let m;
+        if (highs[i] < lows[i - 1]) m = -1;
+        else if (lows[i] > highs[i - 1]) m = 1;
+        else if (division === 0) m = 0;
+        else m = ((highs[i] - lows[i - 1]) - (highs[i - 1] - lows[i])) / division;
+        multipliers.push(m * (volumes[i] || 1));
+    }
+    const last = multipliers.length;
+    if (last < length) return null;
+    let sumMV = 0, sumV = 0;
+    for (let i = last - length; i < last; i++) {
+        sumMV += multipliers[i];
+        sumV += volumes[i + 1] || 1;
+    }
+    const moneyFlowOsc = sumV === 0 ? 0 : sumMV / sumV;
+    return { mfBullish: moneyFlowOsc > 0, mfBearish: moneyFlowOsc < 0 };
+}
+
+// ─── Yahoo Finance OHLC fetcher ─────────────────────────────────────────────
+
+function mapToYahooSymbol(pair) {
+    const p = pair.replace('/', '').toUpperCase();
+    const indexMap = {
+        'US500': '^GSPC', 'SPX500': '^GSPC', 'SP500': '^GSPC',
+        'NAS100': '^NDX', 'NASDAQ': '^NDX', 'US100': '^NDX',
+        'US30': '^DJI', 'DOW': '^DJI', 'DJI': '^DJI',
+        'GER40': '^GDAXI', 'DAX': '^GDAXI', 'DE40': '^GDAXI',
+        'UK100': '^FTSE', 'FTSE': '^FTSE', 'UK100': '^FTSE',
+        'AUS200': '^AXJO', 'AU200': '^AXJO',
+        'JPN225': '^N225', 'NIKKEI': '^N225', 'JP225': '^N225',
+        'HK50': '^HSI', 'HSI': '^HSI',
+        'FRA40': '^FCHI', 'CAC': '^FCHI',
+        'ESP35': '^IBEX',
+    };
+    if (indexMap[p]) return indexMap[p];
+    if (p === 'XAUUSD' || p === 'GOLD') return 'GC=F';
+    if (p === 'XAGUSD' || p === 'SILVER') return 'SI=F';
+    if (p === 'USOIL' || p === 'WTI') return 'CL=F';
+    if (p === 'UKOIL' || p === 'BRENT') return 'BZ=F';
+    // Forex: 6-char pairs → EURUSD=X
+    if (p.length === 6) return p.slice(0, 3) + p.slice(3) + '=X';
+    return p;
+}
+
+async function fetchYahooOHLC(pair, timeframe) {
+    const symbol = mapToYahooSymbol(pair);
+    const intervalMap = { 'M5': '5m', 'M15': '15m', 'M30': '30m', 'H1': '60m', 'H4': '60m', 'D1': '1d', 'W1': '1wk' };
+    const rangeMap = { 'M5': '1mo', 'M15': '1mo', 'M30': '1mo', 'H1': '3mo', 'H4': '6mo', 'D1': '1y', 'W1': '5y' };
+    const interval = intervalMap[timeframe] || '60m';
+    const range = rangeMap[timeframe] || '3mo';
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+    const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!resp.ok) throw new Error(`Yahoo Finance ${resp.status} for ${symbol}`);
+    const data = await resp.json();
+    const result = data?.chart?.result?.[0];
+    if (!result) throw new Error(`No data from Yahoo for ${symbol}`);
+    const ts = result.timestamp || [];
+    const q = result.indicators?.quote?.[0];
+    if (!q) throw new Error(`No quote data for ${symbol}`);
+    const candles = [];
+    for (let i = 0; i < ts.length; i++) {
+        if (q.open?.[i] == null || q.close?.[i] == null) continue;
+        candles.push({
+            open: q.open[i], high: q.high[i], low: q.low[i],
+            close: q.close[i], volume: q.volume?.[i] || 1,
+            time: ts[i],
+        });
+    }
+    if (candles.length < 50) throw new Error(`Only ${candles.length} candles for ${symbol} — need 50+`);
+    return candles;
+}
+
+// ─── Main SP500_AI signal calculator ────────────────────────────────────────
+
+async function calculateSp500AiSignal(pair, priceMap) {
+    // Pine Script default inputs
+    const USE_HA = true;
+    const CMO_LEN = 14, CMO_OB = 50, CMO_OS = -50;
+    const SSL_LEN = 9;
+    const USE_AI_RSI = true, RSI_SHORT = 5, RSI_LONG = 13, RSI_SIGNAL = 9;
+    const USE_AI_MOMENTUM = true, TMO_LEN = 14, TMO_CALC = 5, TMO_SMOOTH = 3;
+    const USE_AI_MONEYFLOW = false, MF_LEN = 9;
+    const USE_ATR_FILTER = false, ATR_LEN = 14, ATR_MULT = 1.2;
+
+    const candles = await fetchYahooOHLC(pair, 'H1');
+    const n = candles.length;
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const volumes = candles.map(c => c.volume);
+
+    // 1. Heikin Ashi
+    const ha = calcHeikinAshi(candles);
+    const haBullish = ha[n - 1].close > ha[n - 1].open;
+    const haBearish = ha[n - 1].close < ha[n - 1].open;
+
+    // 2. ATR Volatility Filter
+    const atrArr = _wilderAtr(highs, lows, closes, ATR_LEN);
+    const atrMaArr = _sma(atrArr, ATR_LEN);
+    const atrVal = atrArr[atrArr.length - 1];
+    const atrMa = atrMaArr[atrMaArr.length - 1];
+    const volatilityOK = !USE_ATR_FILTER || (atrVal > atrMa * ATR_MULT);
+
+    // 3. CMO
+    const cmo = calcCmo(closes, CMO_LEN);
+    const cmoOverbought = cmo > CMO_OB;
+    const cmoOversold = cmo < CMO_OS;
+
+    // 4. SSL Channel
+    const ssl = calcSslChannel(highs, lows, closes, SSL_LEN);
+
+    // 5. AI RSI
+    const aiRsi = calcAiRsi(closes, RSI_SHORT, RSI_LONG, RSI_SIGNAL);
+
+    // 6. TMO
+    const tmo = calcTmo(closes, TMO_LEN, TMO_CALC, TMO_SMOOTH);
+
+    // 7. Money Flow
+    const mf = calcMoneyFlow(highs, lows, volumes, MF_LEN);
+
+    // Entry conditions (same logic as Pine Script)
+    const longBasic = haBullish && ssl?.sslBullish && !cmoOverbought && volatilityOK;
+    const shortBasic = haBearish && ssl?.sslBearish && !cmoOversold && volatilityOK;
+    const longWithRSI = USE_AI_RSI ? (longBasic && aiRsi?.aiRSIBullish) : longBasic;
+    const shortWithRSI = USE_AI_RSI ? (shortBasic && aiRsi?.aiRSIBearish) : shortBasic;
+    const longWithMom = USE_AI_MOMENTUM ? (longWithRSI && tmo?.tmoBullish) : longWithRSI;
+    const shortWithMom = USE_AI_MOMENTUM ? (shortWithRSI && tmo?.tmoBearish) : shortWithRSI;
+    const longSignal = USE_AI_MONEYFLOW ? (longWithMom && mf?.mfBullish) : longWithMom;
+    const shortSignal = USE_AI_MONEYFLOW ? (shortWithMom && mf?.mfBearish) : shortWithMom;
+
+    // Signal strength (0-6)
+    let strength = 0;
+    const longStrength = () => {
+        let s = 0;
+        if (ssl?.sslBullish) s++;
+        if (!cmoOverbought) s++;
+        if (USE_AI_RSI && aiRsi?.aiRSIBullish) s++;
+        if (USE_AI_MOMENTUM && tmo?.tmoBullish) s++;
+        if (USE_AI_MONEYFLOW && mf?.mfBullish) s++;
+        if (volatilityOK) s++;
+        return s;
+    };
+    const shortStrength = () => {
+        let s = 0;
+        if (ssl?.sslBearish) s++;
+        if (!cmoOversold) s++;
+        if (USE_AI_RSI && aiRsi?.aiRSIBearish) s++;
+        if (USE_AI_MOMENTUM && tmo?.tmoBearish) s++;
+        if (USE_AI_MONEYFLOW && mf?.mfBearish) s++;
+        if (volatilityOK) s++;
+        return s;
+    };
+
+    const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || closes[n - 1];
+    const rsiVal = _wilderRsi(closes, 14);
+    const lastRsi = rsiVal[rsiVal.length - 1];
+
+    if (longSignal) {
+        const str = longStrength();
+        return {
+            pair,
+            type: 'BUY',
+            confidence: Math.round(50 + (str / 6) * 50), // 50-100 based on strength
+            rsi: Math.round(lastRsi * 100) / 100,
+            ema_trend: haBullish ? 'BULLISH' : 'MIXED',
+            momentum: tmo?.tmoBullish ? 'STRONG' : 'MODERATE',
+            reason: `SP500_AI: HA bull, SSL bull, CMO=${cmo?.toFixed(1)}, strength=${str}/6`,
+        };
+    }
+    if (shortSignal) {
+        const str = shortStrength();
+        return {
+            pair,
+            type: 'SELL',
+            confidence: Math.round(50 + (str / 6) * 50),
+            rsi: Math.round(lastRsi * 100) / 100,
+            ema_trend: haBearish ? 'BEARISH' : 'MIXED',
+            momentum: tmo?.tmoBearish ? 'STRONG' : 'MODERATE',
+            reason: `SP500_AI: HA bear, SSL bear, CMO=${cmo?.toFixed(1)}, strength=${str}/6`,
+        };
+    }
+    return { pair, type: 'NEUTRAL', confidence: 0, rsi: lastRsi, ema_trend: 'MIXED', momentum: 'WEAK', reason: 'SP500_AI: no entry condition met' };
+}

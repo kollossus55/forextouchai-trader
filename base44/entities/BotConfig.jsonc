@@ -16,7 +16,8 @@
         "PATTERN_TRADING",
         "CANDLESTICK",
         "HYBRID_ALL",
-        "GOLD_XAUUSD"
+        "GOLD_XAUUSD",
+        "SP500_AI"
       ]
     },
     "timeframe": {
