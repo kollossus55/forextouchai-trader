@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         const eaPricesEarly = body.prices || acct.prices;
         const livePriceMapEarly = buildPriceMap(eaTradesEarly?.length ? eaPricesEarly : []);
         const isColdStartEarly = !knownTickets[acctKey];
-        if (isRateLimited && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
+        if (isRateLimited && !isGoldEA && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
             reconcileLock[acctKey] = true;
             reconcileTrades(base44, eaTradesEarly, acctKey, livePriceMapEarly)
                 .catch(e => console.error('[BRIDGE] Rate-limited reconcile error:', e.message))
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
                 ...(currency && { currency }),
                 ...(platform && { platform }),
                 ...(server_name && { server_name }),
-                ...(Array.isArray(eaTradesForCount) && { open_trade_count: eaTradesForCount.length }),
+                ...(!isGoldEA && Array.isArray(eaTradesForCount) && { open_trade_count: eaTradesForCount.length }),
             };
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
         const lastReconcile = body.last_reconcile || 0;
         // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
         const isColdStart = !knownTickets[acctKey];
-        const shouldReconcile = (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
+        const shouldReconcile = !isGoldEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
