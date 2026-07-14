@@ -883,16 +883,25 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
     if (existingDbTrades.length === 0 && eaTicketSet.size === 0) return; // nothing to do
     if (existingDbTrades.length === 0) return; // DB fetch rate-limited — skip updates/closes
 
-    // ── Update PnL (only if changed by >$1 to reduce DB writes) ─────────────
+    // ── Update PnL + patch open_price (only if changed to reduce DB writes) ───
     const toUpdatePnl = existingDbTrades.filter(t => {
         if (!t.ticket || !eaTicketSet.has(t.ticket)) return false;
         const ea = eaTrades.find(et => et.ticket === t.ticket);
-        return ea && Math.abs((t.pnl || 0) - (ea.pnl || ea.profit || 0)) > 1.0;
+        if (!ea) return false;
+        const pnlChanged = Math.abs((t.pnl || 0) - (ea.pnl || ea.profit || 0)) > 1.0;
+        const eaOpenPrice = ea.open_price || ea.price || 0;
+        const needsOpenPrice = (!t.open_price || t.open_price === 0) && eaOpenPrice > 0;
+        return pnlChanged || needsOpenPrice;
     });
     for (let i = 0; i < toUpdatePnl.length; i += 2) {
         await Promise.all(toUpdatePnl.slice(i, i + 2).map(t => {
             const ea = eaTrades.find(et => et.ticket === t.ticket);
-            return base44.asServiceRole.entities.Trade.update(t.id, { pnl: ea.pnl || ea.profit || 0 });
+            const eaOpenPrice = ea.open_price || ea.price || 0;
+            const patch = { pnl: ea.pnl || ea.profit || 0 };
+            if ((!t.open_price || t.open_price === 0) && eaOpenPrice > 0) {
+                patch.open_price = eaOpenPrice;
+            }
+            return base44.asServiceRole.entities.Trade.update(t.id, patch);
         })).catch(e => console.warn('[BRIDGE] PnL update error:', e.message));
         if (i + 2 < toUpdatePnl.length) await new Promise(r => setTimeout(r, 150));
     }
