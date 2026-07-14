@@ -28,6 +28,7 @@ import BotConfigDialog from '@/components/autotrade/BotConfigDialog';
 import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
+import AccountAutoTradeToggle from '@/components/autotrade/AccountAutoTradeToggle';
 import { MarketDataService } from '@/components/services/MarketDataService';
 
 export default function AutoTrade() {
@@ -432,6 +433,7 @@ export default function AutoTrade() {
         </TabsList>
 
         <TabsContent value="bots" className="mt-0">
+          <AccountAutoTradeToggle />
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="bots-grid" direction="vertical">
               {(provided) => (
