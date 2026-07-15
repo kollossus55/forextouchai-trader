@@ -1337,8 +1337,17 @@ Also provide:
                     // GOLD_XAUUSD bots look up their own strategy map; fall back to AI_PREDICTIVE only as last resort
                     const strategyKey = bot.strategy_type || 'AI_PREDICTIVE';
                     const strategyMap = strategyAiMaps[strategyKey] || strategyAiMaps['AI_PREDICTIVE'] || {};
-                    const analysis = strategyMap[pairRaw] || strategyMap[pair];
+                    let analysis = strategyMap[pairRaw] || strategyMap[pair];
                     if (!analysis) { console.log(`[Skip] ${bot.name} ${pair}: no AI analysis. strategyMap keys:`, Object.keys(strategyMap)); continue; }
+                    // SP500_AI: resolve per-bot indicator gates (each toggle defaults ON)
+                    if (strategyKey === 'SP500_AI' && analysis.indicators) {
+                        analysis = resolveSp500Signal(analysis, {
+                            useHa: bot.sp500_use_ha !== false,
+                            useSsl: bot.sp500_use_ssl !== false,
+                            useAiRsi: bot.sp500_use_ai_rsi !== false,
+                            useTmo: bot.sp500_use_tmo !== false,
+                        });
+                    }
                     if (analysis.type === 'NEUTRAL') { console.log(`[Skip] ${bot.name} ${pair}: AI returned NEUTRAL (conf: ${analysis.confidence})`); continue; }
                     // Normalize confidence: AI sometimes returns 0-1 fractions, we need 0-100
                     const rawConf = analysis.confidence || 0;
@@ -1749,66 +1758,84 @@ async function calculateSp500AiSignal(pair, priceMap) {
     // 7. Money Flow
     const mf = calcMoneyFlow(highs, lows, volumes, MF_LEN);
 
-    // Entry conditions (same logic as Pine Script)
-    const longBasic = haBullish && ssl?.sslBullish && !cmoOverbought && volatilityOK;
-    const shortBasic = haBearish && ssl?.sslBearish && !cmoOversold && volatilityOK;
-    const longWithRSI = USE_AI_RSI ? (longBasic && aiRsi?.aiRSIBullish) : longBasic;
-    const shortWithRSI = USE_AI_RSI ? (shortBasic && aiRsi?.aiRSIBearish) : shortBasic;
-    const longWithMom = USE_AI_MOMENTUM ? (longWithRSI && tmo?.tmoBullish) : longWithRSI;
-    const shortWithMom = USE_AI_MOMENTUM ? (shortWithRSI && tmo?.tmoBearish) : shortWithRSI;
-    const longSignal = USE_AI_MONEYFLOW ? (longWithMom && mf?.mfBullish) : longWithMom;
-    const shortSignal = USE_AI_MONEYFLOW ? (shortWithMom && mf?.mfBearish) : shortWithMom;
-
-    // Signal strength (0-6)
-    let strength = 0;
-    const longStrength = () => {
-        let s = 0;
-        if (ssl?.sslBullish) s++;
-        if (!cmoOverbought) s++;
-        if (USE_AI_RSI && aiRsi?.aiRSIBullish) s++;
-        if (USE_AI_MOMENTUM && tmo?.tmoBullish) s++;
-        if (USE_AI_MONEYFLOW && mf?.mfBullish) s++;
-        if (volatilityOK) s++;
-        return s;
-    };
-    const shortStrength = () => {
-        let s = 0;
-        if (ssl?.sslBearish) s++;
-        if (!cmoOversold) s++;
-        if (USE_AI_RSI && aiRsi?.aiRSIBearish) s++;
-        if (USE_AI_MOMENTUM && tmo?.tmoBearish) s++;
-        if (USE_AI_MONEYFLOW && mf?.mfBearish) s++;
-        if (volatilityOK) s++;
-        return s;
-    };
-
     const currentPrice = priceMap[pair] || priceMap[pair.replace('/', '')] || closes[n - 1];
     const rsiVal = _wilderRsi(closes, 14);
     const lastRsi = rsiVal[rsiVal.length - 1];
 
-    if (longSignal) {
+    // Return RAW indicator states — gate resolution is per-bot (resolveSp500Signal)
+    return {
+        pair,
+        indicators: {
+            haBullish, haBearish,
+            sslBullish: ssl?.sslBullish, sslBearish: ssl?.sslBearish,
+            cmoOverbought, cmoOversold, volatilityOK,
+            aiRSIBullish: aiRsi?.aiRSIBullish, aiRSIBearish: aiRsi?.aiRSIBearish,
+            tmoBullish: tmo?.tmoBullish, tmoBearish: tmo?.tmoBearish,
+        },
+        currentPrice,
+        lastRsi: Math.round(lastRsi * 100) / 100,
+        cmo,
+    };
+}
+
+// ─── Per-bot gate resolver: applies the bot's enabled-indicator toggles ──────
+// Each toggle defaults ON (preserving the original 4-indicator confluence).
+// Turning a gate OFF removes that indicator from the requirement entirely,
+// letting an SP500 bot fire on just 2-3 of the 4 confirmations.
+function resolveSp500Signal(raw, gates) {
+    const I = raw.indicators || {};
+    const useHa = gates.useHa !== false;
+    const useSsl = gates.useSsl !== false;
+    const useAiRsi = gates.useAiRsi !== false;
+    const useTmo = gates.useTmo !== false;
+
+    const longBasic = (useHa ? I.haBullish : true) && (useSsl ? I.sslBullish : true) && !I.cmoOverbought && I.volatilityOK;
+    const shortBasic = (useHa ? I.haBearish : true) && (useSsl ? I.sslBearish : true) && !I.cmoOversold && I.volatilityOK;
+    const longSignal = longBasic && (useAiRsi ? I.aiRSIBullish : true) && (useTmo ? I.tmoBullish : true);
+    const shortSignal = shortBasic && (useAiRsi ? I.aiRSIBearish : true) && (useTmo ? I.tmoBearish : true);
+
+    const longStrength = () => {
+        let s = 0;
+        if (useSsl && I.sslBullish) s++;
+        if (!I.cmoOverbought) s++;
+        if (useAiRsi && I.aiRSIBullish) s++;
+        if (useTmo && I.tmoBullish) s++;
+        if (I.volatilityOK) s++;
+        return s;
+    };
+    const shortStrength = () => {
+        let s = 0;
+        if (useSsl && I.sslBearish) s++;
+        if (!I.cmoOversold) s++;
+        if (useAiRsi && I.aiRSIBearish) s++;
+        if (useTmo && I.tmoBearish) s++;
+        if (I.volatilityOK) s++;
+        return s;
+    };
+
+    if (longSignal && !shortSignal) {
         const str = longStrength();
         return {
-            pair,
+            pair: raw.pair,
             type: 'BUY',
-            confidence: Math.round(50 + (str / 6) * 50), // 50-100 based on strength
-            rsi: Math.round(lastRsi * 100) / 100,
-            ema_trend: haBullish ? 'BULLISH' : 'MIXED',
-            momentum: tmo?.tmoBullish ? 'STRONG' : 'MODERATE',
-            reason: `SP500_AI: HA bull, SSL bull, CMO=${cmo?.toFixed(1)}, strength=${str}/6`,
+            confidence: Math.round(50 + (str / 6) * 50),
+            rsi: raw.lastRsi,
+            ema_trend: I.haBullish ? 'BULLISH' : 'MIXED',
+            momentum: I.tmoBullish ? 'STRONG' : 'MODERATE',
+            reason: `SP500_AI: HA ${I.haBullish ? 'bull' : 'bear'}, SSL ${I.sslBullish ? 'bull' : 'bear'}, RSI ${I.aiRSIBullish ? 'bull' : 'bear'}, TMO ${I.tmoBullish ? 'bull' : 'bear'}, strength=${str}/6`,
         };
     }
-    if (shortSignal) {
+    if (shortSignal && !longSignal) {
         const str = shortStrength();
         return {
-            pair,
+            pair: raw.pair,
             type: 'SELL',
             confidence: Math.round(50 + (str / 6) * 50),
-            rsi: Math.round(lastRsi * 100) / 100,
-            ema_trend: haBearish ? 'BEARISH' : 'MIXED',
-            momentum: tmo?.tmoBearish ? 'STRONG' : 'MODERATE',
-            reason: `SP500_AI: HA bear, SSL bear, CMO=${cmo?.toFixed(1)}, strength=${str}/6`,
+            rsi: raw.lastRsi,
+            ema_trend: I.haBearish ? 'BEARISH' : 'MIXED',
+            momentum: I.tmoBearish ? 'STRONG' : 'MODERATE',
+            reason: `SP500_AI: HA ${I.haBearish ? 'bear' : 'bull'}, SSL ${I.sslBearish ? 'bear' : 'bull'}, RSI ${I.aiRSIBearish ? 'bear' : 'bull'}, TMO ${I.tmoBearish ? 'bear' : 'bull'}, strength=${str}/6`,
         };
     }
-    return { pair, type: 'NEUTRAL', confidence: 0, rsi: lastRsi, ema_trend: 'MIXED', momentum: 'WEAK', reason: 'SP500_AI: no entry condition met' };
+    return { pair: raw.pair, type: 'NEUTRAL', confidence: 0, rsi: raw.lastRsi, ema_trend: 'MIXED', momentum: 'WEAK', reason: 'SP500_AI: no entry condition met' };
 }

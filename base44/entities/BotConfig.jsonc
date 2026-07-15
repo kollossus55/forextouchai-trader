@@ -186,6 +186,26 @@
       "default": false,
       "description": "Auto-adjust Stop Loss & Lot Size based on volatility"
     },
+    "sp500_use_ha": {
+      "type": "boolean",
+      "default": true,
+      "description": "SP500_AI: require Heikin-Ashi candle direction gate"
+    },
+    "sp500_use_ssl": {
+      "type": "boolean",
+      "default": true,
+      "description": "SP500_AI: require SSL Channel trend gate"
+    },
+    "sp500_use_ai_rsi": {
+      "type": "boolean",
+      "default": true,
+      "description": "SP500_AI: require AI RSI momentum gate"
+    },
+    "sp500_use_tmo": {
+      "type": "boolean",
+      "default": true,
+      "description": "SP500_AI: require TMO trend-momentum oscillator gate"
+    },
     "owner_email": {
       "type": "string",
       "description": "Email of the user who owns this bot"
