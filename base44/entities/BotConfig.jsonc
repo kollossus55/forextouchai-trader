@@ -206,6 +206,81 @@
       "default": true,
       "description": "SP500_AI: require TMO trend-momentum oscillator gate"
     },
+    "ind_use_rsi": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight RSI"
+    },
+    "ind_use_macd": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight MACD"
+    },
+    "ind_use_ema": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight EMA stack"
+    },
+    "ind_use_stochastic": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight Stochastic"
+    },
+    "ind_use_bollinger": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight Bollinger Bands"
+    },
+    "ind_use_atr": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight ATR / volatility"
+    },
+    "ind_use_adx": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight ADX regime"
+    },
+    "ind_use_cci": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight CCI"
+    },
+    "ind_use_vwap": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight VWAP"
+    },
+    "ind_use_chart_patterns": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight chart patterns"
+    },
+    "ind_use_candlestick": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight candlestick confirmation"
+    },
+    "ind_use_fibonacci": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight Fibonacci confluence"
+    },
+    "ind_use_structure": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight market structure (BOS/CHoCH/OB/FVG/S&D)"
+    },
+    "ind_use_liquidity": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight liquidity sweeps / stop hunts"
+    },
+    "ind_use_session_timing": {
+      "type": "boolean",
+      "default": true,
+      "description": "AI strategies: require/weight session timing"
+    },
     "owner_email": {
       "type": "string",
       "description": "Email of the user who owns this bot"

@@ -1,5 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+// ─── Per-strategy indicator toggles injected into AI prompts ────────────────
+// strategy → [[bot_field, label], ...]. A field set to `false` on the bot
+// disables that indicator in the prompt (it must not block a signal).
+const STRATEGY_INDICATOR_FIELDS = {
+    AI_PREDICTIVE: [['ind_use_ema','EMA stack'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_chart_patterns','Chart patterns'],['ind_use_candlestick','Candlestick'],['ind_use_fibonacci','Fibonacci'],['ind_use_structure','Market structure (BOS/CHoCH/OB/FVG/S&D)'],['ind_use_liquidity','Liquidity sweeps'],['ind_use_session_timing','Session timing']],
+    SCALPING: [['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_bollinger','Bollinger Bands'],['ind_use_stochastic','Stochastic'],['ind_use_ema','EMA']],
+    SWING: [['ind_use_ema','EMA stack'],['ind_use_rsi','RSI & divergence'],['ind_use_macd','MACD'],['ind_use_adx','ADX'],['ind_use_bollinger','Bollinger Bands'],['ind_use_fibonacci','Fibonacci'],['ind_use_structure','Market structure (BOS/CHoCH/OB/FVG/S&D)'],['ind_use_chart_patterns','Chart patterns'],['ind_use_candlestick','Candlestick confirmation'],['ind_use_session_timing','Session timing']],
+    DAY_TRADING: [['ind_use_ema','EMA stack'],['ind_use_vwap','VWAP'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_structure','Market structure'],['ind_use_candlestick','Candlestick confirmation'],['ind_use_session_timing','Session timing']],
+    PRICE_ACTION: [['ind_use_structure','Market structure (BOS/CHoCH)'],['ind_use_liquidity','Liquidity sweeps / stop hunts'],['ind_use_candlestick','Candlestick triggers'],['ind_use_fibonacci','Fibonacci confluence'],['ind_use_session_timing','Session timing']],
+    PATTERN_TRADING: [['ind_use_chart_patterns','Chart patterns'],['ind_use_candlestick','Candlestick confirmation'],['ind_use_fibonacci','Fibonacci'],['ind_use_structure','Market structure'],['ind_use_session_timing','Session timing']],
+    CANDLESTICK: [['ind_use_candlestick','Candlestick patterns'],['ind_use_structure','Market structure'],['ind_use_fibonacci','Fibonacci'],['ind_use_ema','EMA bias'],['ind_use_session_timing','Session timing']],
+    HYBRID_ALL: [['ind_use_ema','EMA stack'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_chart_patterns','Chart patterns'],['ind_use_candlestick','Candlestick'],['ind_use_fibonacci','Fibonacci'],['ind_use_structure','Market structure'],['ind_use_liquidity','Liquidity'],['ind_use_session_timing','Session timing']],
+    GOLD_XAUUSD: [['ind_use_ema','EMA'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_structure','Market structure'],['ind_use_candlestick','Candlestick'],['ind_use_session_timing','Session timing']],
+};
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -173,7 +188,7 @@ Deno.serve(async (req) => {
         }
 
         // Strategy-specific AI prompts
-        function buildPrompt(strategy, pairs, priceMap) {
+        function buildPrompt(strategy, pairs, priceMap, refBot) {
             const priceContext = pairs.map(pair => {
                 const price = priceMap[pair] || priceMap[pair.replace('/', '')];
                 return `${pair}: ${price}`;
@@ -1170,7 +1185,17 @@ Also provide:
 - reason: detailed explanation including which session, key level, and confluences triggered the signal`,
             };
 
-            return prompts[strategy] || prompts['AI_PREDICTIVE'];
+            const base = prompts[strategy] || prompts['AI_PREDICTIVE'];
+            // Append per-bot indicator constraints (trader-configured toggles)
+            const fields = STRATEGY_INDICATOR_FIELDS[strategy] || [];
+            if (fields.length && refBot) {
+                const enabled = [], disabled = [];
+                for (const [field, label] of fields) {
+                    if (refBot[field] === false) disabled.push(label); else enabled.push(label);
+                }
+                return base + `\n\n════════════════════════════════════════\nINDICATOR CONSTRAINTS (trader-configured)\n════════════════════════════════════════\nENABLED indicators (require and weight these in your confluence score): ${enabled.join(', ') || 'none'}\nDISABLED indicators (do NOT require; their absence must NOT block a signal): ${disabled.join(', ') || 'none'}\nScore confluence using ONLY the enabled indicators. A signal is valid if it satisfies the signal requirements using only the enabled indicators — ignore any disabled indicator entirely.`;
+            }
+            return base;
         }
 
         // Run AI calls per strategy group in parallel
@@ -1196,8 +1221,9 @@ Also provide:
                     console.log(`[generateBotSignals] SP500_AI: analyzed ${Object.keys(map).length} pairs`);
                     return;
                 }
+                const refBot = bots.find(b => (b.strategy_type || 'AI_PREDICTIVE') === strategy) || null;
                 const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: buildPrompt(strategy, pairs, priceMap),
+                    prompt: buildPrompt(strategy, pairs, priceMap, refBot),
                     response_json_schema: {
                         type: "object",
                         properties: {

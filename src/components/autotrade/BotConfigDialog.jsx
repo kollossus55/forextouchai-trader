@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, Shield, BarChart, Settings, Zap, Bot, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import BotConfigAI from './BotConfigAI';
+import IndicatorToggles from './IndicatorToggles';
 
 export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialData }) {
   const { data: availablePairs } = useQuery({
@@ -571,39 +572,11 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                       />
                       </div>
 
-                      {formData.strategy_type === 'SP500_AI' && (
-                      <div className="p-4 rounded border border-cyan-800/40 bg-cyan-950/20 space-y-3">
-                      <div className="flex items-center gap-2 mb-1">
-                      <BarChart className="w-4 h-4 text-cyan-400" />
-                      <span className="text-sm font-medium text-cyan-300">SP500 Indicator Confluence</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">Toggle which of the 4 indicators must confirm a signal. Keep all ON for the strict 4-gate confluence, or turn 1–2 OFF to trade on fewer confirmations.</p>
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                      {[
-                      ['sp500_use_ha', 'Heikin-Ashi', 'Candle direction gate'],
-                      ['sp500_use_ssl', 'SSL Channel', 'Trend direction gate'],
-                      ['sp500_use_ai_rsi', 'AI RSI', 'Momentum RSI gate'],
-                      ['sp500_use_tmo', 'TMO Momentum', 'Trend momentum oscillator gate'],
-                      ].map(([key, label, desc]) => (
-                      <div key={key} className="flex items-center justify-between p-2 rounded bg-slate-950/50 border border-slate-800">
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-medium text-slate-200">{label}</span>
-                        <span className="text-[10px] text-slate-500">{desc}</span>
-                      </div>
-                      <Switch
-                        checked={formData[key] !== false}
-                        onCheckedChange={v => setFormData({...formData, [key]: v})}
-                        className="data-[state=checked]:bg-cyan-600 ml-2 shrink-0"
-                      />
-                      </div>
-                      ))}
-                      </div>
-                      </div>
-                      )}
+                      <IndicatorToggles strategy={formData.strategy_type} formData={formData} setFormData={setFormData} />
 
                       <div className="space-y-4">
-                      <div className="flex justify-between">
-                      <Label>Minimum AI Confidence</Label>
+                        <div className="flex justify-between">
+                           <Label>Minimum AI Confidence</Label>
                    <span className={`text-xs font-bold ${formData.min_confidence >= 80 ? 'text-emerald-400' : 'text-slate-400'}`}>
                      {formData.min_confidence}%
                    </span>
