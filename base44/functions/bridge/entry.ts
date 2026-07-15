@@ -318,22 +318,9 @@ Deno.serve(async (req) => {
         // to avoid duplicate alerts from two separate code paths.
 
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
-        // Guard: if trading is paused, skip signal dispatch but return success (reconcile already ran above)
-        if (riskSettings?.is_trading_paused === true) {
-            console.log(`[BRIDGE] Trading paused for ${acctKey} — returning no signals`);
-            if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
-            return Response.json({
-                success: true,
-                account: acctKey,
-                timestamp: new Date().toISOString(),
-                heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
-                price_update_ts: body.last_price_update || 0,
-                last_reconcile: body.last_reconcile || 0,
-                last_risk_check: body.last_risk_check || 0,
-                pending_signals: [],
-                trading_paused: true,
-            }, { headers: corsHeaders() });
-        }
+        // When trading is paused, auto/bot signals are blocked but MANUAL_EXECUTION signals
+        // (sent from the app) still dispatch — so users can trade manually while auto-trade is off.
+        const tradingPaused = riskSettings?.is_trading_paused === true;
 
         const thirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString(); // 30min expiry window (was 20min — gives EA more time to execute)
         // Also expire ACTIVE signals older than 20 minutes (stuck signals that MT5 never acknowledged)
@@ -400,6 +387,12 @@ Deno.serve(async (req) => {
 
                 const pairRaw = (s.pair || '').replace('/', '');
                 const isManual = s.strategy === 'MANUAL_EXECUTION';
+
+                // When trading is paused, block auto/bot signals — manual signals still pass through
+                if (tradingPaused && !isManual) {
+                    console.log(`[BRIDGE] Auto-trade paused for ${acctKey} — skipping auto signal ${s.id} (${pairRaw})`);
+                    return false;
+                }
 
                 // Manual signals: only check account targeting and per-cycle dedup — bypass cooldown & open-pair checks
                 if (isManual) {
