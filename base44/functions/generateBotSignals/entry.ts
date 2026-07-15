@@ -1687,6 +1687,16 @@ async function fetchYahooOHLC(pair, timeframe) {
             time: ts[i],
         });
     }
+    // Trim trailing flat (in-progress / no-trade) candles — Yahoo's last intraday bar is
+    // the current forming hour with o=h=l=c, which zeroes momentum indicators (TMO, CMO)
+    // and makes every pair read NEUTRAL. Drop degenerate trailing bars so the calc runs
+    // on the last genuinely CLOSED candle.
+    while (candles.length > 50 &&
+           candles[candles.length - 1].open === candles[candles.length - 1].high &&
+           candles[candles.length - 1].high === candles[candles.length - 1].low &&
+           candles[candles.length - 1].low === candles[candles.length - 1].close) {
+        candles.pop();
+    }
     if (candles.length < 50) throw new Error(`Only ${candles.length} candles for ${symbol} — need 50+`);
     return candles;
 }
