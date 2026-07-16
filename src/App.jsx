@@ -11,6 +11,7 @@ import AdminOverview from './pages/AdminOverview';
 import SignalsDashboard from './pages/SignalsDashboard';
 import SystemHealth from './pages/SystemHealth';
 import Home from './pages/Home';
+import PageErrorBoundary from '@/components/PageErrorBoundary';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -19,8 +20,8 @@ const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+  <Layout currentPageName={currentPageName}><PageErrorBoundary>{children}</PageErrorBoundary></Layout>
+  : <PageErrorBoundary>{children}</PageErrorBoundary>;
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin } = useAuth();
