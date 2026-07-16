@@ -99,27 +99,27 @@ Deno.serve(async (req) => {
             const lastResetKey = riskSettings.last_reset_date || null;
             const isManualReset = lastResetKey && lastResetKey.includes('T');
 
-            // Only auto-unpause at daily reset if the pause came from a limit breach (limit_hit_at set).
-            // Manual pauses (limit_hit_at null) must be preserved across daily resets.
-            const wasLimitBreachPause = !!riskSettings.limit_hit_at;
+            // Daily reset clears ALL pauses (breach-based AND manual) so an account can
+            // never get stuck paused without a live breach. Breach pauses also auto-resume
+            // earlier via the auto_resume_hours logic above; this is the daily safety net.
             if (isManualReset) {
                 const manualResetTime = new Date(lastResetKey);
                 if (manualResetTime < currentPeriodStart) {
-                    const update = { daily_loss_current: 0, last_reset_date: periodKey };
-                    if (wasLimitBreachPause) {
-                        update.is_trading_paused = false;
-                        update.limit_hit_at = null;
-                    }
-                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, update);
+                    await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
+                        daily_loss_current: 0,
+                        last_reset_date: periodKey,
+                        is_trading_paused: false,
+                        limit_hit_at: null,
+                    });
                 }
             } else if (lastResetKey !== periodKey) {
-                const update = { daily_loss_current: 0, last_reset_date: periodKey };
-                if (wasLimitBreachPause) {
-                    update.is_trading_paused = false;
-                    update.limit_hit_at = null;
-                }
-                await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, update);
-                console.log(`[monitorRiskLimits] Daily reset for ${acctKey} — period ${periodKey} (manual pause preserved: ${!wasLimitBreachPause})`);
+                await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, {
+                    daily_loss_current: 0,
+                    last_reset_date: periodKey,
+                    is_trading_paused: false,
+                    limit_hit_at: null,
+                });
+                console.log(`[monitorRiskLimits] Daily reset for ${acctKey} — period ${periodKey} (pause cleared)`);
             }
 
             // ── Peak equity — only write if changed ──
