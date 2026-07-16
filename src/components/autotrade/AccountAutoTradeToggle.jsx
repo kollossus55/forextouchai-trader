@@ -33,8 +33,9 @@ export default function AccountAutoTradeToggle() {
 
   const connectedAccounts = connections.filter(c => c.connection_status === 'CONNECTED');
 
+  const safeRiskList = Array.isArray(riskSettingsList) ? riskSettingsList : [];
   const riskByAccount = {};
-  for (const r of riskSettingsList) {
+  for (const r of safeRiskList) {
     if (r.account_number) riskByAccount[r.account_number] = r;
   }
 
