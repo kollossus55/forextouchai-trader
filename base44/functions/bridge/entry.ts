@@ -320,7 +320,12 @@ Deno.serve(async (req) => {
         // ── 6. Dispatch pending signals to EA ────────────────────────────────
         // When trading is paused, auto/bot signals are blocked but MANUAL_EXECUTION signals
         // (sent from the app) still dispatch — so users can trade manually while auto-trade is off.
+        // Two independent blocks on auto/bot signals (manual signals always pass through):
+        //  - auto_trade_enabled === false: user turned the auto-trade toggle OFF (manual, not a risk breach)
+        //  - is_trading_paused === true:   risk limit / profit target pause (set by monitorRiskLimits)
         const tradingPaused = riskSettings?.is_trading_paused === true;
+        const autoTradeOff = riskSettings?.auto_trade_enabled === false;
+        const blockAutoSignals = tradingPaused || autoTradeOff;
 
         const thirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString(); // 30min expiry window (was 20min — gives EA more time to execute)
         // Also expire ACTIVE signals older than 20 minutes (stuck signals that MT5 never acknowledged)
@@ -388,9 +393,9 @@ Deno.serve(async (req) => {
                 const pairRaw = (s.pair || '').replace('/', '');
                 const isManual = s.strategy === 'MANUAL_EXECUTION';
 
-                // When trading is paused, block auto/bot signals — manual signals still pass through
-                if (tradingPaused && !isManual) {
-                    console.log(`[BRIDGE] Auto-trade paused for ${acctKey} — skipping auto signal ${s.id} (${pairRaw})`);
+                // Block auto/bot signals when auto-trade is off or risk has paused trading — manual signals still pass through
+                if (blockAutoSignals && !isManual) {
+                    console.log(`[BRIDGE] Auto signals blocked for ${acctKey} (auto_trade_enabled=${!autoTradeOff}, risk_paused=${tradingPaused}) — skipping auto signal ${s.id} (${pairRaw})`);
                     return false;
                 }
 

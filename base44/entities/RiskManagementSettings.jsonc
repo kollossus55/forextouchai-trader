@@ -89,10 +89,15 @@
       "format": "date",
       "description": "Last date daily loss was reset"
     },
+    "auto_trade_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Manual auto-trade toggle for this account (independent of risk-pause). When false, the bridge/generator skip auto/bot signals for this account but manual signals still pass."
+    },
     "is_trading_paused": {
       "type": "boolean",
       "default": false,
-      "description": "Flag indicating if trading is paused for this account due to risk limits"
+      "description": "Flag indicating if trading is paused for this account due to risk limits (set by monitorRiskLimits; cleared at daily reset)"
     },
     "limit_hit_at": {
       "type": "string",

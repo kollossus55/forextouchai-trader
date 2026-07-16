@@ -1278,9 +1278,14 @@ Also provide:
                 ...activeSignals.filter(s => acctSet.has(s.owner_email)),
             ];
 
-            // Filter out paused accounts
+            // Filter out accounts where auto-trade is manually disabled OR risk has paused trading.
+            // These are independent controls: auto_trade_enabled = manual toggle, is_trading_paused = risk breach.
             const activeAcctNums = [...acctSet].filter(acctNum => {
                 const risk = getRiskForAccount(acctNum);
+                if (risk.auto_trade_enabled === false) {
+                    console.log(`[generateBotSignals] Auto-trade disabled for account ${acctNum} — skipping this account only`);
+                    return false;
+                }
                 if (risk.is_trading_paused === true) {
                     console.log(`[generateBotSignals] Trading paused for account ${acctNum} — skipping this account only`);
                     return false;

@@ -39,30 +39,28 @@ export default function AccountAutoTradeToggle() {
   }
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ conn, isPaused }) => {
+    mutationFn: async ({ conn, enabled }) => {
       const existing = riskByAccount[conn.account_number];
       if (existing?.id) {
-        const updateData = { is_trading_paused: isPaused };
-        if (!isPaused) {
-          updateData.daily_loss_current = 0;
-          updateData.limit_hit_at = null;
-        }
-        return await base44.entities.RiskManagementSettings.update(existing.id, updateData);
-      } else {
-        return await base44.entities.RiskManagementSettings.create({
-          ...DEFAULTS,
-          account_number: conn.account_number,
-          is_trading_paused: isPaused,
+        // Only flip the manual auto-trade toggle — never touch risk-pause fields
+        // (is_trading_paused / limit_hit_at are owned by monitorRiskLimits).
+        return await base44.entities.RiskManagementSettings.update(existing.id, {
+          auto_trade_enabled: enabled,
         });
       }
+      return await base44.entities.RiskManagementSettings.create({
+        ...DEFAULTS,
+        account_number: conn.account_number,
+        auto_trade_enabled: enabled,
+      });
     },
-    onSuccess: (_, { conn, isPaused }) => {
+    onSuccess: (_, { conn, enabled }) => {
       queryClient.invalidateQueries(['risk-settings']);
       queryClient.invalidateQueries(['broker-connections-autotrade']);
       toast.success(
-        isPaused
-          ? `Auto-trade OFF for account ${conn.account_number}`
-          : `Auto-trade ON for account ${conn.account_number}`
+        enabled
+          ? `Auto-trade ON for account ${conn.account_number}`
+          : `Auto-trade OFF for account ${conn.account_number}`
       );
     },
     onError: (err) => toast.error(`Failed to toggle: ${err.message}`),
@@ -85,7 +83,7 @@ export default function AccountAutoTradeToggle() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {connectedAccounts.map(conn => {
             const risk = riskByAccount[conn.account_number];
-            const isPaused = risk?.is_trading_paused === true;
+            const autoEnabled = risk?.auto_trade_enabled !== false;
             const isStale = conn.last_sync
               ? (Date.now() - new Date(conn.last_sync).getTime()) > 300000
               : true;
@@ -94,9 +92,9 @@ export default function AccountAutoTradeToggle() {
               <div
                 key={conn.account_number}
                 className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                  isPaused
-                    ? 'bg-slate-950/60 border-slate-700'
-                    : 'bg-emerald-500/5 border-emerald-500/30'
+                  autoEnabled
+                    ? 'bg-emerald-500/5 border-emerald-500/30'
+                    : 'bg-slate-950/60 border-slate-700'
                 }`}
               >
                 <div className="min-w-0">
@@ -109,23 +107,23 @@ export default function AccountAutoTradeToggle() {
                     <span className="text-sm font-mono text-slate-200 truncate">#{conn.account_number}</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
-                    {isPaused ? (
-                      <>
-                        <PauseCircle className="w-3 h-3 text-slate-500" />
-                        <span className="text-xs text-slate-500">Auto-Trade OFF</span>
-                      </>
-                    ) : (
+                    {autoEnabled ? (
                       <>
                         <PlayCircle className="w-3 h-3 text-emerald-400" />
                         <span className="text-xs text-emerald-400">Auto-Trade ON</span>
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle className="w-3 h-3 text-slate-500" />
+                        <span className="text-xs text-slate-500">Auto-Trade OFF</span>
                       </>
                     )}
                   </div>
                 </div>
                 <Switch
-                  checked={!isPaused}
+                  checked={autoEnabled}
                   onCheckedChange={(checked) =>
-                    toggleMutation.mutate({ conn, isPaused: !checked })
+                    toggleMutation.mutate({ conn, enabled: checked })
                   }
                   disabled={toggleMutation.isPending}
                   className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-700"
