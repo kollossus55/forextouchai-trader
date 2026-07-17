@@ -827,6 +827,28 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                     ?? livePriceMap[sym]
                     ?? livePriceMap[(t.pair || t.symbol)]
                     ?? 0;
+
+                // Find the matching ACTIVE signal for this account+pair BEFORE creating the trade,
+                // so we can propagate the signal's bot_id onto the trade record for per-bot attribution.
+                let matchedBotId = null;
+                const pairNorm = sym.toUpperCase();
+                try {
+                    const matchingSignals = await base44.asServiceRole.entities.Signal.filter({
+                        status: 'ACTIVE',
+                        owner_email: acctKey,
+                    }, '-created_date', 10);
+                    const matchedSignal = matchingSignals.find(s =>
+                        (s.pair || '').replace('/', '').toUpperCase() === pairNorm
+                    );
+                    if (matchedSignal) {
+                        matchedBotId = matchedSignal.bot_id || null;
+                        await base44.asServiceRole.entities.Signal.update(matchedSignal.id, { status: 'CLOSED' });
+                        console.log('[BRIDGE] Auto-closed signal', matchedSignal.id, 'for', pairNorm, acctKey);
+                    }
+                } catch (sigErr) {
+                    console.warn('[BRIDGE] Signal auto-close error:', sigErr.message);
+                }
+
                 await base44.asServiceRole.entities.Trade.create({
                     pair: t.pair || t.symbol,
                     type: t.type || 'BUY',
@@ -837,29 +859,10 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                     ticket: t.ticket,
                     is_auto: true,
                     owner_email: acctKey,
+                    ...(matchedBotId ? { bot_id: matchedBotId } : {}),
                 });
                 createdTickets.push(t.ticket);
-                console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey);
-
-                // Auto-close the matching ACTIVE signal for this account+pair
-                // This handles the case where EA executes the trade but never calls confirmExecution
-                try {
-                    const pairNorm = sym.toUpperCase();
-                    const pairWithSlash = pairNorm.length === 6 ? pairNorm.slice(0, 3) + '/' + pairNorm.slice(3) : pairNorm;
-                    const matchingSignals = await base44.asServiceRole.entities.Signal.filter({
-                        status: 'ACTIVE',
-                        owner_email: acctKey,
-                    }, '-created_date', 10);
-                    const matchedSignal = matchingSignals.find(s =>
-                        (s.pair || '').replace('/', '').toUpperCase() === pairNorm
-                    );
-                    if (matchedSignal) {
-                        await base44.asServiceRole.entities.Signal.update(matchedSignal.id, { status: 'CLOSED' });
-                        console.log('[BRIDGE] Auto-closed signal', matchedSignal.id, 'for', pairNorm, acctKey);
-                    }
-                } catch (sigErr) {
-                    console.warn('[BRIDGE] Signal auto-close error:', sigErr.message);
-                }
+                console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey, matchedBotId ? `(bot_id: ${matchedBotId})` : '');
 
                 // Small delay between creates to avoid 429 rate limiting
                 await new Promise(r => setTimeout(r, 200));
