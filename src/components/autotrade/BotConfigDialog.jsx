@@ -280,17 +280,20 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
               <div className="space-y-2">
                 <Label>Active Pairs</Label>
                 <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-md max-h-40 overflow-y-auto">
-                  {uniquePairs.map(pair => (
+                  {uniquePairs.map(pair => {
+                    const norm = (p) => (p || '').replace('/', '');
+                    const isPairSelected = (formData.pairs || []).some(p => norm(p) === norm(pair.symbol));
+                    return (
                     <Badge
                       key={pair.id}
                       variant="outline"
-                      className={`cursor-pointer transition-all select-none ${formData.pairs.includes(pair.symbol)
+                      className={`cursor-pointer transition-all select-none ${isPairSelected
                         ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30'
                         : 'text-slate-400 border-slate-700 hover:text-slate-200 hover:border-slate-500'}`}
                       onClick={() => {
-                        const current = formData.pairs;
-                        if (current.includes(pair.symbol)) {
-                          setFormData({...formData, pairs: current.filter(p => p !== pair.symbol)});
+                        const current = formData.pairs || [];
+                        if (isPairSelected) {
+                          setFormData({...formData, pairs: current.filter(p => norm(p) !== norm(pair.symbol))});
                         } else {
                           setFormData({...formData, pairs: [...current, pair.symbol]});
                         }
@@ -298,7 +301,8 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                     >
                       {pair.symbol}
                     </Badge>
-                  ))}
+                    );
+                  })}
                   {uniquePairs.length === 0 && <span className="text-xs text-slate-500">No pairs available. Please check Pairs tab.</span>}
                 </div>
                 <p className="text-[10px] text-slate-500">Select which currency pairs this bot should trade.</p>
