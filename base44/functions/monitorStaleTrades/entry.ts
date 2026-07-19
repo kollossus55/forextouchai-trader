@@ -12,6 +12,15 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
+        // Forex market is closed Friday 21:00 UTC → Sunday 22:00 UTC.
+        // Trades can't close while the market is shut, so stale-trade alerts
+        // during this window are noise — skip them.
+        const _wd = new Date();
+        const _wdDay = _wd.getUTCDay(), _wdH = _wd.getUTCHours();
+        if (_wdDay === 6 || (_wdDay === 0 && _wdH < 22) || (_wdDay === 5 && _wdH >= 21)) {
+            return Response.json({ success: true, weekend: true, stale_trades: 0, message: 'Forex market closed — alerts suppressed' });
+        }
+
         // Allow both scheduled (service role) and manual admin calls
         let isAdmin = false;
         try {

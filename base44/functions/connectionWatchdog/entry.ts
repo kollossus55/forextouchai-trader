@@ -8,6 +8,15 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
+        // Forex market is closed Friday 21:00 UTC → Sunday 22:00 UTC.
+        // During this window the EA legitimately stops heartbeating, so skip
+        // disconnection alerts to avoid weekend noise.
+        const _wd = new Date();
+        const _wdDay = _wd.getUTCDay(), _wdH = _wd.getUTCHours();
+        if (_wdDay === 6 || (_wdDay === 0 && _wdH < 22) || (_wdDay === 5 && _wdH >= 21)) {
+            return Response.json({ success: true, weekend: true, message: 'Forex market closed — alerts suppressed' });
+        }
+
         // Fetch all broker connections (service role — sees all accounts)
         const connections = await base44.asServiceRole.entities.BrokerConnection.list('-created_date', 100);
 

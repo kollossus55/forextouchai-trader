@@ -135,6 +135,14 @@ export default function Layout({ children }) {
   }, []);
   
   React.useEffect(() => {
+    // Suppress connection toasts while the forex market is closed (Fri 21:00 → Sun 22:00 UTC)
+    const _wd = new Date();
+    const _wdDay = _wd.getUTCDay(), _wdH = _wd.getUTCHours();
+    if (_wdDay === 6 || (_wdDay === 0 && _wdH < 22) || (_wdDay === 5 && _wdH >= 21)) {
+      setLastConnectionState(isConnected);
+      return;
+    }
+
     console.log('[Connection Monitor] isConnected:', isConnected, 'lastConnectionState:', lastConnectionState);
     
     // Skip first render (initialization)
