@@ -34,7 +34,15 @@ export default function Alerts() {
   });
 
   const clearAll = useMutation({
-    mutationFn: () => base44.functions.invoke('clearAllAlerts', {}),
+    mutationFn: async () => {
+      // Clear in batches directly via the SDK — avoids backend-function timeouts on large backlogs
+      let batch;
+      do {
+        batch = await base44.entities.Alert.list('-created_date', 200);
+        if (!batch || batch.length === 0) break;
+        await base44.entities.Alert.deleteMany({ id: { $in: batch.map((a) => a.id) } });
+      } while (batch.length === 200);
+    },
     onSuccess: () => queryClient.invalidateQueries(['alerts'])
   });
 
