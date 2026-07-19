@@ -11,27 +11,10 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        let deleted = 0;
-        let rounds = 0;
-        const MAX_ROUNDS = 50;
+        // Single bulk delete — the old 5-at-a-time loop timed out on large alert counts
+        await base44.asServiceRole.entities.Alert.deleteMany({});
 
-        while (rounds < MAX_ROUNDS) {
-            const alerts = await base44.asServiceRole.entities.Alert.list(undefined, 5);
-            if (!alerts || alerts.length === 0) break;
-
-            for (const alert of alerts) {
-                await base44.asServiceRole.entities.Alert.delete(alert.id);
-                await sleep(300);
-            }
-
-            deleted += alerts.length;
-            rounds++;
-
-            if (alerts.length < 5) break;
-            await sleep(300);
-        }
-
-        return Response.json({ success: true, deleted });
+        return Response.json({ success: true });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
     }
