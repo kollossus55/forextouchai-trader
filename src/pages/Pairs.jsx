@@ -106,11 +106,11 @@ export default function Pairs() {
           recordTick(pair.symbol, realPrice);
 
           let current = next[pair.id];
-          if (!current) {
+          if (!current || !Array.isArray(current.history)) {
             const history = Array.from({ length: 20 }, (_, i) => ({
               time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002)
             }));
-            current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: 0, ai_signal: 'NEUTRAL', signal_timestamp: Date.now() };
+            current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: current?.ai_confidence || 0, ai_signal: current?.ai_signal || 'NEUTRAL', signal_timestamp: current?.signal_timestamp || Date.now() };
           }
           const newHistory = [...current.history.slice(-49), { time: Date.now(), price: realPrice }];
           next[pair.id] = { ...current, current_price: realPrice, change_24h: pair.change_24h, history: newHistory };
