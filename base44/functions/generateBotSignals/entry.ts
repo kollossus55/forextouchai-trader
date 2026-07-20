@@ -1317,19 +1317,17 @@ Also provide:
                 }
 
                 const maxOpen = bot.max_open_trades || 15;
-                // Only skip this bot if ALL active accounts are already at capacity
-                // USE FALLBACK: if Trade table shows fewer open trades than BrokerConnection.open_trade_count,
-                // trust the broker connection count (bridge reconcile keeps this accurate even when Trade entity syncs lag)
+                // Bot-level capacity: count only THIS bot's open trades (by bot_id) per account.
+                // Account-level capacity (EA total, e.g. 15) is enforced separately below via
+                // RiskManagementSettings.max_concurrent_trades — so multiple bots sharing one EA
+                // each get their own max_open_trades budget without blocking each other.
                 const allAccountsAtCapacity = activeAcctNums.every(acctNum => {
-                    const dbCount = openTrades.filter(t => t.owner_email === acctNum).length;
-                    const connCount = connectionOpenCountMap[acctNum] || 0;
-                    // Only use broker count as a floor when DB also shows trades (avoids blocking after a reset where DB=0 but EA count is stale)
-                    const acctCount = dbCount > 0 ? Math.max(dbCount, connCount) : dbCount;
-                    return acctCount >= maxOpen;
+                    const botOpen = openTrades.filter(t => t.owner_email === acctNum && t.bot_id === bot.id).length;
+                    return botOpen >= maxOpen;
                 });
                 if (allAccountsAtCapacity) {
-                    const countsByAcct = activeAcctNums.map(a => `${a}:${openTrades.filter(t => t.owner_email === a).length}`).join(', ');
-                    console.log(`[Skip] ${bot.name}: all accounts at max_open_trades (${maxOpen}) — [${countsByAcct}]`);
+                    const countsByAcct = activeAcctNums.map(a => `${a}:${openTrades.filter(t => t.owner_email === a && t.bot_id === bot.id).length}`).join(', ');
+                    console.log(`[Skip] ${bot.name}: this bot at max_open_trades (${maxOpen}) — [${countsByAcct}]`);
                     continue;
                 }
 
@@ -1351,13 +1349,11 @@ Also provide:
                 const maxPerPair = bot.max_trades_per_pair || 1;
 
                 for (const pair of (bot.pairs || [])) {
-                    // Break if ALL accounts are full (including queued signals)
+                    // Break if ALL accounts are full FOR THIS BOT (open + queued this cycle)
                     const allAcctsFull = activeAcctNums.every(acctNum => {
-                        const dbOpen = openTrades.filter(t => t.owner_email === acctNum).length;
-                        const connCount = connectionOpenCountMap[acctNum] || 0;
-                        const acctOpen = dbOpen > 0 ? Math.max(dbOpen, connCount) : dbOpen;
-                        const acctQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum).length;
-                        return acctOpen + acctQueued >= maxOpen;
+                        const botOpen = openTrades.filter(t => t.owner_email === acctNum && t.bot_id === bot.id).length;
+                        const botQueued = allSignalsToCreate.filter(s => s.owner_email === acctNum && s.bot_id === bot.id).length;
+                        return botOpen + botQueued >= maxOpen;
                     });
                     if (allAcctsFull) break;
 
