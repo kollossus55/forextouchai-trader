@@ -599,9 +599,8 @@ export default function Pairs() {
             </Select>
         </div>
         <Button
-          variant="outline"
           onClick={() => setSignalSettingsOpen(true)}
-          className="bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="bg-emerald-600/15 border border-emerald-500/50 text-emerald-400 font-semibold hover:bg-emerald-600 hover:text-white hover:border-emerald-400 transition-all shadow-[0_0_15px_-5px_rgba(16,185,129,0.45)]"
         >
           <Settings2 className="w-4 h-4 mr-1.5" /> Signal
         </Button>
