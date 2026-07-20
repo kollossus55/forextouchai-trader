@@ -193,10 +193,11 @@ export default function AutoTrade() {
     bots.forEach(bot => {
       if (bot.status !== 'RUNNING') return;
       const maxOpen = bot.max_open_trades || 5;
-      const botPairs = new Set((bot.pairs || []).map(p => p.replace('/', '')));
 
-      // Only count trades on pairs this bot is configured for
-      const botTrades = openTrades.filter(t => botPairs.has((t.pair || '').replace('/', '')));
+      // Count only THIS bot's own open trades (by bot_id) — not trades from other
+      // bots or manual trades that happen to share the same pair. Account-level
+      // capacity (EA total) is governed separately by RiskManagementSettings.
+      const botTrades = openTrades.filter(t => t.bot_id === bot.id);
 
       // Group those trades by account
       const tradesByAccount = {};
