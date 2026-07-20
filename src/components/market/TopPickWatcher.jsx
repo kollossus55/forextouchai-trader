@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -26,12 +27,22 @@ export default function TopPickWatcher() {
   const lastShown = useRef(null);
   const timeframe = 'H1';
 
+  // Shared query cache with the Pairs page → navigating to Pairs is instant
+  const { data: pairs } = useQuery({
+    queryKey: ['pairs'],
+    queryFn: () => base44.entities.CurrencyPair.list(),
+    staleTime: 30000,
+    refetchInterval: 60000,
+    initialData: [],
+  });
+
   useEffect(() => {
+    if (!pairs || pairs.length === 0) return;
     let active = true;
-    let interval;
+    let timer, interval;
     MarketDataService.initialize();
 
-    const compute = async (pairs) => {
+    const compute = async () => {
       await MarketDataService.fetchAll();
       let best = null;
       pairs.forEach(pair => {
@@ -54,16 +65,10 @@ export default function TopPickWatcher() {
       }
     };
 
-    base44.entities.CurrencyPair.list().then(async (data) => {
-      if (!active) return;
-      const pairs = data || [];
-      setTimeout(() => compute(pairs), 1500);
-      const recalc = (settings.recalcInterval || 30) * 1000;
-      interval = setInterval(() => compute(pairs), recalc);
-    });
-
-    return () => { active = false; if (interval) clearInterval(interval); };
-  }, [settings.recalcInterval]);
+    timer = setTimeout(compute, 1500);
+    interval = setInterval(compute, (settings.recalcInterval || 30) * 1000);
+    return () => { active = false; clearTimeout(timer); clearInterval(interval); };
+  }, [pairs, settings.recalcInterval]);
 
   const dismiss = () => setVisible(false);
 
