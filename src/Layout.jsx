@@ -28,6 +28,7 @@ import { createPageUrl } from '@/utils';
 import { Toaster, toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
+import TopPickWatcher from '@/components/market/TopPickWatcher';
 
 export default function Layout({ children }) {
   const location = useLocation();
@@ -384,6 +385,7 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+      <TopPickWatcher />
     </div>
   );
 }
