@@ -66,9 +66,10 @@ export default function Pairs() {
   const [pairChartData, setPairChartData] = useState({});
   const [pairFactors, setPairFactors] = useState({}); // signal factor breakdown per pair
 
-  const { data: pairs, isLoading } = useQuery({
+  const { data: pairs, isLoading, isFetching } = useQuery({
     queryKey: ['pairs'],
     queryFn: () => base44.entities.CurrencyPair.list(),
+    staleTime: 30000, // reuse cached list within 30s so navigation shows pairs instantly
     initialData: []
   });
 
@@ -607,9 +608,10 @@ export default function Pairs() {
       </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center py-20">
+      {(isLoading || (isFetching && (!pairs || pairs.length === 0))) ? (
+        <div className="flex flex-col justify-center items-center py-20 gap-3">
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+           <p className="text-slate-400 text-sm">Loading market pairs…</p>
         </div>
       ) : (
       <Tabs defaultValue="majors" className="w-full">
