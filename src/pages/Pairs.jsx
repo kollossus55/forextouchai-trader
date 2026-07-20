@@ -40,6 +40,7 @@ import AdvancedChart from '@/components/charts/AdvancedChart';
 import { MarketDataService } from '@/components/services/MarketDataService';
 import { recordTick, computeSignal } from '@/components/services/SignalEngine';
 import SignalSettingsPanel from '@/components/market/SignalSettingsPanel';
+import TopPickModal from '@/components/market/TopPickModal';
 import { useSignalSettings } from '@/components/services/signalSettings';
 
 export default function Pairs() {
@@ -398,6 +399,9 @@ export default function Pairs() {
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
+
+  // Top pick = highest-confidence forex pair above 70% (auto-popup)
+  const topPick = filteredPairs.length > 0 && (filteredPairs[0].ai_confidence || 0) > 70 ? filteredPairs[0] : null;
 
   const PairCard = ({ pair }) => {
     // pair now includes live data (merged)
@@ -896,6 +900,8 @@ export default function Pairs() {
       </Dialog>
 
       <SignalSettingsPanel open={signalSettingsOpen} onOpenChange={setSignalSettingsOpen} />
+
+      <TopPickModal topPick={topPick} onTrade={handleTradeClick} />
     </div>
   );
 }
