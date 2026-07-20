@@ -5,6 +5,9 @@
  */
 import { EMA, RSI, MACD, BollingerBands, ATR, Stochastic, SMA } from 'technicalindicators';
 import { MarketDataService } from './MarketDataService';
+import {
+  getSignalSettings, getDirectionalThreshold, getLockMs, getMinLockConfidence,
+} from './signalSettings';
 
 // ─── OHLC History Store ─────────────────────────────────────────────────────
 // We accumulate real price ticks into minute-level OHLC candles, then
@@ -13,10 +16,9 @@ const tickStore = {}; // symbol → [{ t, p }]
 const MAX_TICKS = 2000;
 
 // ─── Signal Lock Store ───────────────────────────────────────────────────────
-// Prevents signal direction from flipping for 15 minutes after a directional
-// signal is confirmed. Neutral signals never lock.
-const SIGNAL_LOCK_MS = 15 * 60 * 1000; // 15 minutes
-const MIN_LOCK_CONFIDENCE = 55;         // only lock if confidence is meaningful
+// Prevents signal direction from flipping for a configurable period after a
+// directional signal is confirmed. Neutral signals never lock.
+// (duration & min confidence come from signalSettings — user configurable)
 const signalLock = {};                  // symbol+tf → { signal, confidence, lockedAt }
 
 export function recordTick(symbol, price) {
@@ -118,53 +120,61 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     const atr    = atrArr[atrArr.length - 1];
     const price  = closes[n - 1];
 
-    // ── Multi-factor Scoring ────────────────────────────────────────────────
+    // ── Multi-factor Scoring (weights & enables driven by user settings) ───
     // Each factor contributes a score in range [-weight, +weight].
     // Positive = bullish, Negative = bearish.
+    const F = getSignalSettings().factors;
+    const half = (w) => Math.round(w / 2);
     const factors = [];
 
-    // 1. RSI (weight 20)
-    if (rsi !== undefined) {
-        if (rsi < 30)      factors.push({ name: 'RSI Oversold',    score: 20, direction: 'BUY'  });
-        else if (rsi < 40) factors.push({ name: 'RSI Mild Oversold', score: 10, direction: 'BUY' });
-        else if (rsi > 70) factors.push({ name: 'RSI Overbought',  score: 20, direction: 'SELL' });
-        else if (rsi > 60) factors.push({ name: 'RSI Mild Overbought', score: 10, direction: 'SELL' });
-        else               factors.push({ name: 'RSI Neutral',     score: 0,  direction: 'NEUTRAL' });
+    // 1. RSI
+    if (rsi !== undefined && F.rsi.enabled) {
+        const w = F.rsi.weight;
+        if (rsi < 30)      factors.push({ name: 'RSI Oversold',        score: w,       direction: 'BUY'  });
+        else if (rsi < 40) factors.push({ name: 'RSI Mild Oversold',   score: half(w), direction: 'BUY'  });
+        else if (rsi > 70) factors.push({ name: 'RSI Overbought',      score: w,       direction: 'SELL' });
+        else if (rsi > 60) factors.push({ name: 'RSI Mild Overbought', score: half(w), direction: 'SELL' });
+        else               factors.push({ name: 'RSI Neutral',        score: 0,       direction: 'NEUTRAL' });
     }
 
-    // 2. MACD crossover (weight 20)
-    if (macd) {
+    // 2. MACD crossover
+    if (macd && F.macd.enabled) {
+        const w = F.macd.weight;
         const hist = macd.histogram;
-        if (hist > 0)  factors.push({ name: 'MACD Bullish Cross', score: hist > 0.0001 ? 20 : 10, direction: 'BUY'  });
-        else if (hist < 0) factors.push({ name: 'MACD Bearish Cross', score: Math.abs(hist) > 0.0001 ? 20 : 10, direction: 'SELL' });
+        if (hist > 0)      factors.push({ name: 'MACD Bullish Cross', score: hist > 0.0001 ? w : half(w), direction: 'BUY'  });
+        else if (hist < 0) factors.push({ name: 'MACD Bearish Cross', score: Math.abs(hist) > 0.0001 ? w : half(w), direction: 'SELL' });
     }
 
-    // 3. Bollinger Bands position (weight 15)
-    if (bb) {
+    // 3. Bollinger Bands position
+    if (bb && F.bollinger.enabled) {
+        const w = F.bollinger.weight;
         const bbRange = bb.upper - bb.lower;
         const percentB = bbRange > 0 ? ((price - bb.lower) / bbRange) * 100 : 50;
-        if (price < bb.lower)        factors.push({ name: 'Price Below BB',    score: 15, direction: 'BUY'  });
-        else if (percentB < 20)      factors.push({ name: 'BB Lower Zone',     score: 8,  direction: 'BUY'  });
-        else if (price > bb.upper)   factors.push({ name: 'Price Above BB',    score: 15, direction: 'SELL' });
-        else if (percentB > 80)      factors.push({ name: 'BB Upper Zone',     score: 8,  direction: 'SELL' });
+        if (price < bb.lower)       factors.push({ name: 'Price Below BB', score: w,       direction: 'BUY'  });
+        else if (percentB < 20)     factors.push({ name: 'BB Lower Zone',  score: half(w), direction: 'BUY'  });
+        else if (price > bb.upper)  factors.push({ name: 'Price Above BB', score: w,       direction: 'SELL' });
+        else if (percentB > 80)     factors.push({ name: 'BB Upper Zone',  score: half(w), direction: 'SELL' });
     }
 
-    // 4. EMA 20/50 Trend (weight 20)
-    if (ema20 && ema50) {
-        if (ema20 > ema50)  factors.push({ name: 'EMA20 > EMA50 (Bullish)', score: 20, direction: 'BUY'  });
-        else                factors.push({ name: 'EMA20 < EMA50 (Bearish)', score: 20, direction: 'SELL' });
+    // 4. EMA 20/50 Trend
+    if (ema20 && ema50 && F.emaCross.enabled) {
+        const w = F.emaCross.weight;
+        if (ema20 > ema50) factors.push({ name: 'EMA20 > EMA50 (Bullish)', score: w, direction: 'BUY'  });
+        else               factors.push({ name: 'EMA20 < EMA50 (Bearish)', score: w, direction: 'SELL' });
     }
 
-    // 5. Price vs EMA200 (weight 15)
-    if (ema200) {
-        if (price > ema200) factors.push({ name: 'Above EMA200', score: 15, direction: 'BUY'  });
-        else                factors.push({ name: 'Below EMA200', score: 15, direction: 'SELL' });
+    // 5. Price vs EMA200
+    if (ema200 && F.ema200.enabled) {
+        const w = F.ema200.weight;
+        if (price > ema200) factors.push({ name: 'Above EMA200', score: w, direction: 'BUY'  });
+        else                 factors.push({ name: 'Below EMA200', score: w, direction: 'SELL' });
     }
 
-    // 6. Stochastic (weight 10)
-    if (stoch) {
-        if (stoch.k < 20 && stoch.d < 20)  factors.push({ name: 'Stoch Oversold',   score: 10, direction: 'BUY'  });
-        else if (stoch.k > 80 && stoch.d > 80) factors.push({ name: 'Stoch Overbought', score: 10, direction: 'SELL' });
+    // 6. Stochastic
+    if (stoch && F.stochastic.enabled) {
+        const w = F.stochastic.weight;
+        if (stoch.k < 20 && stoch.d < 20)      factors.push({ name: 'Stoch Oversold',   score: w, direction: 'BUY'  });
+        else if (stoch.k > 80 && stoch.d > 80) factors.push({ name: 'Stoch Overbought', score: w, direction: 'SELL' });
     }
 
     // ── Tally scores ────────────────────────────────────────────────────────
@@ -175,38 +185,43 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         if (f.direction === 'SELL') sellScore += f.score;
     }
 
-    const maxPossible = 100; // sum of all max weights
+    // maxPossible = sum of enabled factor weights (dynamic with user settings)
+    const maxPossible = Object.values(getSignalSettings().factors)
+        .reduce((s, f) => s + (f.enabled ? f.weight : 0), 0) || 100;
     const buyPct  = totalWeight > 0 ? (buyScore  / maxPossible) * 100 : 0;
     const sellPct = totalWeight > 0 ? (sellScore / maxPossible) * 100 : 0;
 
+    const threshold = getDirectionalThreshold();
     let signal = 'NEUTRAL';
     let confidence = 50;
 
-    if (buyPct > sellPct && buyPct >= 35) {
+    if (buyPct > sellPct && buyPct >= threshold) {
         signal = 'BUY';
         confidence = Math.min(97, Math.round(45 + buyPct));
-    } else if (sellPct > buyPct && sellPct >= 35) {
+    } else if (sellPct > buyPct && sellPct >= threshold) {
         signal = 'SELL';
         confidence = Math.min(97, Math.round(45 + sellPct));
     } else {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
     }
 
-    // ── 15-minute Signal Lock ────────────────────────────────────────────────
+    // ── Signal Lock (duration & min confidence from user settings) ───────────
     // If a directional signal was locked recently, hold it unless the lock
     // has expired. A stronger opposing signal does NOT override the lock —
-    // wait for expiry to prevent noise-driven flips.
+    // wait for expiry to prevent noise-driven flips. Set lockMinutes=0 to disable.
     const lockKey = `${symbol}_${timeframe}`;
     const now = Date.now();
     const lock = signalLock[lockKey];
+    const lockMs = getLockMs();
+    const minLockConf = getMinLockConfidence();
 
-    if (lock && (now - lock.lockedAt) < SIGNAL_LOCK_MS) {
+    if (lockMs > 0 && lock && (now - lock.lockedAt) < lockMs) {
         // Still within lock window — preserve locked signal & confidence
         signal = lock.signal;
         confidence = lock.confidence;
     } else {
         // Lock window expired or no lock — set a new lock if signal is directional
-        if (signal !== 'NEUTRAL' && confidence >= MIN_LOCK_CONFIDENCE) {
+        if (signal !== 'NEUTRAL' && confidence >= minLockConf) {
             signalLock[lockKey] = { signal, confidence, lockedAt: now };
         } else if (signal === 'NEUTRAL') {
             // Clear any expired lock on neutral

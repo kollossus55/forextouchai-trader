@@ -14,7 +14,8 @@ import {
   Clock,
   AlertTriangle,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  Settings2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,8 @@ import IndicatorCharts from '@/components/market/IndicatorCharts';
 import AdvancedChart from '@/components/charts/AdvancedChart';
 import { MarketDataService } from '@/components/services/MarketDataService';
 import { recordTick, computeSignal } from '@/components/services/SignalEngine';
+import SignalSettingsPanel from '@/components/market/SignalSettingsPanel';
+import { useSignalSettings } from '@/components/services/signalSettings';
 
 export default function Pairs() {
   const queryClient = useQueryClient();
@@ -54,6 +57,8 @@ export default function Pairs() {
   const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
   const [showAdvancedChart, setShowAdvancedChart] = useState(false);
   const [aiSuggestedLot, setAiSuggestedLot] = useState(null);
+  const [signalSettingsOpen, setSignalSettingsOpen] = useState(false);
+  const { settings: signalSettings } = useSignalSettings();
   
   // Real-time State
   const [liveData, setLiveData] = useState({});
@@ -140,7 +145,7 @@ export default function Pairs() {
         setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
         setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
       });
-    }, 30000);
+    }, (signalSettings.recalcInterval || 30) * 1000);
 
     // Run signal calculation immediately on mount / timeframe change
     setTimeout(() => {
@@ -163,7 +168,29 @@ export default function Pairs() {
     }, 1500);
 
     return () => { clearInterval(tickInterval); clearInterval(signalInterval); };
-  }, [pairs, timeframe]);
+  }, [pairs, timeframe, signalSettings.recalcInterval]);
+
+  // Recompute every pair's signal immediately when engine settings change
+  useEffect(() => {
+    if (pairs.length === 0) return;
+    pairs.forEach(pair => {
+      const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
+      const result = computeSignal(pair.symbol, timeframe, price);
+      setLiveData(prev => ({
+        ...prev,
+        [pair.id]: {
+          ...(prev[pair.id] || {}),
+          ai_signal: result.signal,
+          ai_confidence: result.confidence,
+          signal_timestamp: Date.now()
+        }
+      }));
+      setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
+      setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
+      setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signalSettings]);
 
   const sendSignal = useMutation({
     mutationFn: async (signalBase) => {
@@ -571,6 +598,13 @@ export default function Pairs() {
                 </SelectContent>
             </Select>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setSignalSettingsOpen(true)}
+          className="bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white"
+        >
+          <Settings2 className="w-4 h-4 mr-1.5" /> Signal
+        </Button>
       </div>
       </div>
 
@@ -859,6 +893,8 @@ export default function Pairs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SignalSettingsPanel open={signalSettingsOpen} onOpenChange={setSignalSettingsOpen} />
     </div>
   );
 }
