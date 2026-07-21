@@ -4,14 +4,23 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
-        const [bots, closedTrades, openTrades] = await Promise.all([
+        const [bots, closedTrades, openTrades, brokerConnections] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50),
             base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED' }, '-created_date', 500),
             base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 100),
+            base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
 
         if (!bots.length) {
             return Response.json({ success: true, message: 'No running bots to monitor' });
+        }
+
+        // Account number → balance (for close-all-at-profit/loss % calculations)
+        const accountBalanceMap = {};
+        for (const conn of brokerConnections) {
+            if (conn.account_number && conn.balance > 0) {
+                accountBalanceMap[conn.account_number] = conn.balance;
+            }
         }
 
         // Get recent alerts to avoid duplicates
@@ -23,6 +32,56 @@ Deno.serve(async (req) => {
         for (const bot of bots) {
             const botClosedTrades = closedTrades.filter(t => t.bot_id === bot.id);
             const botOpenTrades = openTrades.filter(t => t.bot_id === bot.id);
+
+            // ── Close-all-at-profit / close-all-at-loss enforcement (per account) ──
+            // Runs BEFORE the closed-trade skip below so brand-new bots that haven't
+            // closed a trade yet can still have their open trades closed on threshold breach.
+            const profitThreshold = bot.close_all_at_profit_percent || 0;
+            const lossThreshold = bot.close_all_at_loss_percent || 0;
+            if ((profitThreshold > 0 || lossThreshold > 0) && botOpenTrades.length > 0) {
+                const tradesByAccount = {};
+                for (const t of botOpenTrades) {
+                    const acct = t.owner_email;
+                    if (!acct) continue;
+                    if (!tradesByAccount[acct]) tradesByAccount[acct] = [];
+                    tradesByAccount[acct].push(t);
+                }
+                for (const [acct, trades] of Object.entries(tradesByAccount)) {
+                    const balance = accountBalanceMap[acct] || 0;
+                    if (balance <= 0) continue;
+                    const floatingPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+                    const pnlPercent = (floatingPnl / balance) * 100;
+
+                    const hitProfit = profitThreshold > 0 && floatingPnl > 0 && pnlPercent >= profitThreshold;
+                    const hitLoss = lossThreshold > 0 && floatingPnl < 0 && pnlPercent <= -lossThreshold;
+
+                    if (hitProfit || hitLoss) {
+                        const reason = hitProfit
+                            ? `Bot "${bot.name}" floating profit ${pnlPercent.toFixed(2)}% reached the ${profitThreshold}% close-all target`
+                            : `Bot "${bot.name}" floating loss ${Math.abs(pnlPercent).toFixed(2)}% reached the ${lossThreshold}% close-all limit`;
+                        console.log(`[monitorBotPerformance] CLOSE-ALL: ${reason} (acct ${acct}, ${trades.length} trades)`);
+                        for (let i = 0; i < trades.length; i += 3) {
+                            await Promise.all(trades.slice(i, i + 3).map(t =>
+                                base44.asServiceRole.entities.Trade.update(t.id, {
+                                    status: 'CLOSED',
+                                    close_price: t.open_price || 0,
+                                    pnl: t.pnl || 0,
+                                })
+                            ));
+                        }
+                        const closeTitle = hitProfit
+                            ? `🎯 Close-All Profit Reached: ${bot.name} (Acct ${acct})`
+                            : `🛑 Close-All Loss Limit Hit: ${bot.name} (Acct ${acct})`;
+                        if (!recentAlerts.some(a => a.title === closeTitle)) {
+                            alerts.push({
+                                title: closeTitle,
+                                message: `${reason}. Closed ${trades.length} open trade(s) on account ${acct}.`,
+                                type: hitProfit ? 'SUCCESS' : 'WARNING',
+                            });
+                        }
+                    }
+                }
+            }
 
             if (botClosedTrades.length === 0) continue;
 
