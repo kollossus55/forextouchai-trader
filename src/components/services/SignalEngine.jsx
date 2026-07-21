@@ -195,12 +195,14 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     let signal = 'NEUTRAL';
     let confidence = 50;
 
+    // Confidence scales from 50 at the threshold up to ~97, so it reflects
+    // genuine confluence strength rather than a bare threshold pass.
     if (buyPct > sellPct && buyPct >= threshold) {
         signal = 'BUY';
-        confidence = Math.min(97, Math.round(45 + buyPct));
+        confidence = Math.min(97, Math.round(50 + (buyPct - threshold) * 0.8));
     } else if (sellPct > buyPct && sellPct >= threshold) {
         signal = 'SELL';
-        confidence = Math.min(97, Math.round(45 + sellPct));
+        confidence = Math.min(97, Math.round(50 + (sellPct - threshold) * 0.8));
     } else {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
     }

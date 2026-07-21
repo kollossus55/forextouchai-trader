@@ -6,16 +6,17 @@ import { useState, useEffect } from 'react';
 
 export const DEFAULT_SIGNAL_SETTINGS = {
   sensitivity: 'MEDIUM',          // LOW | MEDIUM | HIGH → directional threshold
-  lockMinutes: 15,               // 0 = lock disabled
-  minLockConfidence: 55,         // confidence needed to lock a signal
-  recalcInterval: 30,            // seconds between signal recalculations
+  lockMinutes: 30,               // hold directional signals 30 min to ride trends
+  minLockConfidence: 60,         // only lock confluence-backed signals
+  recalcInterval: 15,            // recompute every 15s for responsiveness
   factors: {
-    rsi:        { weight: 20, enabled: true },
-    macd:       { weight: 20, enabled: true },
-    bollinger:  { weight: 15, enabled: true },
-    emaCross:   { weight: 20, enabled: true },
-    ema200:     { weight: 15, enabled: true },
-    stochastic: { weight: 10, enabled: true },
+    // Trend confirmation is the strongest, most reliable driver for forex pairs.
+    emaCross:   { weight: 25, enabled: true },   // primary EMA20/50 trend signal
+    macd:       { weight: 22, enabled: true },   // momentum confirmation
+    ema200:     { weight: 18, enabled: true },   // higher-timeframe trend bias
+    rsi:        { weight: 15, enabled: true },   // momentum / exhaustion
+    bollinger:  { weight: 12, enabled: true },   // mean-reversion / volatility
+    stochastic: { weight: 8,  enabled: true },    // noisiest oscillator — lowest weight
   },
 };
 
