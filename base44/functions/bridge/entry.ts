@@ -496,6 +496,25 @@ Deno.serve(async (req) => {
         const sanitizedSignals = freshSignals.map(s => sanitizeSignal(s, livePriceMap));
         console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals');
 
+        // ── Close commands: OPEN trades this account flagged close_requested ──
+        // Set by monitorBotPerformance (bot close-all-at-profit/loss). Returned to the
+        // EA so it can actually flatten the broker position; bridge reconcile then
+        // marks the trade CLOSED with the real fill pnl once the EA drops it.
+        let closeCommands = [];
+        try {
+            const closeReqTrades = await base44.asServiceRole.entities.Trade.filter(
+                { status: 'OPEN', owner_email: acctKey, close_requested: true }, '-created_date', 50
+            );
+            closeCommands = (closeReqTrades || [])
+                .filter(t => t.ticket)
+                .map(t => ({ ticket: t.ticket, pair: t.pair || '' }));
+            if (closeCommands.length > 0) {
+                console.log('[BRIDGE]', acctKey, '→', closeCommands.length, 'close command(s)');
+            }
+        } catch (e) {
+            console.warn('[BRIDGE] close_commands fetch error:', e.message);
+        }
+
         if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
         return Response.json({
             success: true,
@@ -506,6 +525,7 @@ Deno.serve(async (req) => {
             last_reconcile: shouldReconcile ? now : lastReconcile,
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
+            close_commands: closeCommands,
         }, { headers: corsHeaders() });
 
     } catch (error) {

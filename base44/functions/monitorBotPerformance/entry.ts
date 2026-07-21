@@ -62,11 +62,7 @@ Deno.serve(async (req) => {
                         console.log(`[monitorBotPerformance] CLOSE-ALL: ${reason} (acct ${acct}, ${trades.length} trades)`);
                         for (let i = 0; i < trades.length; i += 3) {
                             await Promise.all(trades.slice(i, i + 3).map(t =>
-                                base44.asServiceRole.entities.Trade.update(t.id, {
-                                    status: 'CLOSED',
-                                    close_price: t.open_price || 0,
-                                    pnl: t.pnl || 0,
-                                })
+                                base44.asServiceRole.entities.Trade.update(t.id, { close_requested: true })
                             ));
                         }
                         const closeTitle = hitProfit
@@ -75,7 +71,7 @@ Deno.serve(async (req) => {
                         if (!recentAlerts.some(a => a.title === closeTitle)) {
                             alerts.push({
                                 title: closeTitle,
-                                message: `${reason}. Closed ${trades.length} open trade(s) on account ${acct}.`,
+                                message: `${reason}. Requested close on ${trades.length} trade(s) on account ${acct} — EA will flatten the position on next heartbeat.`,
                                 type: hitProfit ? 'SUCCESS' : 'WARNING',
                             });
                         }

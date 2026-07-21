@@ -358,12 +358,12 @@ export default function Settings() {
 //|                                   ForexTouchAI Bridge EA (MT5) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.10"
+#property version   "1.11"
 #property strict
 
 #include <Trade\\Trade.mqh>
 
-#define EA_VERSION "1.1"
+#define EA_VERSION "1.11"
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
@@ -524,6 +524,7 @@ void SendPost(string json) {
    if(r == 200) {
       string response = CharArrayToString(res);
       ProcessPendingSignals(response);
+      ProcessCloseCommands(response);
    } else {
       int err = GetLastError();
       Print("[BRIDGE MT5] HTTP: ", r, " Error: ", err);
@@ -657,6 +658,40 @@ string GetJsonValue(string json, string key) {
    StringReplace(val, " ", "");
    return val;
 }
+
+void ProcessCloseCommands(string json) {
+   int arrStart = StringFind(json, "\\"close_commands\\"");
+   if(arrStart < 0) return;
+   arrStart = StringFind(json, "[", arrStart);
+   if(arrStart < 0) return;
+   int arrEnd = StringFind(json, "]", arrStart);
+   if(arrEnd < 0) return;
+   string arr = StringSubstr(json, arrStart + 1, arrEnd - arrStart - 1);
+   if(StringLen(arr) < 5) return;
+   int pos = 0;
+   while(pos < StringLen(arr)) {
+      int objStart = StringFind(arr, "{", pos);
+      if(objStart < 0) break;
+      int objEnd = StringFind(arr, "}", objStart);
+      if(objEnd < 0) break;
+      string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+      ulong ticket = (ulong)StringToInteger(GetJsonValue(obj, "ticket"));
+      if(ticket > 0) CloseTicket(ticket);
+      pos = objEnd + 1;
+   }
+}
+
+void CloseTicket(ulong ticket) {
+   if(!PositionSelectByTicket(ticket)) {
+      Print("[BRIDGE MT5] Close: ticket ", ticket, " not found (may already be closed)");
+      return;
+   }
+   if(trade.PositionClose(ticket)) {
+      Print("[BRIDGE MT5] Closed ticket ", ticket);
+   } else {
+      Print("[BRIDGE MT5] PositionClose FAILED ticket ", ticket, " RetCode=", trade.ResultRetcode());
+   }
+}
 //+------------------------------------------------------------------+`;
 
     const element = document.createElement("a");
@@ -677,10 +712,10 @@ string GetJsonValue(string json, string key) {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "3.10"
+      #property version   "3.11"
       #property strict
       
-      #define EA_VERSION "3.1"
+      #define EA_VERSION "3.11"
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
@@ -1039,6 +1074,7 @@ string GetJsonValue(string json, string key) {
             string response = CharArrayToString(res);
             // Parse and execute any pending signals returned in the POST response
             ProcessPendingSignals(response);
+            ProcessCloseCommands(response);
             return;
          }
          
@@ -1192,6 +1228,48 @@ string GetJsonValue(string json, string key) {
       }
       
       void CheckSignals() { /* Signals now come from POST response - see ProcessPendingSignals */ }
+
+      //+------------------------------------------------------------------+
+      //| Process close_commands from bridge — flatten broker positions   |
+      //+------------------------------------------------------------------+
+      void ProcessCloseCommands(string json) {
+         int arrStart = StringFind(json, "\\"close_commands\\"");
+         if(arrStart < 0) return;
+         arrStart = StringFind(json, "[", arrStart);
+         if(arrStart < 0) return;
+         int arrEnd = StringFind(json, "]", arrStart);
+         if(arrEnd < 0) return;
+         string arr = StringSubstr(json, arrStart + 1, arrEnd - arrStart - 1);
+         if(StringLen(arr) < 5) return;
+         int pos = 0;
+         while(pos < StringLen(arr)) {
+            int objStart = StringFind(arr, "{", pos);
+            if(objStart < 0) break;
+            int objEnd = StringFind(arr, "}", objStart);
+            if(objEnd < 0) break;
+            string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+            int ticket = (int)StringToInteger(GetJsonValue(obj, "ticket"));
+            if(ticket > 0) CloseTicket(ticket);
+            pos = objEnd + 1;
+         }
+      }
+
+      void CloseTicket(int ticket) {
+         if(!OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) {
+            Print("[BRIDGE] Close: ticket ", ticket, " not found (may already be closed)");
+            return;
+         }
+         string symbol = OrderSymbol();
+         double lots = OrderLots();
+         int type = OrderType();
+         double price = (type == OP_BUY) ? MarketInfo(symbol, MODE_BID) : MarketInfo(symbol, MODE_ASK);
+         if(price <= 0) { Print("[BRIDGE] Close: no price for ", symbol); return; }
+         if(!OrderClose(ticket, lots, price, 20, clrYellow)) {
+            Print("[BRIDGE] OrderClose FAILED ticket ", ticket, " error=", GetLastError());
+         } else {
+            Print("[BRIDGE] Closed ticket ", ticket, " ", symbol);
+         }
+      }
 
       //+------------------------------------------------------------------+
       //| JSON Parsing Helper                                              |

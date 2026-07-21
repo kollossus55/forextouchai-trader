@@ -7,7 +7,7 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)    |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -36,7 +36,7 @@ int OnInit() {
         Print("[GoldEA MT5] WARNING: Symbol '", GoldSymbol, "' not in Market Watch. Add it.");
     trade.SetExpertMagicNumber(MagicNumber);
     trade.SetDeviationInPoints(Slippage);
-    Print("[GoldEA MT5] Gold EA v1.00 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[GoldEA MT5] Gold EA v1.01 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -139,6 +139,7 @@ void SendHeartbeat() {
     string response = CharArrayToString(result);
     Print("[GoldEA MT5] Response: ", StringSubstr(response, 0, 200));
     ProcessSignals(response);
+    ProcessCloseCommands(response);
 }
 
 int CountOpenGoldTrades() {
@@ -257,6 +258,40 @@ void ConfirmExecution(string signalId, long ticket, string type, double lots, do
     WebRequest("POST", confirmUrl, headers, 5000, postData, result, resultHeaders);
     Print("[GoldEA MT5] Execution confirmed for ticket ", ticket);
 }
+
+void ProcessCloseCommands(string json) {
+    int start = StringFind(json, "\\"close_commands\\"");
+    if (start == -1) return;
+    start = StringFind(json, "[", start);
+    if (start == -1) return;
+    int end = StringFind(json, "]", start);
+    if (end == -1) return;
+    string arr = StringSubstr(json, start + 1, end - start - 1);
+    if (StringLen(arr) < 5) return;
+    int pos = 0;
+    while (pos < StringLen(arr)) {
+        int objStart = StringFind(arr, "{", pos);
+        if (objStart == -1) break;
+        int objEnd = StringFind(arr, "}", objStart);
+        if (objEnd == -1) break;
+        string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+        ulong ticket = (ulong)ExtractDbl(obj, "ticket");
+        if (ticket > 0) CloseTicket(ticket);
+        pos = objEnd + 1;
+    }
+}
+
+void CloseTicket(ulong ticket) {
+    if (!PositionSelectByTicket(ticket)) {
+        Print("[GoldEA MT5] Close: ticket ", ticket, " not found (may already be closed)");
+        return;
+    }
+    if (trade.PositionClose(ticket)) {
+        Print("[GoldEA MT5] Closed ticket ", ticket);
+    } else {
+        Print("[GoldEA MT5] PositionClose FAILED ticket ", ticket, " RetCode=", trade.ResultRetcode());
+    }
+}
 //+------------------------------------------------------------------+`;
 
 const GOLD_EA_CODE = `//+------------------------------------------------------------------+
@@ -265,7 +300,7 @@ const GOLD_EA_CODE = `//+-------------------------------------------------------
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)   |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 // --- INPUTS ---
@@ -288,7 +323,7 @@ int OnInit() {
         Print("[GoldEA] WARNING: ApiKey empty - get it from the ForexTouchAI Settings page.");
     if (MarketInfo(GoldSymbol, MODE_BID) <= 0)
         Print("[GoldEA] WARNING: Symbol '", GoldSymbol, "' not in Market Watch. Add it.");
-    Print("[GoldEA] Gold EA v1.00 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[GoldEA] Gold EA v1.01 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -378,6 +413,7 @@ void SendHeartbeat() {
     string response = CharArrayToString(result);
     Print("[GoldEA] Response: ", StringSubstr(response, 0, 200));
     ProcessSignals(response);
+    ProcessCloseCommands(response);
 }
 
 int CountOpenGoldTrades() {
@@ -490,6 +526,43 @@ void ConfirmExecution(string signalId, int ticket, string type, double lots, dou
     string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
     WebRequest("POST", confirmUrl, headers, 5000, postData, result, resultHeaders);
     Print("[GoldEA] Execution confirmed for ticket ", ticket);
+}
+
+void ProcessCloseCommands(string json) {
+    int start = StringFind(json, "\\"close_commands\\"");
+    if (start == -1) return;
+    start = StringFind(json, "[", start);
+    if (start == -1) return;
+    int end = StringFind(json, "]", start);
+    if (end == -1) return;
+    string arr = StringSubstr(json, start + 1, end - start - 1);
+    if (StringLen(arr) < 5) return;
+    int pos = 0;
+    while (pos < StringLen(arr)) {
+        int objStart = StringFind(arr, "{", pos);
+        if (objStart == -1) break;
+        int objEnd = StringFind(arr, "}", objStart);
+        if (objEnd == -1) break;
+        string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
+        int ticket = (int)ExtractDbl(obj, "ticket");
+        if (ticket > 0) CloseTicket(ticket);
+        pos = objEnd + 1;
+    }
+}
+
+void CloseTicket(int ticket) {
+    if (!OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) {
+        Print("[GoldEA] Close: ticket ", ticket, " not found (may already be closed)");
+        return;
+    }
+    string symbol = OrderSymbol();
+    double lots = OrderLots();
+    int type = OrderType();
+    double price = (type == OP_BUY) ? MarketInfo(symbol, MODE_BID) : MarketInfo(symbol, MODE_ASK);
+    if (price <= 0) { Print("[GoldEA] Close: no price for ", symbol); return; }
+    bool ok = OrderClose(ticket, lots, price, Slippage, clrYellow);
+    if (ok) Print("[GoldEA] Closed ticket ", ticket, " ", symbol, " @ ", price);
+    else Print("[GoldEA] OrderClose FAILED ticket ", ticket, " error=", GetLastError());
 }
 //+------------------------------------------------------------------+`;
 

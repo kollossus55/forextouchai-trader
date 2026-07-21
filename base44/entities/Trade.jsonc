@@ -47,6 +47,11 @@
     "owner_email": {
       "type": "string",
       "description": "Email of the user who owns this trade (for MT4/MT5 sync)"
+    },
+    "close_requested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set by monitorBotPerformance (bot close-all-at-profit/loss). The bridge returns these OPEN trades as close_commands so the EA flattens the broker position; bridge reconcile then marks the trade CLOSED with the real fill pnl."
     }
   },
   "required": [
