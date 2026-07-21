@@ -71,13 +71,15 @@ export default function Pairs() {
     queryKey: ['pairs'],
     queryFn: () => base44.entities.CurrencyPair.list(),
     staleTime: 30000, // reuse cached list within 30s so navigation shows pairs instantly
-    initialData: []
+    initialData: [],
+    initialDataUpdatedAt: 0 // force a real refetch on cold load (initialData [] is otherwise treated as fresh → never fetched → blank grid)
   });
 
   const { data: connections } = useQuery({
     queryKey: ['broker-connections'],
     queryFn: () => base44.entities.BrokerConnection.list(),
-    initialData: []
+    initialData: [],
+    initialDataUpdatedAt: 0
   });
 
   const { data: riskSettings } = useQuery({
