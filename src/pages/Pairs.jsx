@@ -406,14 +406,21 @@ export default function Pairs() {
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
-  // Persist the last 75%+ picks so the strip holds steady instead of blinking
-  // out when no pair currently meets the (rare) 75% threshold.
-  const [stablePicks, setStablePicks] = useState([]);
-  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}:${Math.round(p.ai_confidence || 0)}`).join('|');
+  // Hold the last 75%+ picks so the strip doesn't blink to "Scanning" when no
+  // pair currently meets the (rare) 75% bar — but rebuild them from live data
+  // each render so their confidence/signal/price stay in sync with the cards.
+  const [stablePickIds, setStablePickIds] = useState([]);
+  const picksIdsSig = topPicks.map(p => p.id).join('|');
   useEffect(() => {
-    if (topPicks.length > 0) setStablePicks(topPicks);
+    if (topPicks.length > 0) setStablePickIds(topPicks.map(p => p.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picksSig]);
+  }, [picksIdsSig]);
+
+  const pairsById = Object.fromEntries(mergedPairs.map(p => [p.id, p]));
+  const displayPicks = stablePickIds
+    .map(id => pairsById[id])
+    .filter(Boolean)
+    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
@@ -469,7 +476,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={stablePicks} onTrade={handleTradeClick} />
+      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
