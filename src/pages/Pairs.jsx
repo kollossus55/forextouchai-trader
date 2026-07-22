@@ -400,28 +400,13 @@ export default function Pairs() {
 
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
-  // Top Picks: the strongest directional (BUY/SELL) setups by live AI confidence
+  // Top Picks: the strongest directional (BUY/SELL) setups by CURRENT live AI
+  // confidence. Live-refreshed every recalc (≈30s) so the strip never freezes,
+  // and always populated (no ≥75% hard gate) so it never blinks to "Scanning".
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= 75)
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) > 0)
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
-
-  // Hold the last 75%+ picks so the strip doesn't blink to "Scanning" when no
-  // pair currently meets the (rare) 75% bar. The displayed confidence/signal
-  // are frozen at the qualifying (≥75%) snapshot so the box always shows a
-  // valid ≥75% value; only the live price is refreshed each render.
-  const [stablePicks, setStablePicks] = useState([]);
-  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}:${Math.round(p.ai_confidence || 0)}`).join('|');
-  useEffect(() => {
-    if (topPicks.length > 0) setStablePicks(topPicks);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picksSig]);
-
-  const pairsById = Object.fromEntries(mergedPairs.map(p => [p.id, p]));
-  const displayPicks = stablePicks.map(p => {
-    const live = pairsById[p.id];
-    return live ? { ...p, current_price: live.current_price, change_24h: live.change_24h ?? p.change_24h } : p;
-  });
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
@@ -477,7 +462,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} />
+      <TopPicksStrip picks={topPicks} onTrade={handleTradeClick} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
