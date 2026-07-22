@@ -406,6 +406,15 @@ export default function Pairs() {
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
+  // Persist the last 75%+ picks so the strip holds steady instead of blinking
+  // out when no pair currently meets the (rare) 75% threshold.
+  const [stablePicks, setStablePicks] = useState([]);
+  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}:${Math.round(p.ai_confidence || 0)}`).join('|');
+  useEffect(() => {
+    if (topPicks.length > 0) setStablePicks(topPicks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picksSig]);
+
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
 
@@ -460,7 +469,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={topPicks} onTrade={handleTradeClick} />
+      <TopPicksStrip picks={stablePicks} onTrade={handleTradeClick} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
