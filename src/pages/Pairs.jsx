@@ -400,13 +400,54 @@ export default function Pairs() {
 
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
-  // Top Picks: the strongest directional (BUY/SELL) setups by CURRENT live AI
-  // confidence. Live-refreshed every recalc (≈30s) so the strip never freezes,
-  // and always populated (no ≥75% hard gate) so it never blinks to "Scanning".
+  // Top Picks: rare high-confidence (≥75%) directional setups. A qualifying
+  // setup is snapshotted (frozen confidence/signal so the box always shows a
+  // valid ≥75% value; only price refreshes live) and held so the strip doesn't
+  // blink on minor confidence dips. After MAX_PICK_AGE it expires to "Scanning"
+  // so it never gets stuck; a different ≥75% setup re-populates it.
+  const MAX_PICK_AGE_MS = 5 * 60 * 1000;
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) > 0)
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= 75)
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
+
+  const [stablePicks, setStablePicks] = useState([]);
+  const [qualifiedAt, setQualifiedAt] = useState(null);
+  const [lastExpiredSig, setLastExpiredSig] = useState(null);
+  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}`).join('|');
+
+  // Snapshot a fresh qualifying setup (skip the one that just expired)
+  useEffect(() => {
+    if (topPicks.length > 0 && picksSig !== lastExpiredSig) {
+      setStablePicks(topPicks);
+      setQualifiedAt(Date.now());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picksSig, lastExpiredSig]);
+
+  // Once a setup lapses below 75%, allow it to re-qualify fresh later
+  useEffect(() => {
+    if (topPicks.length === 0) setLastExpiredSig(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picksSig]);
+
+  // Expire the held picks to "Scanning" after the max age
+  useEffect(() => {
+    if (stablePicks.length === 0 || !qualifiedAt) return;
+    const remaining = MAX_PICK_AGE_MS - (Date.now() - qualifiedAt);
+    const t = setTimeout(() => {
+      setLastExpiredSig(picksSig);
+      setStablePicks([]);
+      setQualifiedAt(null);
+    }, Math.max(remaining, 0));
+    return () => clearTimeout(t);
+  }, [stablePicks, qualifiedAt, picksSig]);
+
+  const pairsById = Object.fromEntries(mergedPairs.map(p => [p.id, p]));
+  const displayPicks = stablePicks.map(p => {
+    const live = pairsById[p.id];
+    return live ? { ...p, current_price: live.current_price, change_24h: live.change_24h ?? p.change_24h } : p;
+  });
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
@@ -462,7 +503,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={topPicks} onTrade={handleTradeClick} />
+      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
