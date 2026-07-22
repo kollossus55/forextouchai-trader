@@ -41,6 +41,7 @@ import { MarketDataService } from '@/components/services/MarketDataService';
 import { recordTick, computeSignal } from '@/components/services/SignalEngine';
 import SignalSettingsPanel from '@/components/market/SignalSettingsPanel';
 import PairCard from '@/components/market/PairCard';
+import TopPicksStrip from '@/components/market/TopPicksStrip';
 import { useSignalSettings } from '@/components/services/signalSettings';
 
 export default function Pairs() {
@@ -399,6 +400,12 @@ export default function Pairs() {
 
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
+  // Top Picks: the strongest directional (BUY/SELL) setups by live AI confidence
+  const topPicks = mergedPairs
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL')
+    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
+    .slice(0, 4);
+
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
 
@@ -452,6 +459,9 @@ export default function Pairs() {
            <p className="text-slate-400 text-sm">Loading market pairs…</p>
         </div>
       ) : (
+      <>
+      <TopPicksStrip picks={topPicks} onTrade={handleTradeClick} />
+
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
           <TabsTrigger value="majors" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
@@ -482,6 +492,7 @@ export default function Pairs() {
           </div>
         </TabsContent>
       </Tabs>
+      </>
       )}
 
       {/* Trade Modal */}
