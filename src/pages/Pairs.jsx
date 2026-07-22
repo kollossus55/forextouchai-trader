@@ -402,7 +402,7 @@ export default function Pairs() {
 
   // Top Picks: the strongest directional (BUY/SELL) setups by live AI confidence
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL')
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= 75)
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
