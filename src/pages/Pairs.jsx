@@ -407,20 +407,21 @@ export default function Pairs() {
     .slice(0, 4);
 
   // Hold the last 75%+ picks so the strip doesn't blink to "Scanning" when no
-  // pair currently meets the (rare) 75% bar — but rebuild them from live data
-  // each render so their confidence/signal/price stay in sync with the cards.
-  const [stablePickIds, setStablePickIds] = useState([]);
-  const picksIdsSig = topPicks.map(p => p.id).join('|');
+  // pair currently meets the (rare) 75% bar. The displayed confidence/signal
+  // are frozen at the qualifying (≥75%) snapshot so the box always shows a
+  // valid ≥75% value; only the live price is refreshed each render.
+  const [stablePicks, setStablePicks] = useState([]);
+  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}:${Math.round(p.ai_confidence || 0)}`).join('|');
   useEffect(() => {
-    if (topPicks.length > 0) setStablePickIds(topPicks.map(p => p.id));
+    if (topPicks.length > 0) setStablePicks(topPicks);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picksIdsSig]);
+  }, [picksSig]);
 
   const pairsById = Object.fromEntries(mergedPairs.map(p => [p.id, p]));
-  const displayPicks = stablePickIds
-    .map(id => pairsById[id])
-    .filter(Boolean)
-    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
+  const displayPicks = stablePicks.map(p => {
+    const live = pairsById[p.id];
+    return live ? { ...p, current_price: live.current_price, change_24h: live.change_24h ?? p.change_24h } : p;
+  });
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
