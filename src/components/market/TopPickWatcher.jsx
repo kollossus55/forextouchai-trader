@@ -50,7 +50,7 @@ export default function TopPickWatcher() {
         const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
         const result = computeSignal(pair.symbol, timeframe, price);
         const conf = result.confidence || 0;
-        if (conf > 70 && (!best || conf > best.ai_confidence)) {
+        if (conf > 60 && (!best || conf > best.ai_confidence)) {
           best = { ...pair, current_price: price, ai_signal: result.signal, ai_confidence: conf, change_24h: pair.change_24h };
         }
       });
