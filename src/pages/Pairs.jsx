@@ -393,8 +393,9 @@ export default function Pairs() {
     return acc;
   }, []);
 
-  const filteredPairs = uniquePairs.filter(pair => 
+  const filteredPairs = uniquePairs.filter(pair =>
     getCategory(pair) !== null &&
+    (pair.ai_confidence || 0) >= 75 &&
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
