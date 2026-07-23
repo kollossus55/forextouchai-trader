@@ -393,36 +393,8 @@ export default function Pairs() {
     return acc;
   }, []);
 
-  // Hysteresis: a pair enters the grid once it reaches 75% confidence and
-  // stays until it drops below 70% — so the page holds steady through normal
-  // confidence fluctuation instead of flickering pairs in and out at the 75
-  // line.
-  const ENTRY_CONF = 75, EXIT_CONF = 70;
-  const [heldPairIds, setHeldPairIds] = useState([]);
-
-  useEffect(() => {
-    const liveById = new Map(mergedPairs.map(p => [p.id, p]));
-    setHeldPairIds(prev => {
-      const kept = prev.filter(id => {
-        const p = liveById.get(id);
-        return p && (p.ai_confidence || 0) >= EXIT_CONF && p.ai_signal !== 'NEUTRAL';
-      });
-      const keptSet = new Set(kept);
-      mergedPairs.forEach(p => {
-        if ((p.ai_confidence || 0) >= ENTRY_CONF && p.ai_signal !== 'NEUTRAL' && !keptSet.has(p.id)) {
-          kept.push(p.id);
-        }
-      });
-      kept.sort((a, b) => (liveById.get(b)?.ai_confidence || 0) - (liveById.get(a)?.ai_confidence || 0));
-      if (kept.length === prev.length && kept.every((id, i) => id === prev[i])) return prev;
-      return kept;
-    });
-  }, [mergedPairs]);
-
-  const heldSet = new Set(heldPairIds);
   const filteredPairs = uniquePairs.filter(pair =>
     getCategory(pair) !== null &&
-    heldSet.has(pair.id) &&
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
