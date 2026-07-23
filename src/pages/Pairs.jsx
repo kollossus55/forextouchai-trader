@@ -400,54 +400,46 @@ export default function Pairs() {
 
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
-  // Top Picks: rare high-confidence (≥75%) directional setups. A qualifying
-  // setup is snapshotted (frozen confidence/signal so the box always shows a
-  // valid ≥75% value; only price refreshes live) and held so the strip doesn't
-  // blink on minor confidence dips. After MAX_PICK_AGE it expires to "Scanning"
-  // so it never gets stuck; a different ≥75% setup re-populates it.
-  const MAX_PICK_AGE_MS = 5 * 60 * 1000;
+  // Top Picks: the strongest directional (BUY/SELL) setups by CURRENT live AI
+  // confidence — re-ranked every recalc (≈30s) so the strip actually updates
+  // and rotates as the market moves. Always populated (no ≥75% hard gate) so it
+  // never blinks to "Scanning" on small dips. If the same pair has led for
+  // MAX_STALE_MS the strip goes to "Scanning" until a different pair takes the
+  // lead, so it never looks stuck on one stale setup.
+  const MAX_STALE_MS = 5 * 60 * 1000;
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= 75)
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) > 0)
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
-  const [stablePicks, setStablePicks] = useState([]);
-  const [qualifiedAt, setQualifiedAt] = useState(null);
-  const [lastExpiredSig, setLastExpiredSig] = useState(null);
-  const picksSig = topPicks.map(p => `${p.id}:${p.ai_signal}`).join('|');
+  const currentLead = topPicks[0]?.id ?? null;
+  const [active, setActive] = useState(true);
+  const [leadId, setLeadId] = useState(null);
+  const [leadSince, setLeadSince] = useState(null);
+  const [staleLead, setStaleLead] = useState(null);
 
-  // Snapshot a fresh qualifying setup (skip the one that just expired)
+  // Activate on a new leader (skip the one that went stale); scan when empty
   useEffect(() => {
-    if (topPicks.length > 0 && picksSig !== lastExpiredSig) {
-      setStablePicks(topPicks);
-      setQualifiedAt(Date.now());
+    if (currentLead === null) { setActive(false); setLeadId(null); return; }
+    if (currentLead !== leadId) {
+      if (currentLead === staleLead) { setActive(false); return; }
+      setLeadId(currentLead);
+      setLeadSince(Date.now());
+      setStaleLead(null);
+      setActive(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picksSig, lastExpiredSig]);
+  }, [currentLead, leadId, staleLead]);
 
-  // Once a setup lapses below 75%, allow it to re-qualify fresh later
+  // Go to "Scanning" if the same leader has been #1 too long
   useEffect(() => {
-    if (topPicks.length === 0) setLastExpiredSig(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picksSig]);
-
-  // Expire the held picks to "Scanning" after the max age
-  useEffect(() => {
-    if (stablePicks.length === 0 || !qualifiedAt) return;
-    const remaining = MAX_PICK_AGE_MS - (Date.now() - qualifiedAt);
-    const t = setTimeout(() => {
-      setLastExpiredSig(picksSig);
-      setStablePicks([]);
-      setQualifiedAt(null);
-    }, Math.max(remaining, 0));
+    if (!active || !leadId || !leadSince) return;
+    const remaining = MAX_STALE_MS - (Date.now() - leadSince);
+    const t = setTimeout(() => { setStaleLead(leadId); setActive(false); }, Math.max(remaining, 0));
     return () => clearTimeout(t);
-  }, [stablePicks, qualifiedAt, picksSig]);
+  }, [active, leadId, leadSince]);
 
-  const pairsById = Object.fromEntries(mergedPairs.map(p => [p.id, p]));
-  const displayPicks = stablePicks.map(p => {
-    const live = pairsById[p.id];
-    return live ? { ...p, current_price: live.current_price, change_24h: live.change_24h ?? p.change_24h } : p;
-  });
+  const displayPicks = active ? topPicks : [];
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
