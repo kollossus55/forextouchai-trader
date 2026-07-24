@@ -243,8 +243,9 @@ export default function AutoTrade() {
   const staleTrades = React.useMemo(() => {
     const now = Date.now();
     const byAcct = {};
-    const global = riskSettingsList.find(r => !r.account_number);
-    for (const r of riskSettingsList) if (r.account_number) byAcct[r.account_number] = r;
+    const list = Array.isArray(riskSettingsList) ? riskSettingsList : [];
+    const global = list.find(r => !r.account_number);
+    for (const r of list) if (r.account_number) byAcct[r.account_number] = r;
     const resolve = (acct) => {
       const r = byAcct[acct] || global;
       return {
