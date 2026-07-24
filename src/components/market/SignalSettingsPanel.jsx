@@ -21,13 +21,15 @@ const SENSITIVITY_INFO = {
   HIGH: { label: 'High', desc: 'More signals, faster reactions. Lower bar to trigger.' },
 };
 
+// Each indicator carries a literal colour palette (enabled tint + dot) so
+// Tailwind keeps the classes. Disabled rows are faded instead.
 const FACTOR_META = [
-  { key: 'rsi',        label: 'RSI',             hint: 'Overbought / oversold' },
-  { key: 'macd',       label: 'MACD',            hint: 'Momentum crossover' },
-  { key: 'bollinger',  label: 'Bollinger Bands', hint: 'Volatility position' },
-  { key: 'emaCross',   label: 'EMA 20/50',       hint: 'Trend direction' },
-  { key: 'ema200',     label: 'Price vs EMA200',  hint: 'Long-term trend' },
-  { key: 'stochastic', label: 'Stochastic',      hint: 'Oscillator extremes' },
+  { key: 'rsi',        label: 'RSI',              hint: 'Overbought / oversold',  on: 'border-amber-500/40 bg-amber-500/5',   dot: 'bg-amber-400' },
+  { key: 'macd',       label: 'MACD',             hint: 'Momentum crossover',     on: 'border-sky-500/40 bg-sky-500/5',      dot: 'bg-sky-400' },
+  { key: 'bollinger',  label: 'Bollinger Bands',  hint: 'Volatility position',    on: 'border-violet-500/40 bg-violet-500/5', dot: 'bg-violet-400' },
+  { key: 'emaCross',   label: 'EMA 20/50',        hint: 'Trend direction',        on: 'border-cyan-500/40 bg-cyan-500/5',    dot: 'bg-cyan-400' },
+  { key: 'ema200',     label: 'Price vs EMA200',  hint: 'Long-term trend',        on: 'border-indigo-500/40 bg-indigo-500/5', dot: 'bg-indigo-400' },
+  { key: 'stochastic', label: 'Stochastic',       hint: 'Oscillator extremes',    on: 'border-fuchsia-500/40 bg-fuchsia-500/5', dot: 'bg-fuchsia-400' },
 ];
 
 export default function SignalSettingsPanel({ open, onOpenChange }) {
@@ -151,32 +153,42 @@ export default function SignalSettingsPanel({ open, onOpenChange }) {
             {showAdvanced && (
               <div className="space-y-4 pl-1">
                 {FACTOR_META.map((fm) => {
-                  const f = settings.factors[fm.key];
-                  return (
-                    <div key={fm.key} className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={f.enabled}
-                            onCheckedChange={(checked) => setFactor(fm.key, { enabled: checked })}
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-sm text-slate-200">{fm.label}</span>
-                            <span className="text-[10px] text-slate-500">{fm.hint}</span>
-                          </div>
-                        </div>
-                        <span className="text-xs text-emerald-400 font-mono w-10 text-right">{f.weight}</span>
-                      </div>
-                      <Slider
-                        value={[f.weight]}
-                        min={0} max={40} step={1}
-                        disabled={!f.enabled}
-                        onValueChange={([v]) => setFactor(fm.key, { weight: v })}
-                        className="py-1"
-                      />
-                    </div>
-                  );
-                })}
+                   const f = settings.factors[fm.key];
+                   return (
+                     <div key={fm.key} className={`rounded-lg border p-3 space-y-2 transition-all ${
+                       f.enabled ? fm.on : 'border-slate-800 bg-slate-900/40 opacity-50'
+                     }`}>
+                       <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2.5">
+                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${f.enabled ? fm.dot : 'bg-slate-600'}`} />
+                           <Switch
+                             checked={f.enabled}
+                             onCheckedChange={(checked) => setFactor(fm.key, { enabled: checked })}
+                           />
+                           <div className="flex flex-col">
+                             <span className={`text-sm ${f.enabled ? 'text-slate-100' : 'text-slate-500'}`}>{fm.label}</span>
+                             <span className="text-[10px] text-slate-500">{fm.hint}</span>
+                           </div>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                             f.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/40 text-slate-500'
+                           }`}>
+                             {f.enabled ? 'ON' : 'OFF'}
+                           </span>
+                           <span className={`text-xs font-mono w-10 text-right ${f.enabled ? 'text-emerald-400' : 'text-slate-600'}`}>{f.weight}</span>
+                         </div>
+                       </div>
+                       <Slider
+                         value={[f.weight]}
+                         min={0} max={40} step={1}
+                         disabled={!f.enabled}
+                         onValueChange={([v]) => setFactor(fm.key, { weight: v })}
+                         className="py-1"
+                       />
+                     </div>
+                   );
+                 })}
               </div>
             )}
           </div>
