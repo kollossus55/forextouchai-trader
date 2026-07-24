@@ -17,7 +17,8 @@ import {
   Target,
   BarChart,
   AlertTriangle,
-  GripVertical
+  GripVertical,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -30,6 +31,7 @@ import BacktestPanel from '@/components/autotrade/BacktestPanel';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import AccountAutoTradeToggle from '@/components/autotrade/AccountAutoTradeToggle';
 import { MarketDataService } from '@/components/services/MarketDataService';
+import { toast } from 'sonner';
 
 export default function AutoTrade() {
   const queryClient = useQueryClient();
@@ -290,6 +292,36 @@ export default function AutoTrade() {
     }
   });
 
+  const markTradeClosed = useMutation({
+    mutationFn: (trade) => base44.entities.Trade.update(trade.id, {
+      status: 'CLOSED',
+      close_price: trade.open_price > 0 ? trade.open_price : 0,
+      pnl: trade.pnl || 0,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['open-trades']);
+      queryClient.invalidateQueries(['all-trades']);
+      toast.success('Trade marked CLOSED in database');
+    },
+    onError: (err) => toast.error(`Failed to close: ${err.message}`)
+  });
+
+  const markAllStaleClosed = useMutation({
+    mutationFn: (trades) => Promise.all(trades.map(t =>
+      base44.entities.Trade.update(t.id, {
+        status: 'CLOSED',
+        close_price: t.open_price > 0 ? t.open_price : 0,
+        pnl: t.pnl || 0,
+      })
+    )),
+    onSuccess: (_, trades) => {
+      queryClient.invalidateQueries(['open-trades']);
+      queryClient.invalidateQueries(['all-trades']);
+      toast.success(`${trades.length} trade(s) marked CLOSED`);
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`)
+  });
+
   const deleteBot = useMutation({
       mutationFn: (bot) => {
         // Check permissions before deleting
@@ -415,8 +447,19 @@ export default function AutoTrade() {
           <div className="flex-1">
             <p className="text-rose-400 font-semibold text-sm">⚠️ {staleTrades.length} Stale Trade{staleTrades.length > 1 ? 's' : ''} Detected</p>
             <p className="text-rose-300/70 text-xs mt-0.5">
-              The following trades have been open past the stale threshold with losses beyond the floor — they may need manual review:
+              The following trades have been open past the stale threshold with losses beyond the floor — they may need manual review. If you've confirmed they're closed on the broker, clear them from the DB below.
             </p>
+            <div className="flex justify-end mt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => markAllStaleClosed.mutate(staleTrades)}
+                disabled={markAllStaleClosed.isPending}
+                className="h-7 text-xs border-rose-500/40 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+              >
+                <CheckCircle2 className="w-3 h-3 mr-1" /> Mark All Closed
+              </Button>
+            </div>
             <div className="mt-2 space-y-1">
               {staleTrades.map(t => {
                 const hoursOpen = Math.floor((Date.now() - new Date(t.created_date).getTime()) / (1000 * 60 * 60));
@@ -428,6 +471,13 @@ export default function AutoTrade() {
                     <span className="text-slate-500">{hoursOpen}h open</span>
                     <span className="text-rose-400 font-semibold">${(t.pnl || 0).toFixed(2)}</span>
                     {t.ticket && <span className="text-slate-600">#{t.ticket}</span>}
+                    <button
+                      onClick={() => markTradeClosed.mutate(t)}
+                      disabled={markTradeClosed.isPending}
+                      className="ml-auto px-1.5 py-0.5 rounded text-[10px] border border-slate-700 text-slate-400 hover:border-rose-500/50 hover:text-rose-300 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                    >
+                      Mark Closed
+                    </button>
                   </div>
                 );
               })}
