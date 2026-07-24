@@ -137,9 +137,12 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
     return true;
   });
   const openTrades = (trades || []).filter(t => t.status === 'OPEN' && String(t.owner_email) === String(acctKey));
-  // Use the LARGER of DB count vs bridge heartbeat count — bridge count is authoritative from MT4/MT5
-  // (DB can lag behind when trades open/close between heartbeats)
-  const openCount = Math.max(openTrades.length, conn.open_trade_count ?? 0);
+  // Bridge open_trade_count is authoritative — it's the live MT4/MT5 open-position count from the
+  // latest heartbeat. The DB can hold stale OPEN records that bridge reconcile hasn't closed yet
+  // (rate-limited closes / duplicate-creation bursts), so never let the DB count override it.
+  // Only fall back to the DB count when the bridge hasn't reported one (null/undefined).
+  const bridgeOpenCount = conn.open_trade_count;
+  const openCount = (typeof bridgeOpenCount === 'number') ? bridgeOpenCount : openTrades.length;
   const closedPnl = todayClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const floatingPnl = openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
   const dailyPnl = closedPnl + floatingPnl;
