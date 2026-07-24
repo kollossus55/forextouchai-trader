@@ -56,6 +56,13 @@ Deno.serve(async (req) => {
             : normalisedPair;
 
         // If account_number specified, target that account only. Otherwise broadcast to ALL connected accounts.
+        // IDOR fix: verify the requested account_number belongs to this API key owner before targeting it.
+        if (account_number) {
+            const ownsAccount = userConnections.some(c => String(c.account_number) === String(account_number));
+            if (!ownsAccount) {
+                return Response.json({ error: 'Unauthorized — account_number does not belong to this API key' }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } });
+            }
+        }
         const targetAccounts = account_number
             ? [String(account_number)]
             : userConnections.map(c => c.account_number).filter(Boolean);

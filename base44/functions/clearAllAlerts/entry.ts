@@ -10,6 +10,9 @@ Deno.serve(async (req) => {
         if (!user) {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        if (user.role !== 'admin') {
+            return Response.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         // Single bulk delete — the old 5-at-a-time loop timed out on large alert counts
         await base44.asServiceRole.entities.Alert.deleteMany({});
