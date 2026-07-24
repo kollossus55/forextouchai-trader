@@ -419,6 +419,11 @@ export default function Pairs() {
   const [leadSince, setLeadSince] = useState(null);
   const [staleLead, setStaleLead] = useState(null);
 
+  // Freeze the displayed pick set so the strip doesn't re-shuffle every recalc
+  const MIN_HOLD_MS = 90 * 1000;
+  const [frozenPicks, setFrozenPicks] = useState([]);
+  const [frozenAt, setFrozenAt] = useState(0);
+
   // Activate on a new leader (skip the one that went stale); scan when empty
   useEffect(() => {
     if (currentLead === null) { setActive(false); setLeadId(null); return; }
@@ -440,7 +445,23 @@ export default function Pairs() {
     return () => clearTimeout(t);
   }, [active, leadId, leadSince]);
 
-  const displayPicks = active ? topPicks : [];
+  // Freeze the displayed picks order for MIN_HOLD_MS to prevent the strip
+  // from re-shuffling every ~30s recalc when confidences are close. Only
+  // refresh early if the current #1 has dropped out of the qualifying set.
+  useEffect(() => {
+    if (!active) { setFrozenPicks([]); setFrozenAt(0); return; }
+    if (topPicks.length === 0) return;
+    const leaderId = frozenPicks[0]?.id;
+    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
+    const heldLongEnough = Date.now() - frozenAt >= MIN_HOLD_MS;
+    if (!frozenAt || !leaderValid || heldLongEnough) {
+      setFrozenPicks(topPicks);
+      setFrozenAt(Date.now());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topPicks, active]);
+
+  const displayPicks = active ? frozenPicks : [];
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
