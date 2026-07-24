@@ -229,18 +229,37 @@ export default function AutoTrade() {
     return status;
   }, [bots, openTrades]);
 
-  // Detect stale trades (open too long + negative PnL)
+  // Fetch risk settings to resolve per-account stale thresholds
+  const { data: riskSettingsList = [] } = useQuery({
+    queryKey: ['risk-settings'],
+    queryFn: () => base44.entities.RiskManagementSettings.list(),
+    initialData: [],
+  });
+
+  // Detect stale trades (open too long + loss beyond floor) using risk thresholds
   const INDEX_PAIRS = new Set(['US30', 'SPX500', 'SPX/500', 'JPN225', 'JPN/225', 'GER30', 'HK50', 'AUS200', 'AUS/200', 'ESP35', 'UK100', 'NAS100']);
   const staleTrades = React.useMemo(() => {
     const now = Date.now();
+    const byAcct = {};
+    const global = riskSettingsList.find(r => !r.account_number);
+    for (const r of riskSettingsList) if (r.account_number) byAcct[r.account_number] = r;
+    const resolve = (acct) => {
+      const r = byAcct[acct] || global;
+      return {
+        forex: r?.stale_forex_hours ?? 24,
+        index: r?.stale_index_hours ?? 48,
+        loss: r?.stale_loss_threshold ?? -10,
+      };
+    };
     return openTrades.filter(trade => {
       const hoursOpen = (now - new Date(trade.created_date).getTime()) / (1000 * 60 * 60);
       const pairRaw = (trade.pair || '').replace('/', '').toUpperCase();
       const isIndex = INDEX_PAIRS.has(pairRaw) || INDEX_PAIRS.has(trade.pair || '');
-      const threshold = isIndex ? 48 : 24;
-      return hoursOpen >= threshold && (trade.pnl || 0) <= -10;
+      const t = resolve(trade.owner_email);
+      const threshold = isIndex ? t.index : t.forex;
+      return hoursOpen >= threshold && (trade.pnl || 0) <= t.loss;
     });
-  }, [openTrades]);
+  }, [openTrades, riskSettingsList]);
 
   // Fetch recent signals to show in bot terminals (backend is the authoritative signal source)
   const { data: recentSignals } = useQuery({
@@ -396,7 +415,7 @@ export default function AutoTrade() {
           <div className="flex-1">
             <p className="text-rose-400 font-semibold text-sm">⚠️ {staleTrades.length} Stale Trade{staleTrades.length > 1 ? 's' : ''} Detected</p>
             <p className="text-rose-300/70 text-xs mt-0.5">
-              The following trades have been open too long with losses &gt; $10 and may need manual review:
+              The following trades have been open past the stale threshold with losses beyond the floor — they may need manual review:
             </p>
             <div className="mt-2 space-y-1">
               {staleTrades.map(t => {

@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, Shield, TrendingDown, TrendingUp, PauseCircle, Play, Save, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Shield, TrendingDown, TrendingUp, PauseCircle, Play, Save, RotateCcw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const DEFAULT_SETTINGS = {
@@ -24,6 +24,9 @@ const DEFAULT_SETTINGS = {
   daily_profit_target_percent: 0,
   daily_reset_hour: 0,
   auto_resume_hours: 0,
+  stale_forex_hours: 24,
+  stale_index_hours: 48,
+  stale_loss_threshold: -10,
   daily_loss_current: 0,
   peak_equity: 0,
   is_trading_paused: false,
@@ -55,6 +58,9 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         daily_profit_target_percent: data.daily_profit_target_percent,
         daily_reset_hour: data.daily_reset_hour,
         auto_resume_hours: data.auto_resume_hours,
+        stale_forex_hours: data.stale_forex_hours,
+        stale_index_hours: data.stale_index_hours,
+        stale_loss_threshold: data.stale_loss_threshold,
       };
       if (existingRecord?.id) {
         return await base44.entities.RiskManagementSettings.update(existingRecord.id, settingsData);
@@ -247,6 +253,34 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
                 className="bg-slate-950 border-slate-700 text-white h-9" />
             </div>
           ))}
+        </div>
+      </div>
+
+      <Separator className="bg-slate-800" />
+
+      {/* Stale Trade Detection */}
+      <div className="space-y-3">
+        <h4 className="text-xs font-semibold text-slate-400 uppercase flex items-center gap-1"><Clock className="w-3 h-3" /> Stale Trade Detection</h4>
+        <p className="text-[11px] text-slate-500 -mt-1">Flag a trade as stale when it's been open longer than the threshold AND its loss exceeds the floor. Used by the AutoTrade banner and the stale-trade email monitor.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <Label className="text-xs text-slate-300">Forex Stale (hours)</Label>
+            <Input type="number" min={1} max={168} step={1} value={formData.stale_forex_hours ?? 24}
+              onChange={e => handleChange('stale_forex_hours', parseFloat(e.target.value))}
+              className="bg-slate-950 border-slate-700 text-white h-9" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-slate-300">Index Stale (hours)</Label>
+            <Input type="number" min={1} max={168} step={1} value={formData.stale_index_hours ?? 48}
+              onChange={e => handleChange('stale_index_hours', parseFloat(e.target.value))}
+              className="bg-slate-950 border-slate-700 text-white h-9" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-slate-300">Loss Floor ($, negative)</Label>
+            <Input type="number" step={1} value={formData.stale_loss_threshold ?? -10}
+              onChange={e => handleChange('stale_loss_threshold', parseFloat(e.target.value))}
+              className="bg-slate-950 border-slate-700 text-white h-9" />
+          </div>
         </div>
       </div>
 

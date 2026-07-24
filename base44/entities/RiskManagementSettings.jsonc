@@ -74,6 +74,25 @@
       "maximum": 24,
       "description": "Auto-resume trading this many hours after a limit breach or profit target pause (0 = disabled, only resets at daily_reset_hour)"
     },
+    "stale_forex_hours": {
+      "type": "number",
+      "default": 24,
+      "minimum": 1,
+      "maximum": 168,
+      "description": "Hours a forex pair trade must be open before it's flagged stale"
+    },
+    "stale_index_hours": {
+      "type": "number",
+      "default": 48,
+      "minimum": 1,
+      "maximum": 168,
+      "description": "Hours an index pair trade must be open before it's flagged stale"
+    },
+    "stale_loss_threshold": {
+      "type": "number",
+      "default": -10,
+      "description": "PnL floor (negative, e.g. -10). A trade open past the stale-hours threshold with PnL at or below this is flagged stale."
+    },
     "daily_loss_current": {
       "type": "number",
       "default": 0,

@@ -1,9 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Thresholds
-const FOREX_STALE_HOURS = 24;
-const INDEX_STALE_HOURS = 48;
-const NEGATIVE_PNL_THRESHOLD = -10; // Only alert if loss exceeds this
+// Default thresholds (used when no risk settings configured for an account)
+const DEFAULT_FOREX_STALE_HOURS = 24;
+const DEFAULT_INDEX_STALE_HOURS = 48;
+const DEFAULT_NEGATIVE_PNL_THRESHOLD = -10; // Only alert if loss exceeds this
 
 // Index pairs (not pip-based, different thresholds)
 const INDEX_PAIRS = new Set(['US30', 'SPX500', 'SPX/500', 'JPN225', 'JPN/225', 'GER30', 'HK50', 'AUS200', 'AUS/200', 'ESP35', 'UK100', 'NAS100']);
@@ -31,6 +31,24 @@ Deno.serve(async (req) => {
         }
 
         const openTrades = await base44.asServiceRole.entities.Trade.filter({ status: 'OPEN' }, '-created_date', 500);
+
+        // Load per-account + global stale thresholds from RiskManagementSettings
+        const allRisk = await base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 200).catch(() => []);
+        const riskByAcct = {};
+        let globalRisk = null;
+        for (const r of allRisk) {
+            if (r.account_number) riskByAcct[r.account_number] = r;
+            else if (!globalRisk) globalRisk = r;
+        }
+        const resolveThresholds = (acct) => {
+            const r = riskByAcct[acct] || globalRisk;
+            return {
+                forex: r?.stale_forex_hours ?? DEFAULT_FOREX_STALE_HOURS,
+                index: r?.stale_index_hours ?? DEFAULT_INDEX_STALE_HOURS,
+                loss: r?.stale_loss_threshold ?? DEFAULT_NEGATIVE_PNL_THRESHOLD,
+            };
+        };
+
         const now = Date.now();
 
         const staleTrades = openTrades.filter(trade => {
@@ -38,11 +56,12 @@ Deno.serve(async (req) => {
             const hoursOpen = (now - openedAt) / (1000 * 60 * 60);
             const pairRaw = (trade.pair || '').replace('/', '').toUpperCase();
             const isIndex = INDEX_PAIRS.has(pairRaw) || INDEX_PAIRS.has(trade.pair || '');
-            const threshold = isIndex ? INDEX_STALE_HOURS : FOREX_STALE_HOURS;
+            const t = resolveThresholds(trade.owner_email);
+            const threshold = isIndex ? t.index : t.forex;
             const pnl = trade.pnl || 0;
 
             // Flag if: open too long AND in negative territory beyond threshold
-            return hoursOpen >= threshold && pnl <= NEGATIVE_PNL_THRESHOLD;
+            return hoursOpen >= threshold && pnl <= t.loss;
         });
 
         if (staleTrades.length === 0) {
@@ -76,7 +95,7 @@ Deno.serve(async (req) => {
             if (u.role === 'admin' && u.email) ownerEmails.add(u.email);
         }
 
-        const emailBody = `⚠️ STALE TRADE ALERT — ForexTouchAI\n\nThe following trades have been open for an extended period with significant losses and may require your attention:\n\n${tradeDetails}\n\n---\nThresholds:\n• Forex pairs: ${FOREX_STALE_HOURS}h open + PnL ≤ $${NEGATIVE_PNL_THRESHOLD}\n• Index pairs: ${INDEX_STALE_HOURS}h open + PnL ≤ $${NEGATIVE_PNL_THRESHOLD}\n\nPlease review these trades on your MT4/MT5 platform.\n\nForexTouchAI — Automated Risk Monitor`;
+        const emailBody = `⚠️ STALE TRADE ALERT — ForexTouchAI\n\nThe following trades have been open for an extended period with significant losses and may require your attention:\n\n${tradeDetails}\n\n---\nThresholds (from your Risk Management settings):\n• Forex pairs: ${DEFAULT_FOREX_STALE_HOURS}h open + PnL ≤ $${DEFAULT_NEGATIVE_PNL_THRESHOLD}\n• Index pairs: ${DEFAULT_INDEX_STALE_HOURS}h open + PnL ≤ $${DEFAULT_NEGATIVE_PNL_THRESHOLD}\n\nPlease review these trades on your MT4/MT5 platform.\n\nForexTouchAI — Automated Risk Monitor`;
 
         // Create in-app alerts and send emails
         const alertPromises = [];
@@ -85,7 +104,7 @@ Deno.serve(async (req) => {
         alertPromises.push(
             base44.asServiceRole.entities.Alert.create({
                 title: `⚠️ ${staleTrades.length} Stale Trade(s) Detected`,
-                message: `${staleTrades.length} trade(s) have been open too long with losses exceeding $${Math.abs(NEGATIVE_PNL_THRESHOLD)}. Review: ${staleTrades.map(t => `${t.type} ${t.pair} ($${(t.pnl||0).toFixed(2)})`).join(', ')}`,
+                message: `${staleTrades.length} trade(s) have been open too long with losses exceeding $${Math.abs(DEFAULT_NEGATIVE_PNL_THRESHOLD)}. Review: ${staleTrades.map(t => `${t.type} ${t.pair} ($${(t.pnl||0).toFixed(2)})`).join(', ')}`,
                 type: 'WARNING',
                 is_read: false
             })
