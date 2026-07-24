@@ -5,10 +5,21 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         const payload = await req.json();
 
-        const alert = payload.data;
-        if (!alert) {
-            return Response.json({ success: false, error: 'No alert data in payload' });
+        const alertRef = payload.data;
+        if (!alertRef || !alertRef.id) {
+            return Response.json({ success: false, error: 'Alert ID required' });
         }
+
+        // Verify the alert exists in the DB and use stored content — prevents spoofing with arbitrary payload
+        const realAlert = await base44.asServiceRole.entities.Alert.get(alertRef.id).catch(() => null);
+        if (!realAlert) {
+            return Response.json({ success: false, error: 'Alert not found' });
+        }
+
+        // Use DB-stored values (not payload) and strip CRLF to prevent header injection
+        const title = String(realAlert.title || '').replace(/[\r\n]/g, ' ').slice(0, 200);
+        const message = String(realAlert.message || '').replace(/[\r\n]/g, ' ').slice(0, 2000);
+        const alertType = ['ERROR', 'WARNING', 'SUCCESS', 'INFO'].includes(realAlert.type) ? realAlert.type : 'INFO';
 
         // Get all admin users to notify
         const users = await base44.asServiceRole.entities.User.list('-created_date', 50).catch(() => []);
@@ -23,10 +34,10 @@ Deno.serve(async (req) => {
             WARNING: '⚠️',
             SUCCESS: '✅',
             INFO: 'ℹ️'
-        }[alert.type] || 'ℹ️';
+        }[alertType] || 'ℹ️';
 
-        const subject = `${emoji} ForexTouchAI Alert — ${alert.title}`;
-        const body = `${alert.message}\n\n---\nAlert Type: ${alert.type || 'INFO'}\nTime: ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}\n\nLog in to ForexTouchAI to view all your alerts.\n\nForexTouchAI — Automated Alert System`;
+        const subject = `${emoji} ForexTouchAI Alert — ${title}`;
+        const body = `${message}\n\n---\nAlert Type: ${alertType}\nTime: ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}\n\nLog in to ForexTouchAI to view all your alerts.\n\nForexTouchAI — Automated Alert System`;
 
         await Promise.all(
             adminEmails.map(email =>

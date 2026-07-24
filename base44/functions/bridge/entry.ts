@@ -88,25 +88,24 @@ Deno.serve(async (req) => {
 
         body = JSON.parse(cleanText);
 
-        // ── API Key validation (only enforce if key looks valid, i.e. starts with FTAI-) ─
+        // ── API Key validation — reject missing or non-FTAI keys (auth bypass fix) ─
         const authHeader = req.headers.get('Authorization') || '';
         const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
-        let resolvedOwnerEmail = null;
-        if (providedKey && providedKey.startsWith('FTAI-')) {
-            // Lookup the EaApiKey record to get the owner_email for this key
-            // Catch rate limits — on 429, skip auth validation and allow the request (backward-compatible)
-            try {
-                const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
-                if (!matchingKeys || matchingKeys.length === 0) {
-                    return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
-                }
-                resolvedOwnerEmail = matchingKeys[0].owner_email || null;
-            } catch (e) {
-                console.warn('[BRIDGE] EaApiKey lookup rate-limited — skipping auth validation:', e.message);
-                // Allow the request without owner_email resolution (backward-compatible fallback)
-            }
+        if (!providedKey || !providedKey.startsWith('FTAI-')) {
+            return Response.json({ error: 'Missing or invalid API key' }, { status: 401, headers: corsHeaders() });
         }
-        // If no key or non-FTAI key provided, allow (backward-compatible)
+        let resolvedOwnerEmail = null;
+        // Lookup the EaApiKey record to get the owner_email for this key
+        try {
+            const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
+            if (!matchingKeys || matchingKeys.length === 0) {
+                return Response.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders() });
+            }
+            resolvedOwnerEmail = matchingKeys[0].owner_email || null;
+        } catch (e) {
+            console.warn('[BRIDGE] EaApiKey lookup failed — rejecting request:', e.message);
+            return Response.json({ error: 'API key verification unavailable' }, { status: 503, headers: corsHeaders() });
+        }
         const now = Date.now();
         const acct = body.account || body;
         const { account_number, server_name, balance, equity, margin, free_margin, margin_level, leverage, currency, platform } = acct;

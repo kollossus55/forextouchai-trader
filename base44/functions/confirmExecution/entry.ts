@@ -29,6 +29,33 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
+        // ── API Key validation — reject missing or non-FTAI keys (auth bypass fix) ─
+        const authHeader = req.headers.get('Authorization') || '';
+        const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
+        if (!providedKey || !providedKey.startsWith('FTAI-')) {
+            return Response.json({ error: 'Missing or invalid API key' }, {
+                status: 401,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+        let resolvedOwnerEmail = null;
+        try {
+            const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
+            if (!matchingKeys || matchingKeys.length === 0) {
+                return Response.json({ error: 'Invalid API key' }, {
+                    status: 401,
+                    headers: { 'Access-Control-Allow-Origin': '*' }
+                });
+            }
+            resolvedOwnerEmail = matchingKeys[0].owner_email || null;
+        } catch (e) {
+            console.warn('[CONFIRM] API key lookup failed:', e.message);
+            return Response.json({ error: 'API key verification unavailable' }, {
+                status: 503,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+
         const body = await req.json();
         // Support both open_price and price (EA may send either)
         const { signal_id, ticket, pair, type, account_number, lot_size } = body;
@@ -61,6 +88,15 @@ Deno.serve(async (req) => {
 
         const connAccountNumber = connections?.[0]?.account_number;
         const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
+
+        // Verify the account belongs to the authenticated API key owner (prevents account spoofing)
+        const connOwnerEmail = connections?.[0]?.owner_email || null;
+        if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
+            return Response.json({ error: 'Account not authorized for this API key' }, {
+                status: 403,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
 
         // Check if trade with this ticket already exists to prevent duplicates
         const existingTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ ticket: ticket }));
