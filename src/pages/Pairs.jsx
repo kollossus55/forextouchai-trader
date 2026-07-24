@@ -409,7 +409,7 @@ export default function Pairs() {
   // lead, so it never looks stuck on one stale setup.
   const MAX_STALE_MS = 5 * 60 * 1000;
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= 65)
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (signalSettings.topPickConfidence ?? 70))
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
@@ -517,7 +517,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} />
+      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} threshold={signalSettings.topPickConfidence ?? 70} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">

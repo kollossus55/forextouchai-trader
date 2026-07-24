@@ -9,6 +9,7 @@ export const DEFAULT_SIGNAL_SETTINGS = {
   lockMinutes: 30,               // hold directional signals 30 min to ride trends
   minLockConfidence: 60,         // only lock confluence-backed signals
   recalcInterval: 15,            // recompute every 15s for responsiveness
+  topPickConfidence: 70,         // min AI confidence for a pair to qualify as a Top Pick
   factors: {
     // Trend confirmation is the strongest, most reliable driver for forex pairs.
     emaCross:   { weight: 25, enabled: true },   // primary EMA20/50 trend signal
@@ -61,6 +62,10 @@ export function getMinLockConfidence() {
 
 export function getRecalcIntervalMs() {
   return Math.max(5, current.recalcInterval || 30) * 1000;
+}
+
+export function getTopPickConfidence() {
+  return Math.min(100, Math.max(0, current.topPickConfidence ?? 70));
 }
 
 function persist() {

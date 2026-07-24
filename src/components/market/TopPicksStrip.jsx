@@ -3,7 +3,7 @@ import { Crown, TrendingUp, TrendingDown, Activity, Sparkles } from 'lucide-reac
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
-export default function TopPicksStrip({ picks, onTrade }) {
+export default function TopPicksStrip({ picks, onTrade, threshold = 70 }) {
   const hasPicks = picks && picks.length > 0;
 
   return (
@@ -18,7 +18,7 @@ export default function TopPicksStrip({ picks, onTrade }) {
             Top Picks
           </h2>
         </div>
-        <span className="text-xs text-slate-400">Highest AI confidence ≥ 65%</span>
+        <span className="text-xs text-slate-400">Highest AI confidence ≥ {threshold}%</span>
         <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           LIVE
@@ -79,7 +79,7 @@ export default function TopPicksStrip({ picks, onTrade }) {
         <div className="relative flex items-center gap-2 text-sm text-slate-300 py-4">
           <Activity className="w-4 h-4 animate-pulse text-fuchsia-400" />
           <span className="bg-gradient-to-r from-amber-300 to-fuchsia-300 bg-clip-text text-transparent font-semibold">
-            Scanning markets for 65%+ setups…
+            Scanning markets for {threshold}%+ setups…
           </span>
         </div>
       )}
