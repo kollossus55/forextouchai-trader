@@ -11,6 +11,9 @@ const INDEX_PAIRS = new Set(['US30', 'SPX500', 'SPX/500', 'JPN225', 'JPN/225', '
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
         // Forex market is closed Friday 21:00 UTC → Sunday 22:00 UTC.
         // Trades can't close while the market is shut, so stale-trade alerts

@@ -7,6 +7,9 @@ const ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
         // Forex market is closed Friday 21:00 UTC → Sunday 22:00 UTC.
         // During this window the EA legitimately stops heartbeating, so skip
