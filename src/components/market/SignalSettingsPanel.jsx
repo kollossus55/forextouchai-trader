@@ -152,8 +152,13 @@ export default function SignalSettingsPanel({ open, onOpenChange }) {
 
             {showAdvanced && (
               <div className="space-y-4 pl-1">
-                {FACTOR_META.map((fm) => {
+                {(() => {
+                 const totalEnabled = FACTOR_META.reduce(
+                   (s, m) => s + (settings.factors[m.key].enabled ? settings.factors[m.key].weight : 0), 0
+                 );
+                 return FACTOR_META.map((fm) => {
                    const f = settings.factors[fm.key];
+                   const share = totalEnabled > 0 && f.enabled ? Math.round((f.weight / totalEnabled) * 100) : 0;
                    return (
                      <div key={fm.key} className={`rounded-lg border p-3 space-y-2 transition-all ${
                        f.enabled ? fm.on : 'border-slate-800 bg-slate-900/40 opacity-50'
@@ -176,21 +181,33 @@ export default function SignalSettingsPanel({ open, onOpenChange }) {
                            }`}>
                              {f.enabled ? 'ON' : 'OFF'}
                            </span>
-                           <span className={`text-xs font-mono w-10 text-right ${f.enabled ? 'text-emerald-400' : 'text-slate-600'}`}>{f.weight}</span>
+                           <div className="flex flex-col items-end leading-none">
+                             <span className={`text-xs font-mono ${f.enabled ? 'text-emerald-400' : 'text-slate-600'}`}>{f.weight}</span>
+                             <span className={`text-[9px] ${f.enabled ? 'text-slate-400' : 'text-slate-600'}`}>
+                               {f.enabled ? `${share}% share` : '—'}
+                             </span>
+                           </div>
                          </div>
-                       </div>
-                       <Slider
+                         </div>
+                         <Slider
                          value={[f.weight]}
-                         min={0} max={40} step={1}
+                         min={0} max={50} step={1}
                          disabled={!f.enabled}
                          onValueChange={([v]) => setFactor(fm.key, { weight: v })}
                          className="py-1"
-                       />
-                     </div>
-                   );
-                 })}
-              </div>
-            )}
+                         />
+                         {/* Relative-strength bar: shows each factor's % of total enabled weight */}
+                         <div className="h-1.5 rounded-full bg-slate-800/60 overflow-hidden">
+                         <div
+                           className={`h-full rounded-full transition-all duration-300 ${f.enabled ? fm.dot : 'bg-slate-700'}`}
+                           style={{ width: `${f.enabled ? share : 0}%` }}
+                         />
+                         </div>
+                         </div>
+                         );
+                         });})()}
+                         </div>
+                         )}
           </div>
         </div>
 
