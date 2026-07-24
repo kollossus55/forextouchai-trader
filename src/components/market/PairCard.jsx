@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import TickChart from '@/components/market/TickChart';
+import IndicatorChips from '@/components/market/IndicatorChips';
+import { useSignalSettings } from '@/components/services/signalSettings';
 
 /**
  * Stable, memoized pair card. Hoisted out of Pairs.jsx so the 1-second
@@ -14,6 +16,7 @@ import TickChart from '@/components/market/TickChart';
  */
 function PairCardInner({ pair, maxConfidence, factors, onViewDetails, onTrade }) {
   const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 70;
+  const { settings: signalSettings } = useSignalSettings();
 
   const [signalAge, setSignalAge] = useState('');
 
@@ -129,18 +132,8 @@ function PairCardInner({ pair, maxConfidence, factors, onViewDetails, onTrade })
               className="h-1 bg-slate-800"
               indicatorClassName={pair.ai_signal === 'SELL' ? 'bg-rose-500' : pair.ai_signal === 'BUY' ? 'bg-emerald-500' : 'bg-slate-600'}
             />
-            {/* Mini factor pills */}
-            {factors?.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-1">
-                {factors.slice(0, 4).map((f, i) => (
-                  <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${
-                    f.direction === 'BUY'  ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' :
-                    f.direction === 'SELL' ? 'border-rose-500/30 text-rose-400 bg-rose-500/10' :
-                    'border-slate-700 text-slate-500'
-                  }`}>{f.name.replace(' (Bullish)', '').replace(' (Bearish)', '')}</span>
-                ))}
-              </div>
-            )}
+            {/* Indicator chips — colour by direction, faded if disabled */}
+            <IndicatorChips factors={factors} settings={signalSettings} variant="card" />
           </div>
         </div>
 

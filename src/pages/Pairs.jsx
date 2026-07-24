@@ -42,6 +42,7 @@ import { recordTick, computeSignal } from '@/components/services/SignalEngine';
 import SignalSettingsPanel from '@/components/market/SignalSettingsPanel';
 import PairCard from '@/components/market/PairCard';
 import TopPicksStrip from '@/components/market/TopPicksStrip';
+import IndicatorChips from '@/components/market/IndicatorChips';
 import { useSignalSettings } from '@/components/services/signalSettings';
 
 export default function Pairs() {
@@ -738,26 +739,17 @@ export default function Pairs() {
                   )}
                 </div>
                 
-                {/* Signal Factor Breakdown */}
-                {pairFactors[selectedPairDetails.id]?.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-                      <BrainCircuit className="w-4 h-4 text-purple-400" /> Signal Factor Breakdown
-                    </h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {pairFactors[selectedPairDetails.id].map((f, i) => (
-                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border text-xs ${
-                          f.direction === 'BUY'  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' :
-                          f.direction === 'SELL' ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' :
-                          'bg-slate-800/50 border-slate-700 text-slate-400'
-                        }`}>
-                          <span>{f.name}</span>
-                          <span className="font-bold ml-2">{f.direction === 'NEUTRAL' ? '—' : `+${f.score}`}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Signal Factor Breakdown — colour-enhanced, shows enabled/disabled */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                    <BrainCircuit className="w-4 h-4 text-purple-400" /> Signal Factor Breakdown
+                  </h3>
+                  <IndicatorChips
+                    factors={pairFactors[selectedPairDetails.id] || []}
+                    settings={signalSettings}
+                    variant="modal"
+                  />
+                </div>
 
                 {/* Values Panel */}
                 <div>
