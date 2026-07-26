@@ -122,6 +122,94 @@
       "type": "string",
       "format": "date-time",
       "description": "Timestamp when the last limit breach or profit target pause occurred; used for auto-resume"
+    },
+    "global_schedule_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Master toggle for the global weekly trading schedule. When true, the app blocks ALL new trades (auto + manual) outside each day's ON window and flattens all open positions when the OFF window starts."
+    },
+    "weekly_schedule": {
+      "type": "object",
+      "description": "Per-day UTC on/off windows. Keys: mon,tue,wed,thu,fri,sat,sun. Each value: { on: 'HH:MM', off: 'HH:MM' }. Outside the window = app off (block + close all). on==off means off all day.",
+      "properties": {
+        "mon": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "tue": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "wed": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "thu": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "fri": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "sat": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        },
+        "sun": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "off": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   },
   "required": [],

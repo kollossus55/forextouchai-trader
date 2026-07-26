@@ -317,6 +317,9 @@ Deno.serve(async (req) => {
             || (riskSettingsList || []).find(r => !r.account_number)
             || null;
         const lastRiskCheck = body.last_risk_check || 0;
+
+        // ── Global trading schedule: is the app currently in its OFF window for this account? ──
+        const scheduleOffNow = isScheduleOff(riskSettings, now);
         // Bridge-side profit target check is DISABLED — monitorRiskLimits handles this exclusively
         // to avoid duplicate alerts from two separate code paths.
 
@@ -392,6 +395,12 @@ Deno.serve(async (req) => {
             .filter(s => {
                 // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
                 if (dispatchedSignalIds.has(s.id)) return false;
+
+                // Global schedule OFF: block ALL signals (auto + manual) during the off-window
+                if (scheduleOffNow) {
+                    console.log(`[BRIDGE] Schedule OFF for ${acctKey} — blocking signal ${s.id} (${(s.pair || '').replace('/', '')})`);
+                    return false;
+                }
 
                 const pairRaw = (s.pair || '').replace('/', '');
                 const isManual = s.strategy === 'MANUAL_EXECUTION';
@@ -507,6 +516,21 @@ Deno.serve(async (req) => {
         const sanitizedSignals = freshSignals.map(s => sanitizeSignal(s, livePriceMap));
         console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals');
 
+        // ── Global schedule: if OFF now, flag all open trades for close (EA flattens them) ──
+        if (scheduleOffNow) {
+            try {
+                const openForClose = await base44.asServiceRole.entities.Trade.filter(
+                    { status: 'OPEN', owner_email: acctKey, close_requested: false }, '-created_date', 100
+                );
+                if (openForClose?.length > 0) {
+                    console.log(`[BRIDGE] Schedule OFF for ${acctKey} — flagging ${openForClose.length} open trade(s) for close`);
+                    await Promise.all(openForClose.map(t =>
+                        base44.asServiceRole.entities.Trade.update(t.id, { close_requested: true })
+                    ));
+                }
+            } catch (e) { console.warn('[BRIDGE] Schedule close-all error:', e.message); }
+        }
+
         // ── Close commands: OPEN trades this account flagged close_requested ──
         // Set by monitorBotPerformance (bot close-all-at-profit/loss). Returned to the
         // EA so it can actually flatten the broker position; bridge reconcile then
@@ -607,6 +631,32 @@ function buildPriceMap(eaPrices) {
         }
     }
     return map;
+}
+
+function isScheduleOff(riskSettings, now) {
+    if (!riskSettings || !riskSettings.global_schedule_enabled) return false;
+    const sched = riskSettings.weekly_schedule;
+    if (!sched) return false;
+    const d = new Date(now);
+    const dayKeys = ['sun','mon','tue','wed','thu','fri','sat'];
+    const dayKey = dayKeys[d.getUTCDay()];
+    const day = sched[dayKey];
+    if (!day || !day.on || !day.off) return false;
+    const [onH, onM] = String(day.on).split(':').map(Number);
+    const [offH, offM] = String(day.off).split(':').map(Number);
+    if (isNaN(onH) || isNaN(onM) || isNaN(offH) || isNaN(offM)) return false;
+    const curMins = d.getUTCHours() * 60 + d.getUTCMinutes();
+    const onMins = onH * 60 + onM;
+    const offMins = offH * 60 + offM;
+    // Zero-length window (on == off) → off all day
+    if (onMins === offMins) return true;
+    if (onMins < offMins) {
+        // Normal window: OFF when before ON or at/after OFF
+        return curMins < onMins || curMins >= offMins;
+    } else {
+        // Window wraps midnight: OFF inside the gap between OFF and ON
+        return curMins >= offMins && curMins < onMins;
+    }
 }
 
 function sanitizeSignal(s, livePriceMap) {

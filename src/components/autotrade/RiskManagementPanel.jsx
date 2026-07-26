@@ -13,6 +13,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, Shield, TrendingDown, TrendingUp, PauseCircle, Play, Save, RotateCcw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
+const DEFAULT_WEEKLY = {
+  mon: { on: '00:00', off: '23:59' },
+  tue: { on: '00:00', off: '23:59' },
+  wed: { on: '00:00', off: '23:59' },
+  thu: { on: '00:00', off: '23:59' },
+  fri: { on: '00:00', off: '23:59' },
+  sat: { on: '00:00', off: '23:59' },
+  sun: { on: '00:00', off: '23:59' },
+};
+
 const DEFAULT_SETTINGS = {
   max_daily_loss_percent: 5,
   max_drawdown_percent: 20,
@@ -30,7 +40,9 @@ const DEFAULT_SETTINGS = {
   daily_loss_current: 0,
   peak_equity: 0,
   is_trading_paused: false,
-  limit_hit_at: null
+  limit_hit_at: null,
+  global_schedule_enabled: false,
+  weekly_schedule: { ...DEFAULT_WEEKLY },
 };
 
 function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSaved }) {
@@ -42,7 +54,12 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
   const [formData, setFormData] = useState(existingRecord || { ...DEFAULT_SETTINGS, account_number: acctKey });
 
   useEffect(() => {
-    setFormData(existingRecord || { ...DEFAULT_SETTINGS, account_number: acctKey });
+    const base = existingRecord || { ...DEFAULT_SETTINGS, account_number: acctKey };
+    setFormData({
+      ...base,
+      global_schedule_enabled: base.global_schedule_enabled ?? false,
+      weekly_schedule: base.weekly_schedule || { ...DEFAULT_WEEKLY },
+    });
   }, [existingRecord, acctKey]);
 
   const saveMutation = useMutation({
@@ -61,6 +78,8 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         stale_forex_hours: data.stale_forex_hours,
         stale_index_hours: data.stale_index_hours,
         stale_loss_threshold: data.stale_loss_threshold,
+        global_schedule_enabled: data.global_schedule_enabled,
+        weekly_schedule: data.weekly_schedule || { ...DEFAULT_WEEKLY },
       };
       if (existingRecord?.id) {
         return await base44.entities.RiskManagementSettings.update(existingRecord.id, settingsData);
@@ -285,6 +304,53 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
               className="bg-slate-950 border-slate-700 text-white h-9" />
           </div>
         </div>
+      </div>
+
+      <Separator className="bg-slate-800" />
+
+      {/* Global Trading Schedule */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-slate-400 uppercase flex items-center gap-1"><Clock className="w-3 h-3" /> Global Trading Schedule</h4>
+          <Switch checked={formData.global_schedule_enabled || false} onCheckedChange={v => handleChange('global_schedule_enabled', v)}
+            className="data-[state=checked]:bg-emerald-500" />
+        </div>
+        <p className="text-[11px] text-slate-500 -mt-1">When enabled, the app blocks ALL new trades (auto + manual) outside each day's ON window and flattens every open position when the OFF window starts. Times are in <strong>UTC</strong>.</p>
+        {formData.global_schedule_enabled && (
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded p-2 text-[11px] text-rose-300">
+            ⚠ Off-window = hard kill: all open trades are closed automatically the moment the OFF window begins.
+          </div>
+        )}
+        {formData.global_schedule_enabled && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            {['mon','tue','wed','thu','fri','sat','sun'].map(day => {
+              const ds = (formData.weekly_schedule || {})[day] || {};
+              return (
+                <div key={day} className="bg-slate-950 rounded-lg p-2 border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] uppercase font-semibold text-slate-400">{day}</span>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-slate-500">On</Label>
+                    <Input type="time" value={ds.on || '00:00'}
+                      onChange={e => setFormData(prev => ({
+                        ...prev,
+                        weekly_schedule: { ...(prev.weekly_schedule || {}), [day]: { ...(prev.weekly_schedule?.[day] || {}), on: e.target.value } }
+                      }))}
+                      className="bg-slate-950 border-slate-700 text-white h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-slate-500">Off</Label>
+                    <Input type="time" value={ds.off || '23:59'}
+                      onChange={e => setFormData(prev => ({
+                        ...prev,
+                        weekly_schedule: { ...(prev.weekly_schedule || {}), [day]: { ...(prev.weekly_schedule?.[day] || {}), off: e.target.value } }
+                      }))}
+                      className="bg-slate-950 border-slate-700 text-white h-8 text-xs" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Separator className="bg-slate-800" />
