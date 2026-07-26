@@ -17,6 +17,7 @@
         "CANDLESTICK",
         "HYBRID_ALL",
         "GOLD_XAUUSD",
+        "SILVER_XAGUSD",
         "SP500_AI"
       ]
     },
