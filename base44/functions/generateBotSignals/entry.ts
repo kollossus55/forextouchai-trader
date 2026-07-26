@@ -13,7 +13,8 @@ const STRATEGY_INDICATOR_FIELDS = {
     CANDLESTICK: [['ind_use_candlestick','Candlestick patterns'],['ind_use_structure','Market structure'],['ind_use_fibonacci','Fibonacci'],['ind_use_ema','EMA bias'],['ind_use_session_timing','Session timing']],
     HYBRID_ALL: [['ind_use_ema','EMA stack'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_chart_patterns','Chart patterns'],['ind_use_candlestick','Candlestick'],['ind_use_fibonacci','Fibonacci'],['ind_use_structure','Market structure'],['ind_use_liquidity','Liquidity'],['ind_use_session_timing','Session timing']],
     GOLD_XAUUSD: [['ind_use_ema','EMA'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_structure','Market structure'],['ind_use_candlestick','Candlestick'],['ind_use_session_timing','Session timing']],
-};
+    SILVER_XAGUSD: [['ind_use_ema','EMA'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_structure','Market structure'],['ind_use_candlestick','Candlestick'],['ind_use_session_timing','Session timing']],
+    };
 
 Deno.serve(async (req) => {
     try {
@@ -1122,7 +1123,17 @@ SIGNAL REQUIREMENTS (ALL must be satisfied):
 - Active or upcoming high-liquidity session strongly preferred
 - No active major news event within 30 minutes
 
-Signal BUY or SELL only when ALL requirements are satisfied AND confluence score ≥ 5. Otherwise NEUTRAL. Minimum confidence 80% — this is the highest-precision strategy, quality over quantity.`,
+Signal BUY or SELL only when ALL requirements are satisfied AND confluence score ≥ 5. Otherwise NEUTRAL. Minimum confidence 80% — this is the highest-precision strategy, quality over quantity.
+
+═════════════════════════════════════════
+CRYPTO ASSET HANDLING (BTCUSD, ETHUSD, SOLUSD, XRPUSD)
+═════════════════════════════════════════
+When a pair in the list is a cryptocurrency CFD (BTC/USD, ETH/USD, etc.):
+- Crypto trades 24/7 — IGNORE the forex session-timing / dead-zone rules above; signals are valid at any hour.
+- Do NOT use pip-based thinking. Price moves in whole dollars; H1 ATR is typically 1.5–3% of price.
+- Drivers differ from fiat: BTC/ETH follow risk-on/risk-off flows, crypto-specific news, ETF flows, and correlation with equities (NASDAQ) — NOT USD-strength alone.
+- Round-number liquidity still applies (e.g. BTC 60,000 / 65,000 / 70,000; ETH 2,500 / 3,000).
+- Apply the same confluence scoring, but treat session-timing as ALWAYS satisfied for crypto (24/7 market).`,
 
                 GOLD_XAUUSD: `You are an elite XAUUSD (Gold) specialist trader with deep expertise in gold market dynamics. You ONLY analyze Gold/XAUUSD.
 
@@ -1177,6 +1188,72 @@ Analyze XAUUSD across M15 and H1 timeframes using ALL of the following gold-spec
 
 Only output NEUTRAL when there is NO directional bias at all (RSI dead-centre 48-52, EMAs flat/tangled, no levels nearby). Otherwise signal BUY or SELL with appropriate confidence.
 Minimum confidence threshold: 70%. Gold gives fewer but bigger moves — don't miss entries by being too strict.
+
+Also provide:
+- rsi: current RSI value (0-100)
+- ema_trend: "BULLISH" / "BEARISH" / "MIXED"
+- momentum: "STRONG" / "MODERATE" / "WEAK" / "DIVERGING"
+- reason: detailed explanation including which session, key level, and confluences triggered the signal`,
+
+                SILVER_XAGUSD: `You are an elite XAGUSD (Silver) specialist trader with deep expertise in silver market dynamics. You ONLY analyze Silver/XAGUSD.
+
+Current Silver Price: ${priceContext}
+Analysis time: ${now}
+
+Silver is sensitive to: USD strength/weakness, gold correlation (silver typically follows gold with amplified beta), industrial demand (solar/EV/electronics), geopolitical risk, and session-specific liquidity (Asian/London/NY).
+
+Analyze XAGUSD across M15 and H1 timeframes using ALL of the following silver-specific indicators:
+
+1. TREND & STRUCTURE:
+   - EMA 20, 50, 200 alignment on H1 (above all EMAs = strong bullish, below all = strong bearish)
+   - Market structure: Higher Highs/Higher Lows (uptrend) vs Lower Highs/Lower Lows (downtrend)
+   - Key daily/weekly pivot levels (Round numbers like 30.00, 32.00, 35.00, 40.00 act as major support/resistance)
+   - Trendline breaks and channel boundaries
+
+2. MOMENTUM INDICATORS:
+   - RSI(14) on M15 and H1: >70 = overbought (SELL bias), <30 = oversold (BUY bias), divergence signals
+   - MACD(12,26,9): Histogram direction and signal line crossovers on H1
+   - Stochastic(5,3,3): Oversold <20 (BUY) / Overbought >80 (SELL) on M15 for entry timing
+   - CCI(20): Extremes beyond +100 / -100 indicate strong momentum continuation or exhaustion
+
+3. VOLATILITY & ATR:
+   - Silver ATR is typically $0.30-0.80/oz on H1 — use this to size SL/TP appropriately (silver is more volatile than gold in % terms)
+   - Bollinger Bands(20,2): Price at upper band = potential short, lower band = potential long; squeeze = breakout incoming
+   - Average True Range confirms if current move has enough momentum to reach target
+
+4. CANDLESTICK PATTERNS AT KEY LEVELS:
+   - Pin bars / hammer / shooting star rejecting major levels → high probability reversal
+   - Bullish/bearish engulfing at session open levels
+   - Inside bars consolidation followed by breakout direction
+
+5. CHART PATTERNS:
+   - Bull/Bear flags on H1 after strong moves (silver makes fast momentum runs, often sharper than gold)
+   - Double tops/bottoms at psychological levels
+   - Ascending/descending triangles near key levels
+
+6. SESSION TIMING ANALYSIS (critical for silver):
+   - Asian session (00:00-07:00 UTC): Usually tight ranges, set support/resistance for London
+   - London open (07:00-09:00 UTC): HIGH volatility, often sets direction for the day — strong breakout signals
+   - NY open (13:00-15:00 UTC): Second high-volatility window, often reversal or trend continuation
+   - London close (16:00-17:00 UTC): Potential reversals as positions close
+   - Avoid signals during very low liquidity (22:00-00:00 UTC)
+
+7. GOLD CORRELATION:
+   - Silver typically follows gold's directional bias but with amplified % moves (higher beta)
+   - If gold is in a strong trend, favour silver signals in the same direction
+   - Divergence between gold and silver can signal an impending silver catch-up move
+
+8. CONFLUENCE REQUIREMENTS (must have at least 2 — silver often moves fast off fewer confirmations):
+   - H1 EMA direction supports the signal (price above EMA50 = bullish bias, below = bearish)
+   - RSI supports the signal direction (RSI > 40 for BUY, RSI < 60 for SELL — wider tolerance than forex)
+   - MACD histogram or signal line confirms momentum direction
+   - Price at or near a key level (support/resistance, round number like 30.00/32.00/35.00, pivot)
+   - Candlestick confirmation candle in signal direction — can be on M15 or M30, not just H1
+   - Active or upcoming high-liquidity session (London/NY)
+   - Gold's current direction aligns with the silver signal (strong confluence)
+
+Only output NEUTRAL when there is NO directional bias at all (RSI dead-centre 48-52, EMAs flat/tangled, no levels nearby). Otherwise signal BUY or SELL with appropriate confidence.
+Minimum confidence threshold: 70%. Silver gives fewer but bigger moves — don't miss entries by being too strict.
 
 Also provide:
 - rsi: current RSI value (0-100)
@@ -1400,6 +1477,19 @@ Also provide:
                             : currentPrice - (goldAtr * (bot.atr_multiplier_tp || 3.0));
                     }
 
+                    // Silver (XAGUSD) uses dollar-based SL/TP (3dp), not pips
+                    const isSilver = pairRaw === 'XAGUSD' || bot.strategy_type === 'SILVER_XAGUSD';
+                    let silverSl = null, silverTp = null;
+                    if (isSilver) {
+                        const silverAtr = currentPrice * 0.02; // ~2% of silver price ≈ typical H1 ATR (silver is more volatile than gold in %)
+                        silverSl = analysis.type === 'BUY'
+                            ? currentPrice - (silverAtr * (bot.atr_multiplier_sl || 1.5))
+                            : currentPrice + (silverAtr * (bot.atr_multiplier_sl || 1.5));
+                        silverTp = analysis.type === 'BUY'
+                            ? currentPrice + (silverAtr * (bot.atr_multiplier_tp || 3.0))
+                            : currentPrice - (silverAtr * (bot.atr_multiplier_tp || 3.0));
+                    }
+
                     if (bot.sl_tp_mode === 'ATR' || bot.use_ai_risk) {
                         const volatilityFactor = currentPrice > 100 ? 0.002 : 0.0015;
                         const atr = currentPrice * volatilityFactor;
@@ -1434,9 +1524,9 @@ Also provide:
                             continue;
                         }
 
-                        const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : parseFloat(sl.toFixed(5));
-                        const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : parseFloat(tp.toFixed(5));
-                        console.log(`[generateBotSignals] ${pair} ${analysis.type} @ ${currentPrice} | SL: ${finalSl} | TP: ${finalTp}${isGold ? ' [GOLD]' : ''}`);
+                        const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : isSilver ? parseFloat(silverSl.toFixed(3)) : parseFloat(sl.toFixed(5));
+                        const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : isSilver ? parseFloat(silverTp.toFixed(3)) : parseFloat(tp.toFixed(5));
+                        console.log(`[generateBotSignals] ${pair} ${analysis.type} @ ${currentPrice} | SL: ${finalSl} | TP: ${finalTp}${isGold ? ' [GOLD]' : isSilver ? ' [SILVER]' : ''}`);
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,

@@ -105,6 +105,18 @@ const AI_STRATEGY_ITEMS = {
     ['ind_use_candlestick', 'Candlestick', 'M15 / H1 confirmation'],
     ['ind_use_session_timing', 'Session Timing', 'London / NY gold windows'],
   ],
+  SILVER_XAGUSD: [
+    ['ind_use_ema', 'EMA', 'H1 trend alignment'],
+    ['ind_use_rsi', 'RSI', 'M15 / H1 momentum'],
+    ['ind_use_macd', 'MACD', 'H1 histogram'],
+    ['ind_use_stochastic', 'Stochastic', 'M15 entry timing'],
+    ['ind_use_cci', 'CCI', 'Momentum extremes'],
+    ['ind_use_bollinger', 'Bollinger Bands', 'Silver squeeze / bands'],
+    ['ind_use_atr', 'ATR', 'Silver volatility sizing'],
+    ['ind_use_structure', 'Market Structure', 'Structure & key levels'],
+    ['ind_use_candlestick', 'Candlestick', 'M15 / H1 confirmation'],
+    ['ind_use_session_timing', 'Session Timing', 'London / NY silver windows'],
+  ],
 };
 
 export default function IndicatorToggles({ strategy, formData, setFormData }) {

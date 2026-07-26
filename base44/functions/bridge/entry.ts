@@ -121,8 +121,12 @@ Deno.serve(async (req) => {
         const isGoldEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
             ['XAUUSD', 'GOLD', 'XAU'].includes((eaPricesRaw[0]?.symbol || '').toUpperCase());
 
-        // Gold EA uses a separate rate-limit slot so it's never blocked by the standard EA calling the same account
-        const rateLimitKey = isGoldEA ? `${acctKey}:gold` : acctKey;
+        // Detect if this is a Silver EA heartbeat (only sends XAGUSD price)
+        const isSilverEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
+            ['XAGUSD', 'SILVER', 'XAG'].includes((eaPricesRaw[0]?.symbol || '').toUpperCase());
+
+        // Gold/Silver EA use a separate rate-limit slot so they're never blocked by the standard EA calling the same account
+        const rateLimitKey = isGoldEA ? `${acctKey}:gold` : isSilverEA ? `${acctKey}:silver` : acctKey;
 
         // ── Global request lock: serialize processing to prevent dual-account rate limit exhaustion ──
         // Without this, MT4+MT5 calling simultaneously each trigger 10+ DB ops → Base44 rate limits → 500s
@@ -168,7 +172,7 @@ Deno.serve(async (req) => {
         const eaPricesEarly = body.prices || acct.prices;
         const livePriceMapEarly = buildPriceMap(eaTradesEarly?.length ? eaPricesEarly : []);
         const isColdStartEarly = !knownTickets[acctKey];
-        if (isRateLimited && !isGoldEA && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
+        if (isRateLimited && !isGoldEA && !isSilverEA && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
             reconcileLock[acctKey] = true;
             reconcileTrades(base44, eaTradesEarly, acctKey, livePriceMapEarly)
                 .catch(e => console.error('[BRIDGE] Rate-limited reconcile error:', e.message))
@@ -223,7 +227,7 @@ Deno.serve(async (req) => {
                 ...(currency && { currency }),
                 ...(platform && { platform }),
                 ...(server_name && { server_name }),
-                ...(!isGoldEA && Array.isArray(eaTradesForCount) && { open_trade_count: eaTradesForCount.length }),
+                ...(!isGoldEA && !isSilverEA && Array.isArray(eaTradesForCount) && { open_trade_count: eaTradesForCount.length }),
             };
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
@@ -289,7 +293,7 @@ Deno.serve(async (req) => {
         const lastReconcile = body.last_reconcile || 0;
         // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
         const isColdStart = !knownTickets[acctKey];
-        const shouldReconcile = !isGoldEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
+        const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
             reconcileLock[acctKey] = true;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
@@ -409,11 +413,19 @@ Deno.serve(async (req) => {
 
                 // Detect Gold signals
                 const isGoldPair = ['XAUUSD', 'GOLD', 'XAU'].includes(pairRaw.toUpperCase()) || s.strategy === 'GOLD_XAUUSD';
+                // Detect Silver signals
+                const isSilverPair = ['XAGUSD', 'SILVER', 'XAG'].includes(pairRaw.toUpperCase()) || s.strategy === 'SILVER_XAGUSD';
 
                 // Gold EA: only dispatch Gold signals; Standard EA: skip Gold signals (handled by Gold EA)
                 if (isGoldEA && !isGoldPair) return false;
                 if (!isGoldEA && isGoldPair) {
                     console.log(`[BRIDGE] Skipping Gold signal for standard EA — Gold EA handles XAUUSD`);
+                    return false;
+                }
+                // Silver EA: only dispatch Silver signals; Standard/Gold EA: skip Silver signals (handled by Silver EA)
+                if (isSilverEA && !isSilverPair) return false;
+                if (!isSilverEA && isSilverPair) {
+                    console.log(`[BRIDGE] Skipping Silver signal for ${isGoldEA ? 'Gold' : 'standard'} EA — Silver EA handles XAGUSD`);
                     return false;
                 }
 
@@ -615,9 +627,10 @@ function sanitizeSignal(s, livePriceMap) {
         // Instrument classification by symbol name and price range
         const pairUpper = pair.toUpperCase();
         const isGold = pairUpper === 'XAUUSD' || pairUpper === 'GOLD' || pairUpper === 'XAU' || s.strategy === 'GOLD_XAUUSD';
+        const isSilver = pairUpper === 'XAGUSD' || pairUpper === 'SILVER' || pairUpper === 'XAG' || s.strategy === 'SILVER_XAGUSD';
         // Indices/CFDs: named instruments like UK100, US30, AUS200, GER40, NAS100, SPX500, etc.
         const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
-        const isIndex = INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && basePrice > 1000);
+        const isIndex = INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000);
 
         // Validate SL direction — reset if wrong side of price
         if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
@@ -647,6 +660,25 @@ function sanitizeSignal(s, livePriceMap) {
             }
             safeSL = parseFloat(safeSL.toFixed(2));
             safeTP = parseFloat(safeTP.toFixed(2));
+        } else if (isSilver) {
+            // Silver: ATR-based dollar distances (~2% of price)
+            const silverAtr = basePrice * 0.02; // ~$0.60-1.60 on Silver at $30-80
+            const defaultSlDist = silverAtr * 1.5;  // ~$0.90-2.40
+            const defaultTpDist = silverAtr * 3.0;  // ~$1.80-4.80
+
+            if (safeSL === 0) {
+                safeSL = type === 'BUY'
+                    ? parseFloat((basePrice - defaultSlDist).toFixed(3))
+                    : parseFloat((basePrice + defaultSlDist).toFixed(3));
+            }
+            if (safeTP === 0) {
+                safeTP = type === 'BUY'
+                    ? parseFloat((basePrice + defaultTpDist).toFixed(3))
+                    : parseFloat((basePrice - defaultTpDist).toFixed(3));
+            }
+            safeSL = parseFloat(safeSL.toFixed(3));
+            safeTP = parseFloat(safeTP.toFixed(3));
+            console.log(`[BRIDGE] sanitizeSignal ${pair} detected as SILVER — using ATR distances | SL dist: ${defaultSlDist.toFixed(3)} TP dist: ${defaultTpDist.toFixed(3)}`);
         } else if (isIndex) {
             // Indices/CFDs: use percentage-based distances (0.5% SL, 1% TP) — wide enough for all brokers
             const defaultSlDist = basePrice * 0.005; // 0.5%
@@ -683,7 +715,7 @@ function sanitizeSignal(s, livePriceMap) {
             }
         }
 
-        const instrumentType = isGold ? '[GOLD]' : isIndex ? '[INDEX]' : '[FOREX]';
+        const instrumentType = isGold ? '[GOLD]' : isSilver ? '[SILVER]' : isIndex ? '[INDEX]' : '[FOREX]';
         console.log(`[BRIDGE] sanitizeSignal ${pair} ${type} @ ${basePrice} | SL: ${safeSL} | TP: ${safeTP} ${instrumentType}`);
     } else {
         // No price available at all — log and send 0s (EA will reject the signal anyway)
@@ -693,7 +725,8 @@ function sanitizeSignal(s, livePriceMap) {
 
     // Determine order comment based on strategy/pair — ensures trades are tagged correctly in MT4/MT5
     const isGoldSignal = (pair === 'XAUUSD' || pair === 'GOLD' || pair === 'XAU' || s.strategy === 'GOLD_XAUUSD');
-    const orderComment = isGoldSignal ? 'GoldForexTouchAI' : 'ForexTouchAI';
+    const isSilverSignal = (pair === 'XAGUSD' || pair === 'SILVER' || pair === 'XAG' || s.strategy === 'SILVER_XAGUSD');
+    const orderComment = isGoldSignal ? 'GoldForexTouchAI' : isSilverSignal ? 'SilverForexTouchAI' : 'ForexTouchAI';
 
     return { id: s.id, pair: originalPair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
 }

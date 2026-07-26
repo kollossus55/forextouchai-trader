@@ -66,6 +66,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     'CANDLESTICK': 'M30',
     'HYBRID_ALL': 'H1',
     'GOLD_XAUUSD': 'H1',
+    'SILVER_XAGUSD': 'H1',
     'SP500_AI': 'H1'
   };
 
@@ -238,6 +239,7 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                       <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
                       <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
                       <SelectItem value="GOLD_XAUUSD">⭐ Gold / XAUUSD Specialist</SelectItem>
+                      <SelectItem value="SILVER_XAGUSD">🥈 Silver / XAGUSD Specialist</SelectItem>
                       <SelectItem value="SP500_AI">📊 SP500 AI Indicator (Multi-Confluence)</SelectItem>
                     </SelectContent>
                   </Select>
@@ -274,6 +276,15 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                   <div>
                     <p className="font-semibold text-amber-200 mb-0.5">Gold Specialist Strategy</p>
                     <p className="text-amber-400/80">This bot uses a dedicated gold-optimised AI engine with session timing, ATR-based SL/TP, and XAU/USD-specific volatility analysis. Only XAUUSD trades will be opened.</p>
+                  </div>
+                </div>
+              )}
+              {formData.strategy_type === 'SILVER_XAGUSD' && (
+                <div className="p-3 rounded-lg bg-slate-400/10 border border-slate-400/30 text-xs text-slate-200 flex items-start gap-2">
+                  <span className="text-lg leading-none">🥈</span>
+                  <div>
+                    <p className="font-semibold text-slate-100 mb-0.5">Silver Specialist Strategy</p>
+                    <p className="text-slate-300/80">This bot uses a dedicated silver-optimised AI engine with gold-correlation confluence, ATR-based SL/TP (3-decimal precision), and XAG/USD-specific volatility analysis. Only XAGUSD trades will be opened — run it with the dedicated Silver EA (MagicNumber 88888).</p>
                   </div>
                 </div>
               )}

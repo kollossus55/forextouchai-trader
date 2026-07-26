@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import ConnectionDiagnostics from '../components/settings/ConnectionDiagnostics';
 import AccountStatusPanel from '../components/settings/AccountStatusPanel';
 import GoldEADownload from '../components/settings/GoldEADownload';
+import SilverEADownload from '../components/settings/SilverEADownload';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -554,9 +555,10 @@ void ProcessPendingSignals(string json) {
       string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
       string sigPair = GetJsonValue(obj, "pair");
       
-      // Skip Gold/XAUUSD signals — handled by GoldForexTouchAI EA
-      if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold") {
-         Print("[BRIDGE MT5] Skipping XAUUSD signal — use GoldForexTouchAI EA for Gold trades.");
+      // Skip Gold/XAUUSD & Silver/XAGUSD signals — handled by dedicated EAs
+      if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold" ||
+         sigPair == "XAGUSD" || sigPair == "SILVER" || sigPair == "xagusd" || sigPair == "silver") {
+         Print("[BRIDGE MT5] Skipping ", sigPair, " signal — use dedicated Gold/Silver EA.");
          pos = objEnd + 1;
          continue;
       }
@@ -1112,9 +1114,10 @@ void CloseTicket(ulong ticket) {
             string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
             string sigPair = GetJsonValue(obj, "pair");
             
-            // Skip Gold/XAUUSD signals — handled by GoldForexTouchAI EA
-            if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold") {
-               Print("[BRIDGE] Skipping XAUUSD signal — use GoldForexTouchAI EA for Gold trades.");
+            // Skip Gold/XAUUSD & Silver/XAGUSD signals — handled by dedicated EAs
+            if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold" ||
+               sigPair == "XAGUSD" || sigPair == "SILVER" || sigPair == "xagusd" || sigPair == "silver") {
+               Print("[BRIDGE] Skipping ", sigPair, " signal — use dedicated Gold/Silver EA.");
                pos = objEnd + 1;
                continue;
             }
@@ -1686,6 +1689,7 @@ void CloseTicket(ulong ticket) {
                   </div>
                   </div>
                   <GoldEADownload />
+                  <SilverEADownload />
                   </CardContent>
                   </Card>
         </TabsContent>
