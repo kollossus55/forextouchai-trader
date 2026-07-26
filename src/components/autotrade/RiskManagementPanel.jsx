@@ -19,8 +19,8 @@ const DEFAULT_WEEKLY = {
   wed: { on: '00:00', off: '23:59' },
   thu: { on: '00:00', off: '23:59' },
   fri: { on: '00:00', off: '23:59' },
-  sat: { on: '00:00', off: '23:59' },
-  sun: { on: '00:00', off: '23:59' },
+  sat: { on: '00:00', off: '00:00' },
+  sun: { on: '00:00', off: '00:00' },
 };
 
 const DEFAULT_SETTINGS = {
