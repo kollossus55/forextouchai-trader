@@ -521,7 +521,9 @@ void SendPost(string json) {
    string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
    string resHeaders;
    ResetLastError();
-   int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resHeaders);
+   // 20s timeout: the bridge serializes accounts via a global lock (up to 15s wait) and
+   // runs many DB calls per heartbeat. The old 5s limit made MT5 hang and return 1003/5203.
+   int r = WebRequest("POST", Endpoint, headers, 20000, data, res, resHeaders);
    if(r == 200) {
       string response = CharArrayToString(res);
       ProcessPendingSignals(response);
@@ -530,8 +532,11 @@ void SendPost(string json) {
       int err = GetLastError();
       Print("[BRIDGE MT5] HTTP: ", r, " Error: ", err);
       if(err == 5203 || err == 5200) {
-         Print(">>> Add URL to: Tools > Options > Expert Advisors > Allow WebRequest <<<");
-         Print("URL: ", AppUrl);
+         Print(">>> 1003/5203 = MT5 could not complete the request (timed out, or URL not whitelisted) <<<");
+         Print("Check the OnInit 'Endpoint:' line = ", Endpoint);
+         Print("1) Tools > Options > Expert Advisors > tick 'Allow WebRequest' and add: ", Endpoint, " (https, NO trailing slash)");
+         Print("2) If already whitelisted, the server took >20s (bridge busy) — it auto-recovers next cycle.");
+         Print("AppUrl input: ", AppUrl);
       }
    }
 }
@@ -1656,9 +1661,10 @@ void CloseTicket(ulong ticket) {
                   <li><strong>MT4:</strong> File → Open Data Folder → MQL4 → Experts → paste .mq4 file there.<br/><strong>MT5:</strong> File → Open Data Folder → MQL5 → Experts → paste .mq5 file there.</li>
                   <li>Right-click Navigator → Refresh. You should see "ForexTouchAI_Bridge" in Expert Advisors.</li>
                   <li className="text-amber-400 font-medium">CRITICAL: Go to Tools &gt; Options &gt; Expert Advisors.</li>
-                  <li>Check <strong>"Allow WebRequest for listed URLs"</strong> and add your App URL to the list.</li>
+                  <li>Check <strong>"Allow WebRequest for listed URLs"</strong> and add BOTH URLs below to the list (some MT5 builds reject the request unless the full path is whitelisted — this is why your Gold/Silver EAs connect but the Bridge EA gets error 5203).</li>
                   <li className="text-white font-mono bg-slate-900 p-1.5 mt-1 block text-center select-all rounded">https://forex-ai-trader-cc744e2a.base44.app</li>
-                  <li className="text-amber-400 font-bold">Do NOT include a trailing slash "/" at the end of the URL.</li>
+                  <li className="text-white font-mono bg-slate-900 p-1.5 mt-1 block text-center select-all rounded">https://forex-ai-trader-cc744e2a.base44.app/functions/bridge</li>
+                  <li className="text-amber-400 font-bold">Do NOT include a trailing slash "/" at the end of either URL.</li>
                   <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
                   <li className="text-amber-300 font-semibold">In the EA inputs, paste your <strong>API Key</strong> (shown above) into the <code>ApiKey</code> field.</li>
                   <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
