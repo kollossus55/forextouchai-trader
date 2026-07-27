@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, Shield, TrendingDown, TrendingUp, PauseCircle, Play, Save, RotateCcw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import GlobalScheduleCard from './GlobalScheduleCard';
 
 const DEFAULT_WEEKLY = {
   mon: { on: '00:00', off: '23:59' },
@@ -315,7 +316,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
           <Switch checked={formData.global_schedule_enabled || false} onCheckedChange={v => handleChange('global_schedule_enabled', v)}
             className="data-[state=checked]:bg-emerald-500" />
         </div>
-        <p className="text-[11px] text-slate-500 -mt-1">When enabled, the app blocks ALL new trades (auto + manual) outside each day's ON window and flattens every open position when the OFF window starts. Times are in <strong>UTC</strong>.</p>
+        <p className="text-[11px] text-slate-500 -mt-1">When enabled, the app blocks ALL new trades (auto + manual) outside each day's ON window and flattens every open position when the OFF window starts. Times are in <strong>UTC</strong>. Leave disabled to inherit the <strong>Global Schedule</strong> above; enable to override for this account.</p>
         {formData.global_schedule_enabled && (
           <div className="bg-rose-500/10 border border-rose-500/30 rounded p-2 text-[11px] text-rose-300">
             ⚠ Off-window = hard kill: all open trades are closed automatically the moment the OFF window begins.
@@ -443,6 +444,8 @@ export default function RiskManagementPanel() {
   if (connectedAccounts.length === 1) {
     const conn = connectedAccounts[0];
     return (
+      <>
+      <GlobalScheduleCard />
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management — Account #{conn.account_number}</CardTitle>
@@ -452,11 +455,14 @@ export default function RiskManagementPanel() {
           <AccountRiskSettings conn={conn} riskSettings={riskByAccount[conn.account_number] || globalRisk} allRiskSettings={riskSettingsList} trades={trades} />
         </CardContent>
       </Card>
+      </>
     );
   }
 
   // Multiple accounts: tabs
   return (
+    <>
+    <GlobalScheduleCard />
     <Card className="bg-slate-900 border-slate-800">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management</CardTitle>
@@ -490,5 +496,6 @@ export default function RiskManagementPanel() {
         </Tabs>
       </CardContent>
     </Card>
+    </>
   );
 }

@@ -313,13 +313,15 @@ Deno.serve(async (req) => {
         // NOTE: peak_equity is managed by monitorRiskLimits (which sees ALL accounts combined).
         // The bridge must NOT update peak_equity — doing so from a single account would corrupt the combined total.
         // Find account-specific risk settings first, fall back to global (no account_number)
-        const riskSettings = (riskSettingsList || []).find(r => r.account_number === acctKey)
-            || (riskSettingsList || []).find(r => !r.account_number)
-            || null;
+        const accountRisk = (riskSettingsList || []).find(r => r.account_number === acctKey) || null;
+        const globalRiskRec = (riskSettingsList || []).find(r => !r.account_number) || null;
+        const riskSettings = accountRisk || globalRisk;
         const lastRiskCheck = body.last_risk_check || 0;
 
-        // ── Global trading schedule: is the app currently in its OFF window for this account? ──
-        const scheduleOffNow = isScheduleOff(riskSettings, now);
+        // ── Global trading schedule: account overrides global default ──
+        // If the account has its own schedule enabled, use it; otherwise inherit the global default.
+        const scheduleSettings = (accountRisk?.global_schedule_enabled === true) ? accountRisk : globalRiskRec;
+        const scheduleOffNow = isScheduleOff(scheduleSettings, now);
         // Bridge-side profit target check is DISABLED — monitorRiskLimits handles this exclusively
         // to avoid duplicate alerts from two separate code paths.
 
