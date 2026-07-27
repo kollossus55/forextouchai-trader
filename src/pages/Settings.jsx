@@ -804,7 +804,9 @@ void CloseTicket(ulong ticket) {
          
          Print("... Testing connection to Backend ...");
          ResetLastError();
-         int res = WebRequest("GET", Endpoint, headers, 5000, post, result, resHeaders);
+         // 20s timeout: bridge serializes accounts (up to 15s lock wait) + DB calls.
+         // The old 5s limit caused WinINet receive timeout [12002] -> MT4 error 5203 -> INIT_FAILED.
+         int res = WebRequest("GET", Endpoint, headers, 20000, post, result, resHeaders);
          
          if(res == 200) {
             Print("SUCCESS: Connected to server successfully.");
@@ -816,11 +818,9 @@ void CloseTicket(ulong ticket) {
          if(ArraySize(result) > 0) Print("Server Response: " + CharArrayToString(result));
          
          if(err == 5203 || err == 5200 || err == 4060) {
-            Print(">>> CRITICAL SETUP ERROR <<<");
-            Print("1. Go to Tools -> Options -> Expert Advisors");
-            Print("2. Check 'Allow WebRequest'");
-            Print("3. Add this EXACT URL to the list (Double check for spaces!):");
-            Print("   ", ServiceUrl);
+            Print(">>> 5203 / 12002 = receive timeout OR URL not whitelisted <<<");
+            Print("1. Tools -> Options -> Expert Advisors > tick 'Allow WebRequest' and add: ", ServiceUrl, " (https, NO trailing slash)");
+            Print("2. If already whitelisted, the server took >20s (bridge busy) — re-attach the EA to retry.");
             Print(">>> ---------------------- <<<");
          }
          
@@ -1075,7 +1075,8 @@ void CloseTicket(ulong ticket) {
          string resH;
 
          ResetLastError();
-         int r = WebRequest("POST", Endpoint, headers, 5000, data, res, resH);
+         // 20s timeout: full heartbeat can exceed the old 5s limit (lock wait + DB calls).
+         int r = WebRequest("POST", Endpoint, headers, 20000, data, res, resH);
          
          if(r == 200) {
             string response = CharArrayToString(res);
