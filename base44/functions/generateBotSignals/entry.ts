@@ -20,6 +20,20 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
+        // Auth: admin-only. This function runs with service-role privileges (reads every user's
+        // bots, calls the LLM, bulk-inserts signals), so it must not be reachable by
+        // unauthenticated or non-admin callers. Scheduled automations invoke it with an admin
+        // context, and the admin dashboard invokes it via the SDK — both pass this check.
+        let caller;
+        try {
+            caller = await base44.auth.me();
+        } catch (_) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        if (!caller || caller.role !== 'admin') {
+            return Response.json({ error: 'Forbidden — admin only' }, { status: 403 });
+        }
+
         // Fetch all running bots, open trades, pending signals, pairs, risk settings in parallel
         const [bots, openTrades, pendingSignals, activeSignals, pairsList, riskSettingsList, brokerConnections] = await Promise.all([
             base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50),
