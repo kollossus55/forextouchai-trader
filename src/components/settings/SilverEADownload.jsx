@@ -175,7 +175,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        if (sigPair == SilverSymbol) ExecuteSignal(obj);
+        string sigPairNorm = StringReplace(sigPair, "/", "");
+        if (sigPairNorm == SilverSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
@@ -449,7 +450,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        if (sigPair == SilverSymbol) ExecuteSignal(obj);
+        string sigPairNorm = StringReplace(sigPair, "/", "");
+        if (sigPairNorm == SilverSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
