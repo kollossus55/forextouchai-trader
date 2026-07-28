@@ -116,6 +116,20 @@ Deno.serve(async (req) => {
 
         const acctKey = String(account_number);
 
+        // ── Ownership check: verify account_number belongs to the API key owner (IDOR fix) ──
+        // An attacker with their own API key could otherwise spoof a victim's account_number
+        // and read signals / overwrite balances / force-close trades via service-role queries.
+        try {
+            const existingConns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
+            const connOwnerEmail = existingConns?.[0]?.owner_email || null;
+            if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
+                console.warn(`[BRIDGE] Ownership mismatch for account ${acctKey}: key owner=${resolvedOwnerEmail}, conn owner=${connOwnerEmail}`);
+                return Response.json({ error: 'Account not authorized for this API key' }, { status: 403, headers: corsHeaders() });
+            }
+        } catch (e) {
+            console.warn('[BRIDGE] BrokerConnection ownership lookup failed:', e.message);
+        }
+
         // Detect if this is a Gold EA heartbeat (only sends XAUUSD price)
         const eaPricesRaw = body.prices || acct.prices;
         const isGoldEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
