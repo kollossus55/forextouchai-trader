@@ -401,56 +401,22 @@ export default function Pairs() {
 
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
-  // Top Picks: the strongest directional (BUY/SELL) setups by CURRENT live AI
-  // confidence — re-ranked every recalc (≈30s) so the strip actually updates
-  // and rotates as the market moves. Always populated (no ≥75% hard gate) so it
-  // never blinks to "Scanning" on small dips. If the same pair has led for
-  // MAX_STALE_MS the strip goes to "Scanning" until a different pair takes the
-  // lead, so it never looks stuck on one stale setup.
-  const MAX_STALE_MS = 5 * 60 * 1000;
+  // Top Picks: the strongest directional (BUY/SELL) setups by live AI
+  // confidence. The displayed set is frozen for MIN_HOLD_MS so the strip
+  // doesn't re-shuffle every ~30s recalc — it only refreshes early if the
+  // current #1 drops out of the qualifying set. We keep showing the last
+  // good picks during brief recalc gaps (never blank to "Scanning" mid-session).
+  const MIN_HOLD_MS = 90 * 1000;
   const topPicks = mergedPairs
     .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (signalSettings.topPickConfidence ?? 70))
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
-  const currentLead = topPicks[0]?.id ?? null;
-  const [active, setActive] = useState(true);
-  const [leadId, setLeadId] = useState(null);
-  const [leadSince, setLeadSince] = useState(null);
-  const [staleLead, setStaleLead] = useState(null);
-
-  // Freeze the displayed pick set so the strip doesn't re-shuffle every recalc
-  const MIN_HOLD_MS = 90 * 1000;
   const [frozenPicks, setFrozenPicks] = useState([]);
   const [frozenAt, setFrozenAt] = useState(0);
 
-  // Activate on a new leader (skip the one that went stale); scan when empty
   useEffect(() => {
-    if (currentLead === null) { setActive(false); setLeadId(null); return; }
-    if (currentLead !== leadId) {
-      if (currentLead === staleLead) { setActive(false); return; }
-      setLeadId(currentLead);
-      setLeadSince(Date.now());
-      setStaleLead(null);
-      setActive(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLead, leadId, staleLead]);
-
-  // Go to "Scanning" if the same leader has been #1 too long
-  useEffect(() => {
-    if (!active || !leadId || !leadSince) return;
-    const remaining = MAX_STALE_MS - (Date.now() - leadSince);
-    const t = setTimeout(() => { setStaleLead(leadId); setActive(false); }, Math.max(remaining, 0));
-    return () => clearTimeout(t);
-  }, [active, leadId, leadSince]);
-
-  // Freeze the displayed picks order for MIN_HOLD_MS to prevent the strip
-  // from re-shuffling every ~30s recalc when confidences are close. Only
-  // refresh early if the current #1 has dropped out of the qualifying set.
-  useEffect(() => {
-    if (!active) { setFrozenPicks([]); setFrozenAt(0); return; }
-    if (topPicks.length === 0) return;
+    if (topPicks.length === 0) return; // keep last good picks during brief gaps
     const leaderId = frozenPicks[0]?.id;
     const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
     const heldLongEnough = Date.now() - frozenAt >= MIN_HOLD_MS;
@@ -459,9 +425,9 @@ export default function Pairs() {
       setFrozenAt(Date.now());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topPicks, active]);
+  }, [topPicks]);
 
-  const displayPicks = active ? frozenPicks : [];
+  const displayPicks = frozenPicks;
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
