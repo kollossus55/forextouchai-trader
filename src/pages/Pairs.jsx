@@ -402,15 +402,36 @@ export default function Pairs() {
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
   // Top Picks: the strongest directional (BUY/SELL) setups by live AI
-  // confidence. Re-ranked naturally every recalc (≈30s) as confidence
-  // changes, with live prices updating every tick. "Scanning" only shows
-  // before the first signals are computed.
+  // confidence. The pick SET is held for HOLD_MS so the strip doesn't
+  // re-shuffle every recalc, but each pick renders with its LIVE confidence
+  // & price (updated every tick). Refreshes early only if the current #1
+  // drops out of the qualifying set. "Scanning" only shows before the first
+  // signals are computed.
+  const HOLD_MS = 60 * 1000;
   const topPicks = mergedPairs
     .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (signalSettings.topPickConfidence ?? 70))
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
-  const displayPicks = topPicks;
+  const [frozenIds, setFrozenIds] = useState(null);
+  const [frozenAt, setFrozenAt] = useState(0);
+
+  useEffect(() => {
+    if (topPicks.length === 0) return;
+    const leaderId = frozenIds?.[0];
+    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
+    const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
+    if (!frozenIds || !leaderValid || heldLongEnough) {
+      setFrozenIds(topPicks.map(p => p.id));
+      setFrozenAt(Date.now());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topPicks]);
+
+  // Map frozen order back to live data so values update every tick
+  const displayPicks = (frozenIds || [])
+    .map(id => mergedPairs.find(p => p.id === id))
+    .filter(Boolean);
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
