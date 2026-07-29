@@ -28,12 +28,13 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 70 }) {
       {hasPicks ? (
         <div className="relative grid grid-cols-2 md:grid-cols-4 gap-3">
           {picks.map((p, i) => {
-            const isBuy = p.ai_signal !== 'SELL';
+            const sig = p.liveSignal || p.ai_signal;
+            const isBuy = sig !== 'SELL';
             const isFirst = i === 0;
             return (
               <button
                 key={p.id}
-                onClick={() => onTrade(p, p.ai_signal === 'SELL' ? 'SELL' : 'BUY')}
+                onClick={() => onTrade(p, sig === 'SELL' ? 'SELL' : 'BUY')}
                 className={`text-left rounded-xl p-3 transition-all hover:scale-[1.03] ${
                   isFirst
                     ? 'bg-gradient-to-br from-amber-500/25 to-yellow-500/10 border-2 border-amber-400/60 shadow-[0_0_20px_-3px_rgba(245,158,11,0.5)]'
@@ -63,12 +64,12 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 70 }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <Progress
-                    value={p.ai_confidence || 0}
+                    value={p.liveConfidence || p.ai_confidence || 0}
                     className="h-2 bg-slate-800"
                     indicatorClassName={isBuy ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-rose-400 to-pink-300'}
                   />
                   <span className="text-xs font-extrabold text-amber-300 whitespace-nowrap drop-shadow">
-                    {Math.round(p.ai_confidence || 0)}%
+                    {Math.round(p.liveConfidence || p.ai_confidence || 0)}%
                   </span>
                 </div>
               </button>

@@ -141,6 +141,8 @@ export default function Pairs() {
               ...current,
               ai_signal: result.signal,
               ai_confidence: result.confidence,
+              liveSignal: result.liveSignal,
+              liveConfidence: result.liveConfidence,
               signal_timestamp: signalChanged ? Date.now() : (current.signal_timestamp || Date.now())
             }
           };
@@ -164,6 +166,8 @@ export default function Pairs() {
             ...(prev[pair.id] || {}),
             ai_signal: result.signal,
             ai_confidence: result.confidence,
+            liveSignal: result.liveSignal,
+            liveConfidence: result.liveConfidence,
             signal_timestamp: Date.now()
           }
         }));
@@ -188,14 +192,16 @@ export default function Pairs() {
           ...(prev[pair.id] || {}),
           ai_signal: result.signal,
           ai_confidence: result.confidence,
+          liveSignal: result.liveSignal,
+          liveConfidence: result.liveConfidence,
           signal_timestamp: Date.now()
-        }
-      }));
-      setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
-      setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
-      setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+          }
+          }));
+          setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
+          setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
+          setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
+          });
+          // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signalSettings]);
 
   const sendSignal = useMutation({
@@ -408,9 +414,11 @@ export default function Pairs() {
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
   const HOLD_MS = 60 * 1000;
+  // Rank by LIVE (unlocked) confidence so the strip reflects current market
+  // leaders and rotates as confidence shifts — not stuck on 30-min-locked pairs.
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (signalSettings.topPickConfidence ?? 70))
-    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
+    .filter(p => getCategory(p) !== null && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= (signalSettings.topPickConfidence ?? 70))
+    .sort((a, b) => (b.liveConfidence || 0) - (a.liveConfidence || 0))
     .slice(0, 4);
 
   const [frozenIds, setFrozenIds] = useState(null);

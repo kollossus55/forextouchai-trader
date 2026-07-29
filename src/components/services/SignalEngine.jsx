@@ -207,6 +207,11 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
     }
 
+    // Capture live (pre-lock) values — Top Picks ranks by these so the strip
+    // reflects current market strength instead of a 30-min locked confidence.
+    const liveSignal = signal;
+    const liveConfidence = confidence;
+
     // ── Signal Lock (duration & min confidence from user settings) ───────────
     // If a directional signal was locked recently, hold it unless the lock
     // has expired. A stronger opposing signal does NOT override the lock —
@@ -285,5 +290,5 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         };
     });
 
-    return { signal, confidence, indicators: indicatorSnapshot, factors, chartCandles };
+    return { signal, confidence, liveSignal, liveConfidence, indicators: indicatorSnapshot, factors, chartCandles };
 }
