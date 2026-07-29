@@ -402,32 +402,15 @@ export default function Pairs() {
   const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
 
   // Top Picks: the strongest directional (BUY/SELL) setups by live AI
-  // confidence. The displayed set is frozen for MIN_HOLD_MS so the strip
-  // doesn't re-shuffle every ~30s recalc — it only refreshes early if the
-  // current #1 drops out of the qualifying set. We keep showing the last
-  // good picks during brief recalc gaps (never blank to "Scanning" mid-session).
-  const MIN_HOLD_MS = 90 * 1000;
+  // confidence. Re-ranked naturally every recalc (≈30s) as confidence
+  // changes, with live prices updating every tick. "Scanning" only shows
+  // before the first signals are computed.
   const topPicks = mergedPairs
     .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (signalSettings.topPickConfidence ?? 70))
     .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
-  const [frozenPicks, setFrozenPicks] = useState([]);
-  const [frozenAt, setFrozenAt] = useState(0);
-
-  useEffect(() => {
-    if (topPicks.length === 0) return; // keep last good picks during brief gaps
-    const leaderId = frozenPicks[0]?.id;
-    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
-    const heldLongEnough = Date.now() - frozenAt >= MIN_HOLD_MS;
-    if (!frozenAt || !leaderValid || heldLongEnough) {
-      setFrozenPicks(topPicks);
-      setFrozenAt(Date.now());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topPicks]);
-
-  const displayPicks = frozenPicks;
+  const displayPicks = topPicks;
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
