@@ -431,14 +431,11 @@ export default function Pairs() {
       if (frozenIds) { setFrozenIds(null); setFrozenAt(0); }
       return;
     }
+    const leaderId = frozenIds?.[0];
+    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
     const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
-    // Count held picks that still qualify at the live threshold
-    const heldQualifying = (frozenIds || []).filter(id => {
-      const p = mergedPairs.find(x => x.id === id);
-      return p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold;
-    }).length;
-    // Refresh if never set, held long enough, or a held pick dropped below threshold
-    if (!frozenIds || heldLongEnough || heldQualifying < (frozenIds || []).length) {
+    // Hold the set for HOLD_MS; only an early refresh if the #1 leader drops out
+    if (!frozenIds || !leaderValid || heldLongEnough) {
       setFrozenIds(topPicks.map(p => p.id));
       setFrozenAt(Date.now());
     }
@@ -446,7 +443,9 @@ export default function Pairs() {
   }, [topPicks]);
 
   // Map frozen order back to live data, dropping any pick that has since fallen
-  // below the threshold so the strip never shows sub-threshold pairs.
+  // below the threshold so the strip never shows sub-threshold pairs. The set
+  // composition is held for HOLD_MS — a non-leader dipping below threshold is
+  // hidden until the next refresh rather than triggering a reshuffle.
   const displayPicks = (frozenIds || [])
     .map(id => mergedPairs.find(p => p.id === id))
     .filter(p => p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold);
