@@ -414,10 +414,11 @@ export default function Pairs() {
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
   const HOLD_MS = 60 * 1000;
+  const topPickThreshold = signalSettings.topPickConfidence ?? 70;
   // Rank by LIVE (unlocked) confidence so the strip reflects current market
   // leaders and rotates as confidence shifts — not stuck on 30-min-locked pairs.
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= (signalSettings.topPickConfidence ?? 70))
+    .filter(p => getCategory(p) !== null && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold)
     .sort((a, b) => (b.liveConfidence || 0) - (a.liveConfidence || 0))
     .slice(0, 4);
 
@@ -425,21 +426,30 @@ export default function Pairs() {
   const [frozenAt, setFrozenAt] = useState(0);
 
   useEffect(() => {
-    if (topPicks.length === 0) return;
-    const leaderId = frozenIds?.[0];
-    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
+    // No qualifying picks — clear the held set so the strip shows "Scanning"
+    if (topPicks.length === 0) {
+      if (frozenIds) { setFrozenIds(null); setFrozenAt(0); }
+      return;
+    }
     const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
-    if (!frozenIds || !leaderValid || heldLongEnough) {
+    // Count held picks that still qualify at the live threshold
+    const heldQualifying = (frozenIds || []).filter(id => {
+      const p = mergedPairs.find(x => x.id === id);
+      return p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold;
+    }).length;
+    // Refresh if never set, held long enough, or a held pick dropped below threshold
+    if (!frozenIds || heldLongEnough || heldQualifying < (frozenIds || []).length) {
       setFrozenIds(topPicks.map(p => p.id));
       setFrozenAt(Date.now());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topPicks]);
 
-  // Map frozen order back to live data so values update every tick
+  // Map frozen order back to live data, dropping any pick that has since fallen
+  // below the threshold so the strip never shows sub-threshold pairs.
   const displayPicks = (frozenIds || [])
     .map(id => mergedPairs.find(p => p.id === id))
-    .filter(Boolean);
+    .filter(p => p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold);
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
