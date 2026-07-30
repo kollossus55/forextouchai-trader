@@ -17,7 +17,9 @@ import {
   Eye,
   EyeOff,
   Bell,
-  BellOff
+  BellOff,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import useSignalNotifications from '@/hooks/useSignalNotifications';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
@@ -25,8 +27,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 function WebhookInfoCard() {
   const [copied, setCopied] = useState(null);
@@ -202,6 +216,21 @@ export default function Admin() {
   const [currentUser, setCurrentUser] = useState(null);
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [notifPermission, setNotifPermission] = useState('Notification' in window ? Notification.permission : 'unsupported');
+  const [deletingId, setDeletingId] = useState(null);
+  const queryClient = useQueryClient();
+
+  const handleDeleteUser = async (user) => {
+    setDeletingId(user.id);
+    try {
+      await base44.entities.User.delete(user.id);
+      toast.success(`User deleted`, { description: user.email });
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+    } catch (e) {
+      toast.error('Failed to delete user', { description: e.message });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   // Re-check permission on focus AND poll every 2s to catch browser setting changes
   useEffect(() => {
@@ -363,12 +392,13 @@ export default function Admin() {
                   <TableHead className="text-slate-400">Role</TableHead>
                   <TableHead className="text-slate-400">Joined</TableHead>
                   <TableHead className="text-slate-400">Status</TableHead>
+                  <TableHead className="text-slate-400 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -407,6 +437,41 @@ export default function Admin() {
                         <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
                           Active
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {user.id === currentUser?.id ? (
+                          <span className="text-xs text-slate-600 italic">You</span>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                disabled={deletingId === user.id}
+                                className="inline-flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1.5 rounded-md border border-rose-500/20 transition-colors disabled:opacity-50"
+                              >
+                                {deletingId === user.id
+                                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</>
+                                  : <><Trash2 className="w-3.5 h-3.5" /> Delete</>}
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="bg-slate-900 border-slate-800">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="text-white">Delete user?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-slate-400">
+                                  This will permanently remove <span className="text-slate-200 font-medium">{user.full_name || user.email}</span> ({user.email}) from the platform. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteUser(user)}
+                                  className="bg-rose-600 hover:bg-rose-700 text-white border-rose-600"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
