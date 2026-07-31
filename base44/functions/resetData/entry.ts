@@ -1,18 +1,33 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-async function clearEntity(base44, entityName) {
+async function clearEntity(base44, entityName, filter = {}) {
   let deleted = 0;
-  for (let pass = 0; pass < 50; pass++) {
-    const batch = await base44.asServiceRole.entities[entityName].filter({}, null, 25).catch(() => []);
+  // Loop until empty — no cap. Use deleteMany in batches of 100 for speed.
+  for (let pass = 0; pass < 500; pass++) {
+    const batch = await base44.asServiceRole.entities[entityName].filter(filter, null, 100).catch(() => []);
     if (!batch || batch.length === 0) break;
-    // Delete sequentially with a small delay to avoid rate limits
-    for (const item of batch) {
-      await base44.asServiceRole.entities[entityName].delete(item.id).catch(() => {});
-      await new Promise(r => setTimeout(r, 80));
+    let ok = false;
+    for (let retry = 0; retry < 4; retry++) {
+      try {
+        await base44.asServiceRole.entities[entityName].deleteMany(filter);
+        deleted += batch.length;
+        ok = true;
+        break;
+      } catch (e) {
+        // Transient DB errors (e.g. placement version mismatch) — back off and retry
+        await new Promise(r => setTimeout(r, 800));
+      }
     }
-    deleted += batch.length;
-    if (batch.length < 25) break;
-    await new Promise(r => setTimeout(r, 500));
+    if (!ok) {
+      // Fallback: sequential single deletes for this batch
+      for (const item of batch) {
+        await base44.asServiceRole.entities[entityName].delete(item.id).catch(() => {});
+        await new Promise(r => setTimeout(r, 50));
+      }
+      deleted += batch.length;
+    }
+    if (batch.length < 100) break;
+    await new Promise(r => setTimeout(r, 300));
   }
   return deleted;
 }
@@ -25,6 +40,20 @@ Deno.serve(async (req) => {
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
     const results = {};
+    const url = new URL(req.url);
+    const mode = url.searchParams.get('mode') || 'full'; // 'full' | 'history'
+
+    if (mode === 'history') {
+      // History-only reset: clear closed trades + expired/closed signals, keep active records
+      results.trades_deleted = await clearEntity(base44, 'Trade', { status: 'CLOSED' });
+      results.signals_deleted = (
+        await clearEntity(base44, 'Signal', { status: 'EXPIRED' }) +
+        await clearEntity(base44, 'Signal', { status: 'CLOSED' })
+      );
+      results.alerts_deleted = 0;
+      results.mode = 'history';
+      return Response.json({ success: true, message: 'History reset complete (active records preserved)', results });
+    }
 
     // Pause all running bots first
     try {
@@ -38,9 +67,10 @@ Deno.serve(async (req) => {
     } catch (e) { /* non-fatal */ }
 
     // Clear entities sequentially
-    results.trades_deleted = await clearEntity(base44, 'Trade');
-    results.signals_deleted = await clearEntity(base44, 'Signal');
-    results.alerts_deleted = await clearEntity(base44, 'Alert');
+    results.trades_deleted = await clearEntity(base44, 'Trade', {});
+    results.signals_deleted = await clearEntity(base44, 'Signal', {});
+    results.alerts_deleted = await clearEntity(base44, 'Alert', {});
+    results.mode = 'full';
 
     // Reset risk settings counters
     try {
