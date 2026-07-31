@@ -130,14 +130,17 @@ Deno.serve(async (req) => {
             console.warn('[BRIDGE] BrokerConnection ownership lookup failed:', e.message);
         }
 
-        // Detect if this is a Gold EA heartbeat (only sends XAUUSD price)
+        // Detect if this is a Gold EA heartbeat (only sends XAUUSD price).
+        // Normalise the symbol (strip '/' and broker suffixes like '.r', '.m', '.raw')
+        // so brokers using "XAUUSD.r" are still recognised as a Gold EA.
         const eaPricesRaw = body.prices || acct.prices;
+        const _normSym = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
         const isGoldEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
-            ['XAUUSD', 'GOLD', 'XAU'].includes((eaPricesRaw[0]?.symbol || '').toUpperCase());
+            ['XAUUSD', 'GOLD', 'XAU'].includes(_normSym(eaPricesRaw[0]?.symbol));
 
         // Detect if this is a Silver EA heartbeat (only sends XAGUSD price)
         const isSilverEA = Array.isArray(eaPricesRaw) && eaPricesRaw.length === 1 &&
-            ['XAGUSD', 'SILVER', 'XAG'].includes((eaPricesRaw[0]?.symbol || '').toUpperCase());
+            ['XAGUSD', 'SILVER', 'XAG'].includes(_normSym(eaPricesRaw[0]?.symbol));
 
         // Gold/Silver EA use a separate rate-limit slot so they're never blocked by the standard EA calling the same account
         const rateLimitKey = isGoldEA ? `${acctKey}:gold` : isSilverEA ? `${acctKey}:silver` : acctKey;
@@ -529,8 +532,20 @@ Deno.serve(async (req) => {
             cache.signals = { data: null, ts: 0 };
         }
 
-        const sanitizedSignals = freshSignals.map(s => sanitizeSignal(s, livePriceMap));
-        console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals');
+        // When dispatching to a Gold/Silver EA, rewrite the signal pair to match the
+        // EA's actual broker symbol (e.g. signal "XAUUSD" → broker "XAUUSD.r").  The EA
+        // compares the signal pair against its own configured symbol and skips mismatches,
+        // so without this remap a broker suffix would cause the EA to reject the signal.
+        const eaBrokerSymbol = (isGoldEA || isSilverEA) && Array.isArray(eaPricesRaw) && eaPricesRaw[0]?.symbol
+            ? eaPricesRaw[0].symbol : null;
+        const sanitizedSignals = freshSignals.map(s => {
+            const sanitized = sanitizeSignal(s, livePriceMap);
+            if (eaBrokerSymbol) {
+                sanitized.pair = eaBrokerSymbol;
+            }
+            return sanitized;
+        });
+        console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals', eaBrokerSymbol ? `(broker symbol: ${eaBrokerSymbol})` : '');
 
         // ── Global schedule: if OFF now, flag all open trades for close (EA flattens them) ──
         if (scheduleOffNow) {
