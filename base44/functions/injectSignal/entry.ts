@@ -1,5 +1,33 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+// ─── Rate limiting: prevent 3rd-party signal flooding ──────────────────────
+// Per-API-key: min 60s between injections, max 5 signals per 5 minutes
+const injectTimestamps = {}; // api_key → [timestamp, ...]
+const MIN_INTERVAL_MS = 60_000;     // 1 call per key per minute
+const WINDOW_MS = 5 * 60_000;       // 5-minute rolling window
+const MAX_PER_WINDOW = 5;           // max 5 injections per 5 min per key
+
+function checkRateLimit(apiKey) {
+    const now = Date.now();
+    const arr = injectTimestamps[apiKey] || [];
+    // Prune entries older than the window
+    const recent = arr.filter(ts => now - ts < WINDOW_MS);
+    // Min interval check
+    if (recent.length > 0 && (now - recent[recent.length - 1]) < MIN_INTERVAL_MS) {
+        const waitMs = MIN_INTERVAL_MS - (now - recent[recent.length - 1]);
+        return { allowed: false, retryAfterMs: waitMs, reason: 'rate_limited_interval' };
+    }
+    // Max per window check
+    if (recent.length >= MAX_PER_WINDOW) {
+        const oldestAge = now - recent[0];
+        const waitMs = WINDOW_MS - oldestAge;
+        return { allowed: false, retryAfterMs: waitMs, reason: 'rate_limited_max' };
+    }
+    recent.push(now);
+    injectTimestamps[apiKey] = recent;
+    return { allowed: true };
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, {
@@ -38,6 +66,16 @@ Deno.serve(async (req) => {
         if (!keyRecord) {
             console.warn(`[injectSignal] Unauthorized — key not found. Prefix: ${api_key?.slice(0, 8)}...`);
             return Response.json({ error: 'Unauthorized — invalid api_key. Please regenerate your key from the Admin page.' }, { status: 401 });
+        }
+
+        // ── Rate limit check: prevent 3rd-party flooding ──
+        const rateCheck = checkRateLimit(api_key);
+        if (!rateCheck.allowed) {
+            console.warn(`[injectSignal] Rate limited (${rateCheck.reason}) — retry in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`);
+            return Response.json(
+                { error: 'Rate limited', reason: rateCheck.reason, retry_after_ms: Math.ceil(rateCheck.retryAfterMs) },
+                { status: 429, headers: { 'Access-Control-Allow-Origin': '*', 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+            );
         }
 
         // Find broker connections for this user
