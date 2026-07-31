@@ -404,11 +404,16 @@ Deno.serve(async (req) => {
         // Route signals: if signal has owner_email set, only dispatch to matching account number
         const dispatchedPairsThisCycle = new Set(); // prevent multi-signal same pair in one heartbeat
 
-        // Build set of pairs that already have an ACTIVE signal for THIS account — isolate-restart-proof check
+        // Build map of pair → ACTIVE signal ID for THIS account — isolate-restart-proof check
         // IMPORTANT: scoped to acctKey only, so account B is not blocked by account A's active signals
-        const activePairs = new Set(
-            (allPendingSignals || []).filter(s => s.status === 'ACTIVE' && s.owner_email === acctKey).map(s => (s.pair || '').replace('/', ''))
-        );
+        // Uses a MAP (not Set) so the SAME active signal can be re-dispatched if the EA missed it;
+        // only a DIFFERENT active signal for the same pair blocks dispatch.
+        const activePairIds = new Map();
+        for (const s of (allPendingSignals || [])) {
+            if (s.status === 'ACTIVE' && s.owner_email === acctKey) {
+                activePairIds.set((s.pair || '').replace('/', ''), s.id);
+            }
+        }
 
         const freshSignals = candidateSignals
             .filter(s => {
@@ -457,9 +462,11 @@ Deno.serve(async (req) => {
                     return false;
                 }
 
-                // If a signal for this pair is already ACTIVE in DB, skip — trade likely already open
-                if (activePairs.has(pairRaw)) {
-                    console.log(`[BRIDGE] Pair ${pairRaw} already has ACTIVE signal — skipping`);
+                // If a DIFFERENT signal for this pair is already ACTIVE in DB, skip — trade likely already open.
+                // The SAME active signal (EA missed it / isolate restarted) is allowed through for re-dispatch.
+                const activeIdForPair = activePairIds.get(pairRaw);
+                if (activeIdForPair && activeIdForPair !== s.id) {
+                    console.log(`[BRIDGE] Pair ${pairRaw} already has a different ACTIVE signal ${activeIdForPair} — skipping ${s.id}`);
                     return false;
                 }
                 // If signal is targeted to a specific account number, respect that
