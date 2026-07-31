@@ -417,8 +417,10 @@ Deno.serve(async (req) => {
 
         const freshSignals = candidateSignals
             .filter(s => {
-                // Skip if already dispatched this isolate session (prevents re-dispatch before DB write confirms)
-                if (dispatchedSignalIds.has(s.id)) return false;
+                // Skip PENDING signals already dispatched this isolate session (prevents re-dispatch before DB write confirms).
+                // ACTIVE signals are allowed through for re-dispatch — if the EA missed the first dispatch (network blip,
+                // OrderSend failure), the bridge gives it another chance. The openPairs check below prevents duplicate trades.
+                if (s.status === 'PENDING' && dispatchedSignalIds.has(s.id)) return false;
 
                 // Global schedule OFF: block ALL signals (auto + manual) during the off-window
                 if (scheduleOffNow) {
