@@ -51,7 +51,7 @@ const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (reduced from 10 to allow f
 const TTL = {
     signals:    10_000,  // 10s  — short TTL so expired signals clear fast
     trades:     60_000,  // 60s  — trade list cache
-    risk:      300_000,  // 5min — risk settings
+    risk:       60_000,  // 60s — risk settings (short TTL so schedule toggles take effect fast)
     connection: 45_000,  // 45s  — heartbeat throttle (matches min call interval)
     pairMap:   600_000,  // 10min — currency pair map
 };
