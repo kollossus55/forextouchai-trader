@@ -687,7 +687,9 @@ function isScheduleOff(riskSettings, now) {
     if (isNaN(onH) || isNaN(onM) || isNaN(offH) || isNaN(offM)) return false;
     const curMins = d.getUTCHours() * 60 + d.getUTCMinutes();
     const onMins = onH * 60 + onM;
-    const offMins = offH * 60 + offM;
+    // Treat 23:59 as end-of-day (24:00 = 1440 min) so the ON window extends to midnight
+    // without a 1-minute OFF gap that would close trades at day boundaries.
+    const offMins = (offH === 23 && offM === 59) ? 1440 : offH * 60 + offM;
     // Zero-length window (on == off) → off all day
     if (onMins === offMins) return true;
     if (onMins < offMins) {
