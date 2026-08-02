@@ -720,9 +720,12 @@ function sanitizeSignal(s, livePriceMap) {
         const pairUpper = pair.toUpperCase();
         const isGold = pairUpper === 'XAUUSD' || pairUpper === 'GOLD' || pairUpper === 'XAU' || s.strategy === 'GOLD_XAUUSD';
         const isSilver = pairUpper === 'XAGUSD' || pairUpper === 'SILVER' || pairUpper === 'XAG' || s.strategy === 'SILVER_XAGUSD';
+        // Crypto: BTCUSD, ETHUSD, etc. — 24/7 market, percentage-based SL/TP
+        const CRYPTO_SYMBOLS = ['BTCUSD', 'BITCOIN', 'BTC', 'ETHUSD', 'ETHEREUM', 'ETH', 'SOLUSD', 'SOL', 'XRPUSD', 'XRP', 'LTCUSD', 'LTC', 'ADAUSD', 'ADA', 'DOGEUSD', 'DOGE', 'AVAXUSD', 'AVAX', 'LINKUSD', 'LINK', 'MATICUSD', 'MATIC', 'DOTUSD', 'DOT'];
+        const isCrypto = CRYPTO_SYMBOLS.includes(pairUpper);
         // Indices/CFDs: named instruments like UK100, US30, AUS200, GER40, NAS100, SPX500, etc.
         const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
-        const isIndex = INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000);
+        const isIndex = !isCrypto && (INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000));
 
         // Validate SL direction — reset if wrong side of price
         if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
@@ -771,6 +774,24 @@ function sanitizeSignal(s, livePriceMap) {
             safeSL = parseFloat(safeSL.toFixed(3));
             safeTP = parseFloat(safeTP.toFixed(3));
             console.log(`[BRIDGE] sanitizeSignal ${pair} detected as SILVER — using ATR distances | SL dist: ${defaultSlDist.toFixed(3)} TP dist: ${defaultTpDist.toFixed(3)}`);
+        } else if (isCrypto) {
+            // Crypto: percentage-based distances (1.5% SL, 3% TP) — crypto H1 ATR is 1.5-3%
+            const defaultSlDist = basePrice * 0.015; // 1.5%
+            const defaultTpDist = basePrice * 0.030; // 3.0%
+
+            if (safeSL === 0) {
+                safeSL = type === 'BUY'
+                    ? parseFloat((basePrice - defaultSlDist).toFixed(2))
+                    : parseFloat((basePrice + defaultSlDist).toFixed(2));
+            }
+            if (safeTP === 0) {
+                safeTP = type === 'BUY'
+                    ? parseFloat((basePrice + defaultTpDist).toFixed(2))
+                    : parseFloat((basePrice - defaultTpDist).toFixed(2));
+            }
+            safeSL = parseFloat(safeSL.toFixed(2));
+            safeTP = parseFloat(safeTP.toFixed(2));
+            console.log(`[BRIDGE] sanitizeSignal ${pair} detected as CRYPTO — using % distances | SL dist: ${defaultSlDist.toFixed(2)} TP dist: ${defaultTpDist.toFixed(2)}`);
         } else if (isIndex) {
             // Indices/CFDs: use percentage-based distances (0.5% SL, 1% TP) — wide enough for all brokers
             const defaultSlDist = basePrice * 0.005; // 0.5%

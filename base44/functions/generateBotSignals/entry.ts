@@ -16,7 +16,10 @@ const STRATEGY_INDICATOR_FIELDS = {
     SILVER_XAGUSD: [['ind_use_ema','EMA'],['ind_use_rsi','RSI'],['ind_use_macd','MACD'],['ind_use_stochastic','Stochastic'],['ind_use_cci','CCI'],['ind_use_bollinger','Bollinger Bands'],['ind_use_atr','ATR'],['ind_use_structure','Market structure'],['ind_use_candlestick','Candlestick'],['ind_use_session_timing','Session timing']],
     };
 
-Deno.serve(async (req) => {
+    // Crypto pairs that trade 24/7 — excluded from forex session-timing and pip-based SL/TP
+    const CRYPTO_SYMBOLS = ['BTCUSD', 'BITCOIN', 'BTC', 'ETHUSD', 'ETHEREUM', 'ETH', 'SOLUSD', 'SOL', 'XRPUSD', 'XRP', 'LTCUSD', 'LTC', 'ADAUSD', 'ADA', 'DOGEUSD', 'DOGE', 'AVAXUSD', 'AVAX', 'LINKUSD', 'LINK', 'MATICUSD', 'MATIC', 'DOTUSD', 'DOT'];
+
+    Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
@@ -1390,8 +1393,10 @@ Also provide:
             }
 
             for (const bot of ownerBots) {
-                // Trading hours check (UTC)
-                if (bot.trading_start_time && bot.trading_end_time) {
+                // Trading hours check (UTC) — skip for crypto-only bots (24/7 market)
+                const botPairs = bot.pairs || [];
+                const allCrypto = botPairs.length > 0 && botPairs.every(p => CRYPTO_SYMBOLS.includes(p.replace('/', '').toUpperCase()));
+                if (!allCrypto && bot.trading_start_time && bot.trading_end_time) {
                     const nowUtc = new Date();
                     const [startH, startM] = bot.trading_start_time.split(':').map(Number);
                     const [endH, endM] = bot.trading_end_time.split(':').map(Number);
@@ -1504,6 +1509,20 @@ Also provide:
                             : currentPrice - (silverAtr * (bot.atr_multiplier_tp || 3.0));
                     }
 
+                    // Crypto (BTCUSD, ETHUSD, etc.) uses percentage-based SL/TP — NOT pips.
+                    // Crypto H1 ATR is typically 1.5-3% of price; pip-based stops would be far too tight.
+                    const isCrypto = CRYPTO_SYMBOLS.includes(pairRaw.toUpperCase());
+                    let cryptoSl = null, cryptoTp = null;
+                    if (isCrypto) {
+                        const cryptoAtr = currentPrice * 0.02; // ~2% of price ≈ typical H1 ATR for crypto
+                        cryptoSl = analysis.type === 'BUY'
+                            ? currentPrice - (cryptoAtr * (bot.atr_multiplier_sl || 1.5))
+                            : currentPrice + (cryptoAtr * (bot.atr_multiplier_sl || 1.5));
+                        cryptoTp = analysis.type === 'BUY'
+                            ? currentPrice + (cryptoAtr * (bot.atr_multiplier_tp || 3.0))
+                            : currentPrice - (cryptoAtr * (bot.atr_multiplier_tp || 3.0));
+                    }
+
                     if (bot.sl_tp_mode === 'ATR' || bot.use_ai_risk) {
                         const volatilityFactor = currentPrice > 100 ? 0.002 : 0.0015;
                         const atr = currentPrice * volatilityFactor;
@@ -1538,9 +1557,9 @@ Also provide:
                             continue;
                         }
 
-                        const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : isSilver ? parseFloat(silverSl.toFixed(3)) : parseFloat(sl.toFixed(5));
-                        const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : isSilver ? parseFloat(silverTp.toFixed(3)) : parseFloat(tp.toFixed(5));
-                        console.log(`[generateBotSignals] ${pair} ${analysis.type} @ ${currentPrice} | SL: ${finalSl} | TP: ${finalTp}${isGold ? ' [GOLD]' : isSilver ? ' [SILVER]' : ''}`);
+                        const finalSl = isGold ? parseFloat(goldSl.toFixed(2)) : isSilver ? parseFloat(silverSl.toFixed(3)) : isCrypto ? parseFloat(cryptoSl.toFixed(2)) : parseFloat(sl.toFixed(5));
+                        const finalTp = isGold ? parseFloat(goldTp.toFixed(2)) : isSilver ? parseFloat(silverTp.toFixed(3)) : isCrypto ? parseFloat(cryptoTp.toFixed(2)) : parseFloat(tp.toFixed(5));
+                        console.log(`[generateBotSignals] ${pair} ${analysis.type} @ ${currentPrice} | SL: ${finalSl} | TP: ${finalTp}${isGold ? ' [GOLD]' : isSilver ? ' [SILVER]' : isCrypto ? ' [CRYPTO]' : ''}`);
                         allSignalsToCreate.push({
                             pair,
                             type: analysis.type,
