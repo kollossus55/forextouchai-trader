@@ -30,6 +30,7 @@ import StrategyBuilder from '@/components/autotrade/StrategyBuilder';
 import BacktestPanel from '@/components/autotrade/BacktestPanel';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
 import AccountAutoTradeToggle from '@/components/autotrade/AccountAutoTradeToggle';
+import BotConfigTemplates from '@/components/autotrade/BotConfigTemplates';
 import { MarketDataService } from '@/components/services/MarketDataService';
 import { toast } from 'sonner';
 
@@ -37,6 +38,7 @@ export default function AutoTrade() {
   const queryClient = useQueryClient();
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedBot, setSelectedBot] = useState(null);
+  const [configOverride, setConfigOverride] = useState(null); // template pre-fill (create mode)
   const [backtestBot, setBacktestBot] = useState(null);
   const [activeTab, setActiveTab] = useState("bots");
   const [user, setUser] = useState(null);
@@ -290,6 +292,7 @@ export default function AutoTrade() {
       queryClient.invalidateQueries(['bots']);
       setIsConfigOpen(false);
       setSelectedBot(null);
+      setConfigOverride(null);
     }
   });
 
@@ -433,11 +436,11 @@ export default function AutoTrade() {
               <Plus className="w-4 h-4 mr-2" /> Create New Bot
           </Button>
         </div>
-        <BotConfigDialog 
-            open={isConfigOpen} 
-            onOpenChange={setIsConfigOpen} 
+        <BotConfigDialog
+            open={isConfigOpen}
+            onOpenChange={(v) => { setIsConfigOpen(v); if (!v) { setConfigOverride(null); } }}
             onSubmit={handleSave}
-            initialData={selectedBot}
+            initialData={configOverride || selectedBot}
         />
       </div>
 
@@ -497,6 +500,9 @@ export default function AutoTrade() {
           </TabsTrigger>
           <TabsTrigger value="builder" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
             Strategy Builder
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
+            Templates
           </TabsTrigger>
           <TabsTrigger value="backtest" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white py-2 px-4">
             Backtesting Engine
@@ -745,6 +751,15 @@ export default function AutoTrade() {
 
         <TabsContent value="builder" className="mt-0">
           <StrategyBuilder />
+        </TabsContent>
+
+        <TabsContent value="templates" className="mt-0">
+          <BotConfigTemplates onApplyTemplate={(config) => {
+            setSelectedBot(null);
+            setConfigOverride(config);
+            setIsConfigOpen(true);
+            setActiveTab("bots");
+          }} />
         </TabsContent>
 
         <TabsContent value="backtest" className="mt-0">
