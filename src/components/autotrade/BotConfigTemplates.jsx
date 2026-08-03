@@ -145,7 +145,7 @@ export default function BotConfigTemplates({ onApplyTemplate }) {
                 value={templateName}
                 onChange={e => setTemplateName(e.target.value)}
                 placeholder="e.g. Crypto Hybrid v2"
-                className="bg-slate-950 border-slate-800"
+                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 md:col-span-1">
