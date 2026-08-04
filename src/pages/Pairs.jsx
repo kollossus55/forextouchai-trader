@@ -413,8 +413,12 @@ export default function Pairs() {
   // & price (updated every tick). Refreshes early only if the current #1
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
-  const HOLD_MS = 60 * 1000;
+  const HOLD_MS = 90 * 1000;
   const topPickThreshold = signalSettings.topPickConfidence ?? 70;
+  // Grace below threshold: a frozen pick stays visible even if its live
+  // confidence dips slightly below the qualifying threshold during the hold,
+  // so minor confidence wobble doesn't make picks vanish from the strip.
+  const DISPLAY_GRACE = 8;
   // Rank by LIVE (unlocked) confidence so the strip reflects current market
   // leaders and rotates as confidence shifts — not stuck on 30-min-locked pairs.
   const topPicks = mergedPairs
@@ -431,24 +435,25 @@ export default function Pairs() {
       if (frozenIds) { setFrozenIds(null); setFrozenAt(0); }
       return;
     }
-    const leaderId = frozenIds?.[0];
-    const leaderValid = leaderId && topPicks.some(p => p.id === leaderId);
     const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
-    // Hold the set for HOLD_MS; only an early refresh if the #1 leader drops out
-    if (!frozenIds || !leaderValid || heldLongEnough) {
+    // Hold the set for the full HOLD_MS — no early refresh. This keeps the
+    // strip composition stable even if the #1 pick's confidence wobbles around
+    // the threshold. Live confidence bars still update every tick inside each
+    // pick card; only the SET (which pairs are shown) is frozen.
+    if (!frozenIds || heldLongEnough) {
       setFrozenIds(topPicks.map(p => p.id));
       setFrozenAt(Date.now());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topPicks]);
 
-  // Map frozen order back to live data, dropping any pick that has since fallen
-  // below the threshold so the strip never shows sub-threshold pairs. The set
-  // composition is held for HOLD_MS — a non-leader dipping below threshold is
-  // hidden until the next refresh rather than triggering a reshuffle.
+  // Map frozen order back to live data. A pick stays visible as long as its
+  // live confidence is within DISPLAY_GRACE of the threshold — minor dips
+  // during the hold don't make it vanish. Only drops well below threshold
+  // (e.g. signal flipped to NEUTRAL) hide a pick until the next refresh.
   const displayPicks = (frozenIds || [])
     .map(id => mergedPairs.find(p => p.id === id))
-    .filter(p => p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold);
+    .filter(p => p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
