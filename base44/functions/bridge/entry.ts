@@ -572,17 +572,36 @@ Deno.serve(async (req) => {
         }
 
         // ── Close commands: OPEN trades this account flagged close_requested ──
-        // Set by monitorBotPerformance (bot close-all-at-profit/loss). Returned to the
-        // EA so it can actually flatten the broker position; bridge reconcile then
-        // marks the trade CLOSED with the real fill pnl once the EA drops it.
+        // Set by monitorBotPerformance (bot close-all-at-profit/loss) or schedule OFF.
+        // IMPORTANT: Only send close commands for tickets the EA is CURRENTLY reporting
+        // as open. If the ticket is gone from the broker (hit SL/TP, manually closed), the
+        // EA can't close it and will spam error 4108 (unknown ticket) on every retry.
+        // Cross-referencing against eaTrades prevents sending stale close commands.
         let closeCommands = [];
         try {
             const closeReqTrades = await base44.asServiceRole.entities.Trade.filter(
                 { status: 'OPEN', owner_email: acctKey, close_requested: true }, '-created_date', 50
             );
+            // Build set of tickets the EA is currently reporting as open
+            const eaOpenTickets = new Set((eaTrades || []).map(t => t.ticket).filter(Boolean));
             closeCommands = (closeReqTrades || [])
-                .filter(t => t.ticket)
+                .filter(t => t.ticket && eaOpenTickets.has(t.ticket))
                 .map(t => ({ ticket: t.ticket, pair: t.pair || '' }));
+
+            // Auto-close DB trades flagged close_requested but no longer on the broker —
+            // the position is already gone, so the close command would fail with 4108.
+            const staleCloseFlags = (closeReqTrades || []).filter(t => t.ticket && !eaOpenTickets.has(t.ticket));
+            if (staleCloseFlags.length > 0) {
+                console.log('[BRIDGE]', acctKey, '→ auto-closing', staleCloseFlags.length, 'stale close_requested trade(s) (ticket gone from broker)');
+                await Promise.all(staleCloseFlags.map(t =>
+                    base44.asServiceRole.entities.Trade.update(t.id, {
+                        status: 'CLOSED',
+                        close_price: t.close_price || 0,
+                        pnl: t.pnl || 0,
+                    }).catch(e => console.warn('[BRIDGE] Stale close cleanup error:', e.message))
+                ));
+            }
+
             if (closeCommands.length > 0) {
                 console.log('[BRIDGE]', acctKey, '→', closeCommands.length, 'close command(s)');
             }
