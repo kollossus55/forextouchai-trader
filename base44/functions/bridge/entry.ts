@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
         const authHeader = req.headers.get('Authorization') || '';
         const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
         if (!providedKey || !providedKey.startsWith('FTAI-')) {
-            return Response.json({ error: 'Missing or invalid API key', bridge_version: 'v5' }, { status: 401, headers: corsHeaders() });
+            return Response.json({ error: 'Missing or invalid API key', bridge_version: 'v7d' }, { status: 401, headers: corsHeaders() });
         }
         let resolvedOwnerEmail = null;
         // Lookup the EaApiKey record to get the owner_email for this key
@@ -322,11 +322,14 @@ Deno.serve(async (req) => {
         // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
         const isColdStart = !knownTickets[acctKey];
         // Auto-release stuck reconcile locks (safety net — should never trigger with awaited reconcile)
-        if (reconcileLock[acctKey] && (now - reconcileLock[acctKey]) > RECONCILE_LOCK_TIMEOUT_MS) {
-            console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (held ${Math.floor((now - reconcileLock[acctKey])/1000)}s)`);
+        // Also handles legacy boolean `true` values from old fire-and-forget code (NaN timestamp → reset)
+        const lockVal = reconcileLock[acctKey];
+        if (lockVal && (typeof lockVal !== 'number' || (now - lockVal) > RECONCILE_LOCK_TIMEOUT_MS)) {
+            console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (value: ${lockVal})`);
             reconcileLock[acctKey] = 0;
         }
         const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
+        console.log(`[BRIDGE] shouldReconcile=${shouldReconcile} | isGoldEA=${isGoldEA} isSilverEA=${isSilverEA} isColdStart=${isColdStart} lastReconcile=${lastReconcile} eaTradesArr=${Array.isArray(eaTrades)} eaTradesLen=${Array.isArray(eaTrades) ? eaTrades.length : 0} lockVal=${reconcileLock[acctKey]} knownTicketsSize=${knownTickets[acctKey]?.size || 'undefined'}`);
         if (shouldReconcile) {
             reconcileLock[acctKey] = now;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
@@ -695,6 +698,16 @@ Deno.serve(async (req) => {
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
             close_commands: closeCommands,
+            _diag: {
+                shouldReconcile,
+                isGoldEA,
+                isSilverEA,
+                isColdStart,
+                lastReconcile,
+                eaTradesLen: Array.isArray(eaTrades) ? eaTrades.length : 0,
+                lockVal: reconcileLock[acctKey] || 0,
+                knownTicketsSize: knownTickets[acctKey]?.size || 0,
+            },
 
         }, { headers: corsHeaders() });
 
@@ -738,7 +751,7 @@ Deno.serve(async (req) => {
             }
         } catch (_) { /* never let alert logic break the error response */ }
 
-        return Response.json({ error: error.message, bridge_version: 'v5' }, { status: 500, headers: corsHeaders() });
+        return Response.json({ error: error.message, bridge_version: 'v7' }, { status: 500, headers: corsHeaders() });
     }
 });
 
@@ -1039,79 +1052,89 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         if (closedTickets.has(t.ticket)) return false; // already closed — don't re-create
         return !dbTickets.has(t.ticket);
     });
+
+    // ── OPTIMIZED: Fetch all ACTIVE signals ONCE (not per-trade) ──
+    // Previous code did a Signal.filter inside the create loop for EACH trade (37 calls).
+    // That alone took 7+ seconds and overwhelmed rate limits, causing the reconcile to
+    // never complete before the next heartbeat — so shouldReconcile was always false.
+    let activeSignalMap = new Map(); // pairNorm → signal record
+    if (toCreate.length > 0) {
+        try {
+            const activeSignals = await base44.asServiceRole.entities.Signal.filter({
+                status: 'ACTIVE',
+                owner_email: acctKey,
+            }, '-created_date', 50);
+            for (const s of activeSignals) {
+                const pairNorm = (s.pair || '').replace('/', '').toUpperCase();
+                activeSignalMap.set(pairNorm, s);
+            }
+            console.log('[BRIDGE] Loaded', activeSignals.length, 'ACTIVE signals for trade attribution');
+        } catch (sigErr) {
+            console.warn('[BRIDGE] Active signal fetch error:', sigErr.message);
+        }
+    }
+
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
+        // Use bulkCreate for efficiency — single DB call instead of N calls
+        const tradeRecords = [];
+        const signalsToClose = [];
         for (const t of toCreate) {
             const lockKey = `${acctKey}:${t.ticket}`;
-
-            // Guard: per-ticket create lock (blocks concurrent requests in same isolate)
-            if (ticketCreateLock[lockKey]) {
-                console.log('[BRIDGE] Ticket', t.ticket, 'already being created — skipping');
-                continue;
-            }
+            if (ticketCreateLock[lockKey]) continue;
             ticketCreateLock[lockKey] = true;
+            memTickets.add(t.ticket);
 
-            try {
-                // ── Cross-isolate guard: check DB for this ticket before creating ──
-                // Without this, two isolates can both see memTickets.has()===false and create duplicates
-                const existingWithTicket = await base44.asServiceRole.entities.Trade.filter({ ticket: t.ticket, owner_email: acctKey }, '-created_date', 1);
-                if (existingWithTicket.length > 0) {
-                    console.log('[BRIDGE] Ticket', t.ticket, 'already exists in DB — skipping creation (cross-isolate guard)');
-                    memTickets.add(t.ticket); // mark known so we don't try again
-                    continue;
-                }
-                memTickets.add(t.ticket);
-                const sym = (t.pair || t.symbol || '').replace('/', '');
-                // Use explicit check (> 0) so we don't skip a valid open_price of 0
-                const resolvedPrice = (t.open_price > 0 ? t.open_price : null)
-                    ?? (t.price > 0 ? t.price : null)
-                    ?? livePriceMap[sym]
-                    ?? livePriceMap[(t.pair || t.symbol)]
-                    ?? 0;
+            const sym = (t.pair || t.symbol || '').replace('/', '');
+            const resolvedPrice = (t.open_price > 0 ? t.open_price : null)
+                ?? (t.price > 0 ? t.price : null)
+                ?? livePriceMap[sym]
+                ?? livePriceMap[(t.pair || t.symbol)]
+                ?? 0;
 
-                // Find the matching ACTIVE signal for this account+pair BEFORE creating the trade,
-                // so we can propagate the signal's bot_id onto the trade record for per-bot attribution.
-                let matchedBotId = null;
-                const pairNorm = sym.toUpperCase();
-                try {
-                    const matchingSignals = await base44.asServiceRole.entities.Signal.filter({
-                        status: 'ACTIVE',
-                        owner_email: acctKey,
-                    }, '-created_date', 10);
-                    const matchedSignal = matchingSignals.find(s =>
-                        (s.pair || '').replace('/', '').toUpperCase() === pairNorm
-                    );
-                    if (matchedSignal) {
-                        matchedBotId = matchedSignal.bot_id || null;
-                        await base44.asServiceRole.entities.Signal.update(matchedSignal.id, { status: 'CLOSED' });
-                        console.log('[BRIDGE] Auto-closed signal', matchedSignal.id, 'for', pairNorm, acctKey);
-                    }
-                } catch (sigErr) {
-                    console.warn('[BRIDGE] Signal auto-close error:', sigErr.message);
-                }
+            const pairNorm = sym.toUpperCase();
+            const matchedSignal = activeSignalMap.get(pairNorm);
+            const matchedBotId = matchedSignal?.bot_id || null;
+            if (matchedSignal) {
+                signalsToClose.push(matchedSignal.id);
+            }
 
-                await base44.asServiceRole.entities.Trade.create({
-                    pair: t.pair || t.symbol,
-                    type: t.type || 'BUY',
-                    lot_size: t.lot_size || t.lots || 0.1,
-                    open_price: resolvedPrice,
-                    pnl: t.pnl || t.profit || 0,
-                    status: 'OPEN',
-                    ticket: t.ticket,
-                    is_auto: true,
-                    owner_email: acctKey,
-                    ...(matchedBotId ? { bot_id: matchedBotId } : {}),
-                });
-                createdTickets.push(t.ticket);
-                console.log('[BRIDGE] Created ticket', t.ticket, 'for', acctKey, matchedBotId ? `(bot_id: ${matchedBotId})` : '');
+            tradeRecords.push({
+                pair: t.pair || t.symbol,
+                type: t.type || 'BUY',
+                lot_size: t.lot_size || t.lots || 0.1,
+                open_price: resolvedPrice,
+                pnl: t.pnl || t.profit || 0,
+                status: 'OPEN',
+                ticket: t.ticket,
+                is_auto: true,
+                owner_email: acctKey,
+                ...(matchedBotId ? { bot_id: matchedBotId } : {}),
+            });
+            createdTickets.push(t.ticket);
+        }
 
-                // Small delay between creates to avoid 429 rate limiting
-                await new Promise(r => setTimeout(r, 200));
-            } catch (e) {
-                console.error('[BRIDGE] Trade create error ticket', t.ticket, e.message);
-                memTickets.delete(t.ticket); // unlock so it can retry next cycle
-            } finally {
-                delete ticketCreateLock[lockKey]; // always release lock
+        // Single bulk create call — replaces N individual create calls
+        try {
+            if (tradeRecords.length > 0) {
+                await base44.asServiceRole.entities.Trade.bulkCreate(tradeRecords);
+                console.log('[BRIDGE] Bulk-created', tradeRecords.length, 'trades for', acctKey);
+            }
+            // Close matched signals in a single batch
+            if (signalsToClose.length > 0) {
+                await Promise.all(signalsToClose.map(id =>
+                    base44.asServiceRole.entities.Signal.update(id, { status: 'CLOSED' })
+                )).catch(e => console.warn('[BRIDGE] Signal close error:', e.message));
+                console.log('[BRIDGE] Auto-closed', signalsToClose.length, 'matched signals for', acctKey);
+            }
+        } catch (e) {
+            console.error('[BRIDGE] Bulk create error:', e.message);
+            // On failure, remove from memTickets so they retry next cycle
+            createdTickets.forEach(tkt => memTickets.delete(tkt));
+        } finally {
+            // Release all per-ticket locks
+            for (const t of toCreate) {
+                delete ticketCreateLock[`${acctKey}:${t.ticket}`];
             }
         }
     }
