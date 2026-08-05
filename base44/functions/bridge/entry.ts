@@ -411,7 +411,14 @@ Deno.serve(async (req) => {
             }
         }
 
-        const openPairs = new Set(acctOpenTrades.map(t => (t.pair || '').replace('/', '')));
+        // Build open-pair set from BOTH the DB trades AND the EA's live heartbeat trades.
+        // The EA may have just opened a trade that reconcile hasn't persisted yet — without
+        // including eaTrades here, the bridge would re-dispatch the same ACTIVE signal and
+        // the EA would open a duplicate position on the next heartbeat.
+        const openPairs = new Set([
+            ...acctOpenTrades.map(t => (t.pair || '').replace('/', '').toUpperCase()),
+            ...(eaTrades || []).map(t => ((t.pair || t.symbol || '').replace('/', '').toUpperCase()))
+        ]);
 
         // Load running bot configs for trading-hours enforcement at dispatch time
         let botConfigMap = {}; // bot_id → bot config (for trading hours check)
@@ -484,9 +491,18 @@ Deno.serve(async (req) => {
                         console.log(`[BRIDGE] Silver EA skipping manual non-Silver signal ${pairRaw}`);
                         return false;
                     }
+                    // Don't re-dispatch a manual signal if a trade on this pair is already open
+                    // (either in the DB or on the EA's live heartbeat). Manual signals bypass the
+                    // per-pair COOLDOWN so the user can fire one quickly, but they must NOT bypass
+                    // the duplicate guard — otherwise the EA opens a duplicate on every heartbeat
+                    // until the reconcile closes the ACTIVE signal.
+                    if (openPairs.has(pairRaw.toUpperCase())) {
+                        console.log(`[BRIDGE] Manual signal for ${pairRaw} skipped — trade already open on ${acctKey}`);
+                        return false;
+                    }
                     if (dispatchedPairsThisCycle.has(`manual:${pairRaw}`)) return false;
                     dispatchedPairsThisCycle.add(`manual:${pairRaw}`);
-                    console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown/open-pair checks (routed to ${isGoldEA ? 'Gold' : isSilverEA ? 'Silver' : 'standard'} EA)`);
+                    console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown (routed to ${isGoldEA ? 'Gold' : isSilverEA ? 'Silver' : 'standard'} EA)`);
                     return true;
                 }
 
@@ -523,7 +539,7 @@ Deno.serve(async (req) => {
                     if (ownerEmail && s.created_by && s.created_by !== ownerEmail) return false;
                 }
                 // Skip if a trade on this pair is already open on this account
-                if (openPairs.has(pairRaw)) return false;
+                if (openPairs.has(pairRaw.toUpperCase())) return false;
                 // Skip if we already queued a signal for this pair this heartbeat cycle
                 if (dispatchedPairsThisCycle.has(pairRaw)) return false;
                 // Cooldown: only block PENDING signals from rapid re-dispatch.
