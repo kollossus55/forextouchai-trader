@@ -693,8 +693,10 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
+            bridge_version: 'v7d',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
+            _deploy_check: 'v7d_active',
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
             close_commands: closeCommands,
@@ -751,7 +753,7 @@ Deno.serve(async (req) => {
             }
         } catch (_) { /* never let alert logic break the error response */ }
 
-        return Response.json({ error: error.message, bridge_version: 'v7' }, { status: 500, headers: corsHeaders() });
+        return Response.json({ error: error.message, bridge_version: 'v7d' }, { status: 500, headers: corsHeaders() });
     }
 });
 
