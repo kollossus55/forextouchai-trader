@@ -25,7 +25,9 @@ const cache = {
 const knownTickets = {}; // keyed by account_number → Set<ticket>
 
 // Per-account reconcile lock: prevents concurrent reconcile runs within same isolate
-const reconcileLock = {}; // keyed by account_number → boolean
+// Stores timestamp when locked — auto-released after RECONCILE_LOCK_TIMEOUT_MS to prevent stuck locks
+const reconcileLock = {}; // keyed by account_number → timestamp (0 = unlocked)
+const RECONCILE_LOCK_TIMEOUT_MS = 90_000; // 90s max — reconcile should finish in <30s
 
 // Cold-start init: first reconcile per isolate per account loads all tickets from DB.
 // All concurrent requests await the SAME promise — prevents any races.
@@ -74,7 +76,7 @@ function isFresh(entry, ttl) {
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
-// v3: fixed globalRisk reference + ACTIVE signal cooldown bypass + redeploy trigger
+// v5: removed fire-and-forget reconcile (stuck lock root cause) + DB-backed create filter + auto-flag duplicates
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders() });
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
         const authHeader = req.headers.get('Authorization') || '';
         const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim();
         if (!providedKey || !providedKey.startsWith('FTAI-')) {
-            return Response.json({ error: 'Missing or invalid API key' }, { status: 401, headers: corsHeaders() });
+            return Response.json({ error: 'Missing or invalid API key', bridge_version: 'v5' }, { status: 401, headers: corsHeaders() });
         }
         let resolvedOwnerEmail = null;
         // Lookup the EaApiKey record to get the owner_email for this key
@@ -199,18 +201,6 @@ Deno.serve(async (req) => {
         const rateLimitInterval = (isGoldEA || isSilverEA) ? 15_000 : MIN_CALL_INTERVAL_MS;
         const lastCall = lastCallTs[rateLimitKey] || 0;
         const isRateLimited = (now - lastCall) < rateLimitInterval;
-
-        // Always run trade reconcile even when rate-limited — trade sync must not be blocked
-        const eaTradesEarly = body.trades || acct.trades;
-        const eaPricesEarly = body.prices || acct.prices;
-        const livePriceMapEarly = buildPriceMap(eaTradesEarly?.length ? eaPricesEarly : []);
-        const isColdStartEarly = !knownTickets[acctKey];
-        if (isRateLimited && !isGoldEA && !isSilverEA && Array.isArray(eaTradesEarly) && !reconcileLock[acctKey] && (isColdStartEarly || eaTradesEarly.length > 0)) {
-            reconcileLock[acctKey] = true;
-            reconcileTrades(base44, eaTradesEarly, acctKey, livePriceMapEarly)
-                .catch(e => console.error('[BRIDGE] Rate-limited reconcile error:', e.message))
-                .finally(() => { reconcileLock[acctKey] = false; });
-        }
 
         if (isRateLimited) {
             if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
@@ -331,12 +321,17 @@ Deno.serve(async (req) => {
         const lastReconcile = body.last_reconcile || 0;
         // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
         const isColdStart = !knownTickets[acctKey];
+        // Auto-release stuck reconcile locks (safety net — should never trigger with awaited reconcile)
+        if (reconcileLock[acctKey] && (now - reconcileLock[acctKey]) > RECONCILE_LOCK_TIMEOUT_MS) {
+            console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (held ${Math.floor((now - reconcileLock[acctKey])/1000)}s)`);
+            reconcileLock[acctKey] = 0;
+        }
         const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         if (shouldReconcile) {
-            reconcileLock[acctKey] = true;
+            reconcileLock[acctKey] = now;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
-                .finally(() => { reconcileLock[acctKey] = false; });
+                .finally(() => { reconcileLock[acctKey] = 0; });
         }
 
         // ── 4. Update currency pair prices (throttled, cached pair map) ──────
@@ -743,7 +738,7 @@ Deno.serve(async (req) => {
             }
         } catch (_) { /* never let alert logic break the error response */ }
 
-        return Response.json({ error: error.message, bridge_version: 'v3' }, { status: 500, headers: corsHeaders() });
+        return Response.json({ error: error.message, bridge_version: 'v5' }, { status: 500, headers: corsHeaders() });
     }
 });
 
@@ -959,7 +954,6 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             { owner_email: acctKey, status: 'OPEN' }, '-created_date', 500
         );
         const seenTickets = {};
-        const seenPairType = {}; // key: "pair:type" → earliest created_date record
         const toDelete = new Set();
         // First pass: dedup by ticket
         for (const t of allAcctTrades) {
@@ -970,29 +964,9 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 seenTickets[t.ticket] = true;
             }
         }
-        // Second pass: dedup by pair+type within 60 seconds (catches manual trade double-fires)
-        for (const t of allAcctTrades) {
-            if (toDelete.has(t.id)) continue; // already flagged
-            const key = `${(t.pair||'').replace('/','').toUpperCase()}:${t.type}`;
-            if (seenPairType[key]) {
-                const existing = seenPairType[key];
-                const diff = Math.abs(new Date(t.created_date).getTime() - new Date(existing.created_date).getTime());
-                if (diff < 60_000) {
-                    // Keep the one with the higher ticket number (more recent MT4 order), delete the other
-                    if ((t.ticket || 0) < (existing.ticket || 0)) {
-                        toDelete.add(t.id);
-                    } else {
-                        toDelete.add(existing.id);
-                        seenPairType[key] = t;
-                    }
-                    console.log(`[BRIDGE] Dedup pair+type: removing duplicate ${key} opened within 60s`);
-                } else {
-                    // Not a duplicate — keep both (different trades on same pair at different times)
-                }
-            } else {
-                seenPairType[key] = t;
-            }
-        }
+        // NOTE: pair+type dedup removed — it was deleting legitimate broker trades from the DB,
+        // causing the DB to diverge from the broker. Duplicate broker positions are now managed
+        // by flagging the extras for closure (close_requested), not by deleting DB records.
         if (toDelete.size > 0) {
             console.log('[BRIDGE] Dedup: removing', toDelete.size, 'duplicate trade records for', acctKey);
             await Promise.all([...toDelete].map(id => base44.asServiceRole.entities.Trade.delete(id)));
@@ -1054,21 +1028,23 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
         console.warn('[BRIDGE] Closed ticket fetch error:', e.message);
     }
 
+    // Use DB-backed set (not memTickets) for the create filter — memTickets retains tickets
+    // from trades that were deleted from the DB, which would prevent re-creating broker
+    // positions that legitimately exist but were cleaned up. This keeps the DB in sync with
+    // the broker: any EA ticket not in the DB gets created.
+    const dbTickets = new Set(existingDbTrades.map(t => t.ticket).filter(Boolean));
     const createdTickets = [];
     const toCreate = eaTrades.filter(t => {
         if (!t.ticket || !(t.pair || t.symbol)) return false;
         if (closedTickets.has(t.ticket)) return false; // already closed — don't re-create
-        return !memTickets.has(t.ticket);
+        return !dbTickets.has(t.ticket);
     });
     if (toCreate.length > 0) {
         console.log('[BRIDGE] Creating', toCreate.length, 'new trades for', acctKey);
         for (const t of toCreate) {
             const lockKey = `${acctKey}:${t.ticket}`;
 
-            // Guard 1: in-memory ticket set (fast path)
-            if (memTickets.has(t.ticket)) continue;
-
-            // Guard 2: per-ticket create lock (blocks concurrent requests in same isolate)
+            // Guard: per-ticket create lock (blocks concurrent requests in same isolate)
             if (ticketCreateLock[lockKey]) {
                 console.log('[BRIDGE] Ticket', t.ticket, 'already being created — skipping');
                 continue;
@@ -1170,6 +1146,41 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             return base44.asServiceRole.entities.Trade.update(t.id, patch);
         })).catch(e => console.warn('[BRIDGE] PnL update error:', e.message));
         if (i + 2 < toUpdatePnl.length) await new Promise(r => setTimeout(r, 150));
+    }
+
+    // ── Detect duplicate positions on same pair+type and flag extras for closure ──
+    // The EA may have multiple open positions on the same pair (from before the duplicate fix).
+    // Keep the one with the highest ticket number (most recent), flag the rest for closing.
+    // Only considers trades still open on the broker (in eaTicketSet).
+    try {
+        const allOpenForDedup = await base44.asServiceRole.entities.Trade.filter(
+            { status: 'OPEN', owner_email: acctKey }, '-created_date', 500
+        );
+        const pairTypeMap = {};
+        for (const t of allOpenForDedup) {
+            if (!t.ticket || !eaTicketSet.has(t.ticket)) continue;
+            const key = `${(t.pair||'').replace('/','').toUpperCase()}:${t.type}`;
+            if (!pairTypeMap[key]) pairTypeMap[key] = [];
+            pairTypeMap[key].push(t);
+        }
+        const toFlagClose = [];
+        for (const [key, trades] of Object.entries(pairTypeMap)) {
+            if (trades.length <= 1) continue;
+            trades.sort((a, b) => (b.ticket || 0) - (a.ticket || 0));
+            const extras = trades.slice(1).filter(t => !t.close_requested);
+            if (extras.length > 0) {
+                console.log(`[BRIDGE] Duplicate positions on ${key}: keeping ticket ${trades[0].ticket}, flagging ${extras.length} for close`);
+                toFlagClose.push(...extras);
+            }
+        }
+        if (toFlagClose.length > 0) {
+            console.log('[BRIDGE]', acctKey, '→ flagging', toFlagClose.length, 'duplicate position(s) for close');
+            await Promise.all(toFlagClose.map(t =>
+                base44.asServiceRole.entities.Trade.update(t.id, { close_requested: true })
+            )).catch(e => console.warn('[BRIDGE] Duplicate flag error:', e.message));
+        }
+    } catch (e) {
+        console.warn('[BRIDGE] Duplicate detection error:', e.message);
     }
 
     // ── Close trades no longer in EA ─────────────────────────────────────────
