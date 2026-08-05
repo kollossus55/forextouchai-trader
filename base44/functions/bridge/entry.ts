@@ -220,6 +220,7 @@ Deno.serve(async (req) => {
                 retry_after_ms: rateLimitInterval - (now - lastCall),
                 heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
                 pending_signals: [],
+                _debug: { isGoldEA, isSilverEA, rateLimitKey, rateLimitInterval, eaPricesRawLen: eaPricesRaw?.length, eaPricesRawSymbol: eaPricesRaw?.[0]?.symbol, normSym: eaPricesRaw?.[0] ? _normSym(eaPricesRaw[0].symbol) : null },
             }, { status: 200, headers: corsHeaders() });
         }
         lastCallTs[rateLimitKey] = now;
@@ -389,6 +390,10 @@ Deno.serve(async (req) => {
 
         // Only do the expensive open-trades + connection lookup if there are actually signals to dispatch
         const candidateSignals = (allPendingSignals || []).filter(s => s.created_date >= thirtyMinAgo);
+        console.log(`[BRIDGE] ${acctKey} isGoldEA=${isGoldEA} isSilverEA=${isSilverEA} allPending=${(allPendingSignals||[]).length} candidates=${candidateSignals.length} scheduleOff=${scheduleOffNow} blockAuto=${blockAutoSignals}`);
+        if (candidateSignals.length > 0) {
+            console.log(`[BRIDGE] ${acctKey} candidate signals:`, candidateSignals.map(s => ({id: s.id, pair: s.pair, status: s.status, strat: s.strategy, owner: s.owner_email, created: s.created_date})));
+        }
 
         let acctOpenTrades = [];
         let ownerEmail = null;
@@ -552,6 +557,7 @@ Deno.serve(async (req) => {
                 return true;
             })
             .slice(0, 5);
+        console.log(`[BRIDGE] ${acctKey} freshSignals=${freshSignals.length}`, freshSignals.map(s => ({id: s.id, pair: s.pair, status: s.status})));
 
         // Lock PENDING signals to ACTIVE before returning — skip ones already ACTIVE
         // Also register all dispatched IDs immediately to block any concurrent/rapid re-dispatch
@@ -672,6 +678,16 @@ Deno.serve(async (req) => {
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
             close_commands: closeCommands,
+            _debug: {
+                isGoldEA, isSilverEA, scheduleOffNow, blockAutoSignals,
+                allPendingCount: (allPendingSignals || []).length,
+                candidateCount: candidateSignals.length,
+                candidateIds: candidateSignals.map(s => ({ id: s.id, pair: s.pair, status: s.status, strat: s.strategy, owner: s.owner_email, created: s.created_date })),
+                freshCount: freshSignals.length,
+                freshIds: freshSignals.map(s => ({ id: s.id, pair: s.pair, status: s.status })),
+                openPairs: [...openPairs],
+                dispatchedInSet: [...dispatchedSignalIds].slice(-10),
+            },
         }, { headers: corsHeaders() });
 
     } catch (error) {
