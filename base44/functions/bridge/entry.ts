@@ -191,8 +191,12 @@ Deno.serve(async (req) => {
         }, 30_000);
 
         // ── Rate limit: reject if called too frequently ───────────────────────
+        // Gold/Silver EAs are lightweight (1 price, no reconcile) and heartbeats every 30s.
+        // The 45s standard rate limit would block them on every other heartbeat, preventing
+        // signal dispatch. Use a shorter 20s interval for Gold/Silver so they're never blocked.
+        const rateLimitInterval = (isGoldEA || isSilverEA) ? 20_000 : MIN_CALL_INTERVAL_MS;
         const lastCall = lastCallTs[rateLimitKey] || 0;
-        const isRateLimited = (now - lastCall) < MIN_CALL_INTERVAL_MS;
+        const isRateLimited = (now - lastCall) < rateLimitInterval;
 
         // Always run trade reconcile even when rate-limited — trade sync must not be blocked
         const eaTradesEarly = body.trades || acct.trades;
@@ -212,7 +216,7 @@ Deno.serve(async (req) => {
                 success: true,
                 account: acctKey,
                 message: 'rate_limited',
-                retry_after_ms: MIN_CALL_INTERVAL_MS - (now - lastCall),
+                retry_after_ms: rateLimitInterval - (now - lastCall),
                 heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
                 pending_signals: [],
             }, { status: 200, headers: corsHeaders() });
