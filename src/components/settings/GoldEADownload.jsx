@@ -143,7 +143,7 @@ void SendHeartbeat() {
     if (res == 403) { Print("[GoldEA MT5] ERROR 403: Invalid ApiKey."); return; }
 
     string response = CharArrayToString(result);
-    Print("[GoldEA MT5] Response: ", StringSubstr(response, 0, 200));
+    Print("[GoldEA MT5] Response: ", StringSubstr(response, 0, 500));
     ProcessSignals(response);
     ProcessCloseCommands(response);
 }
@@ -162,13 +162,14 @@ int CountOpenGoldTrades() {
 
 void ProcessSignals(string json) {
     int start = StringFind(json, "\\"pending_signals\\"");
-    if (start == -1) return;
+    if (start == -1) { Print("[GoldEA MT5] No pending_signals key in response"); return; }
     start = StringFind(json, "[", start);
     if (start == -1) return;
     int end = StringFind(json, "]", start);
     if (end == -1) return;
     string arr = StringSubstr(json, start + 1, end - start - 1);
-    if (StringLen(arr) < 5) return;
+    if (StringLen(arr) < 5) { Print("[GoldEA MT5] pending_signals array is empty"); return; }
+    Print("[GoldEA MT5] Found pending_signals, parsing...");
     int pos = 0;
     while (pos < StringLen(arr)) {
         if (MaxGoldTrades > 0 && CountOpenGoldTrades() >= MaxGoldTrades) {
@@ -182,6 +183,7 @@ void ProcessSignals(string json) {
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
         string sigPairNorm = StringReplace(sigPair, "/", "");
+        Print("[GoldEA MT5] Signal pair='", sigPair, "' normalized='", sigPairNorm, "' vs GoldSymbol='", GoldSymbol, "' match=", sigPairNorm == GoldSymbol);
         if (sigPairNorm == GoldSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }

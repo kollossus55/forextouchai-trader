@@ -143,7 +143,7 @@ void SendHeartbeat() {
     if (res == 403) { Print("[SilverEA MT5] ERROR 403: Invalid ApiKey."); return; }
 
     string response = CharArrayToString(result);
-    Print("[SilverEA MT5] Response: ", StringSubstr(response, 0, 200));
+    Print("[SilverEA MT5] Response: ", StringSubstr(response, 0, 500));
     ProcessSignals(response);
     ProcessCloseCommands(response);
 }
@@ -162,13 +162,14 @@ int CountOpenSilverTrades() {
 
 void ProcessSignals(string json) {
     int start = StringFind(json, "\\"pending_signals\\"");
-    if (start == -1) return;
+    if (start == -1) { Print("[SilverEA MT5] No pending_signals key in response"); return; }
     start = StringFind(json, "[", start);
     if (start == -1) return;
     int end = StringFind(json, "]", start);
     if (end == -1) return;
     string arr = StringSubstr(json, start + 1, end - start - 1);
-    if (StringLen(arr) < 5) return;
+    if (StringLen(arr) < 5) { Print("[SilverEA MT5] pending_signals array is empty"); return; }
+    Print("[SilverEA MT5] Found pending_signals, parsing...");
     int pos = 0;
     while (pos < StringLen(arr)) {
         if (MaxSilverTrades > 0 && CountOpenSilverTrades() >= MaxSilverTrades) {
@@ -182,6 +183,7 @@ void ProcessSignals(string json) {
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
         string sigPairNorm = StringReplace(sigPair, "/", "");
+        Print("[SilverEA MT5] Signal pair='", sigPair, "' normalized='", sigPairNorm, "' vs SilverSymbol='", SilverSymbol, "' match=", sigPairNorm == SilverSymbol);
         if (sigPairNorm == SilverSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
