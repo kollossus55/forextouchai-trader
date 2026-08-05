@@ -47,6 +47,16 @@ const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 const pairDispatchCooldown = {}; // e.g. { "1511587:EURUSD": 1716200000000 }
 const PAIR_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes (reduced from 10 to allow faster retry after expiry)
 
+// Close-command resend tracker: once a close command is sent for a ticket, don't
+// resend it for CLOSE_RESEND_COOLDOWN_MS. This prevents the EA from receiving
+// duplicate close commands every heartbeat for tickets that are flagged
+// close_requested. If the ticket closes (SL/TP) before the EA processes the
+// command, the ticket disappears from the next heartbeat → bridge auto-closes
+// the DB record → no resend. Without this cooldown, the EA gets the same close
+// command every 30s and spams "ticket not found" errors.
+const sentCloseTickets = {}; // keyed by "acctKey:ticket" → timestamp of last send
+const CLOSE_RESEND_COOLDOWN_MS = 60_000; // 60 seconds between close-command resends per ticket
+
 // ─── Throttle config ─────────────────────────────────────────────────────────
 const TTL = {
     signals:    10_000,  // 10s  — short TTL so expired signals clear fast
@@ -221,6 +231,11 @@ Deno.serve(async (req) => {
         const cutoff = now - PAIR_COOLDOWN_MS * 2;
         for (const key of Object.keys(pairDispatchCooldown)) {
             if (pairDispatchCooldown[key] < cutoff) delete pairDispatchCooldown[key];
+        }
+        // Clean sentCloseTickets entries older than the resend cooldown window
+        const closeCutoff = now - CLOSE_RESEND_COOLDOWN_MS * 2;
+        for (const key of Object.keys(sentCloseTickets)) {
+            if (sentCloseTickets[key] < closeCutoff) delete sentCloseTickets[key];
         }
 
         // Build live price map from EA heartbeat
@@ -584,22 +599,35 @@ Deno.serve(async (req) => {
             );
             // Build set of tickets the EA is currently reporting as open
             const eaOpenTickets = new Set((eaTrades || []).map(t => t.ticket).filter(Boolean));
+            // Only send close commands for tickets the EA reports as open AND that
+            // haven't been sent recently (cooldown prevents duplicate close commands
+            // that cause "ticket not found" spam when the position hits SL/TP between
+            // the heartbeat and the EA's OrderClose attempt).
             closeCommands = (closeReqTrades || [])
                 .filter(t => t.ticket && eaOpenTickets.has(t.ticket))
-                .map(t => ({ ticket: t.ticket, pair: t.pair || '' }));
+                .filter(t => {
+                    const key = `${acctKey}:${t.ticket}`;
+                    const lastSent = sentCloseTickets[key] || 0;
+                    return (now - lastSent) >= CLOSE_RESEND_COOLDOWN_MS;
+                })
+                .map(t => {
+                    sentCloseTickets[`${acctKey}:${t.ticket}`] = now;
+                    return { ticket: t.ticket, pair: t.pair || '' };
+                });
 
             // Auto-close DB trades flagged close_requested but no longer on the broker —
             // the position is already gone, so the close command would fail with 4108.
             const staleCloseFlags = (closeReqTrades || []).filter(t => t.ticket && !eaOpenTickets.has(t.ticket));
             if (staleCloseFlags.length > 0) {
                 console.log('[BRIDGE]', acctKey, '→ auto-closing', staleCloseFlags.length, 'stale close_requested trade(s) (ticket gone from broker)');
-                await Promise.all(staleCloseFlags.map(t =>
-                    base44.asServiceRole.entities.Trade.update(t.id, {
+                await Promise.all(staleCloseFlags.map(t => {
+                    delete sentCloseTickets[`${acctKey}:${t.ticket}`]; // clear cooldown tracker
+                    return base44.asServiceRole.entities.Trade.update(t.id, {
                         status: 'CLOSED',
                         close_price: t.close_price || 0,
                         pnl: t.pnl || 0,
-                    }).catch(e => console.warn('[BRIDGE] Stale close cleanup error:', e.message))
-                ));
+                    }).catch(e => console.warn('[BRIDGE] Stale close cleanup error:', e.message));
+                }));
             }
 
             if (closeCommands.length > 0) {
