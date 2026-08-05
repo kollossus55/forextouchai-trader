@@ -5,9 +5,10 @@ const SILVER_EA_MT5_CODE = `//+-------------------------------------------------
 //|                                 SilverForexTouchAI_EA.mq5        |
 //|        Dedicated Silver (XAGUSD) EA for ForexTouchAI (MT5)       |
 //|   Uses MagicNumber 88888 - SEPARATE from Gold (99999) & std EA  |
+//|   v1.01: Added broker filling mode detection (fixes error 10030) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -36,7 +37,12 @@ int OnInit() {
         Print("[SilverEA MT5] WARNING: Symbol '", SilverSymbol, "' not in Market Watch. Add it.");
     trade.SetExpertMagicNumber(MagicNumber);
     trade.SetDeviationInPoints(Slippage);
-    Print("[SilverEA MT5] Silver EA v1.00 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber);
+    // Detect and set the correct filling mode for the broker (fixes "Unsupported filling mode" error 10030)
+    long fillFlags = SymbolInfoInteger(SilverSymbol, SYMBOL_FILLING_MODE);
+    if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
+    else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
+    else trade.SetTypeFilling(ORDER_FILLING_RETURN);
+    Print("[SilverEA MT5] Silver EA v1.01 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }

@@ -5,9 +5,10 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 //|                                  GoldForexTouchAI_EA.mq5        |
 //|         Dedicated Gold (XAUUSD) EA for ForexTouchAI (MT5)       |
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)    |
+//|   v1.02: Added broker filling mode detection (fixes error 10030)|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -36,7 +37,12 @@ int OnInit() {
         Print("[GoldEA MT5] WARNING: Symbol '", GoldSymbol, "' not in Market Watch. Add it.");
     trade.SetExpertMagicNumber(MagicNumber);
     trade.SetDeviationInPoints(Slippage);
-    Print("[GoldEA MT5] Gold EA v1.01 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
+    // Detect and set the correct filling mode for the broker (fixes "Unsupported filling mode" error 10030)
+    long fillFlags = SymbolInfoInteger(GoldSymbol, SYMBOL_FILLING_MODE);
+    if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
+    else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
+    else trade.SetTypeFilling(ORDER_FILLING_RETURN);
+    Print("[GoldEA MT5] Gold EA v1.02 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }

@@ -193,8 +193,9 @@ Deno.serve(async (req) => {
         // ── Rate limit: reject if called too frequently ───────────────────────
         // Gold/Silver EAs are lightweight (1 price, no reconcile) and heartbeats every 30s.
         // The 45s standard rate limit would block them on every other heartbeat, preventing
-        // signal dispatch. Use a shorter 20s interval for Gold/Silver so they're never blocked.
-        const rateLimitInterval = (isGoldEA || isSilverEA) ? 20_000 : MIN_CALL_INTERVAL_MS;
+        // signal dispatch. Use a shorter 15s interval for Gold/Silver so they're never blocked.
+        // v2: reduced from 20s to 15s to ensure dispatch on every heartbeat.
+        const rateLimitInterval = (isGoldEA || isSilverEA) ? 15_000 : MIN_CALL_INTERVAL_MS;
         const lastCall = lastCallTs[rateLimitKey] || 0;
         const isRateLimited = (now - lastCall) < rateLimitInterval;
 
