@@ -49,6 +49,29 @@ Deno.serve(async (req) => {
                 continue;
             }
 
+            // ── Ghost-trade cleanup: auto-close trades flagged close_requested ──
+            // The bridge's close-command logic only runs during EA heartbeats, so
+            // if the EA is offline these trades stay OPEN forever even though the
+            // position is already gone from the broker (hit SL/TP or was flattened
+            // by the schedule OFF event before the EA disconnected).
+            try {
+                const ghostTrades = await base44.asServiceRole.entities.Trade.filter(
+                    { status: 'OPEN', owner_email: acctKey, close_requested: true }, '-created_date', 100
+                );
+                if (ghostTrades.length > 0) {
+                    console.log(`[WATCHDOG] Auto-closing ${ghostTrades.length} ghost trade(s) for ${acctKey} (EA offline ${silenceMinutes}m)`);
+                    await Promise.all(ghostTrades.map(t =>
+                        base44.asServiceRole.entities.Trade.update(t.id, {
+                            status: 'CLOSED',
+                            close_price: t.close_price || 0,
+                            pnl: t.pnl || 0,
+                        }).catch(e => console.warn('[WATCHDOG] Ghost close error:', e.message))
+                    ));
+                }
+            } catch (e) {
+                console.warn('[WATCHDOG] Ghost-trade cleanup error:', e.message);
+            }
+
             // Throttle: skip if we already alerted within the last hour
             const lastAlert = lastAlertTs[acctKey] || 0;
             if (now - lastAlert < ALERT_THROTTLE_MS) {
