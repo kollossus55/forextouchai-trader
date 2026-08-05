@@ -74,6 +74,7 @@ function isFresh(entry, ttl) {
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
+// v3: fixed globalRisk reference + ACTIVE signal cooldown bypass + redeploy trigger
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders() });
@@ -352,7 +353,7 @@ Deno.serve(async (req) => {
         // Find account-specific risk settings first, fall back to global (no account_number)
         const accountRisk = (riskSettingsList || []).find(r => r.account_number === acctKey) || null;
         const globalRiskRec = (riskSettingsList || []).find(r => !r.account_number) || null;
-        const riskSettings = accountRisk || globalRisk;
+        const riskSettings = accountRisk || globalRiskRec;
         const lastRiskCheck = body.last_risk_check || 0;
 
         // ── Global trading schedule: account overrides global default ──
@@ -726,7 +727,7 @@ Deno.serve(async (req) => {
             }
         } catch (_) { /* never let alert logic break the error response */ }
 
-        return Response.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+        return Response.json({ error: error.message, bridge_version: 'v3' }, { status: 500, headers: corsHeaders() });
     }
 });
 
