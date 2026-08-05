@@ -155,6 +155,27 @@ export default function SignalSettingsPanel({ open, onOpenChange }) {
 
           <Separator className="bg-slate-800" />
 
+          {/* Min Indicator Agreement — trade validation gate */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-200">Min Indicator Agreement</Label>
+              <span className="text-xs text-emerald-400 font-mono">
+                {settings.minIndicatorAgreement ?? 3} indicator{(settings.minIndicatorAgreement ?? 3) !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <Slider
+              value={[settings.minIndicatorAgreement ?? 3]}
+              min={1} max={6} step={1}
+              onValueChange={([v]) => update({ minIndicatorAgreement: v })}
+              className="py-2"
+            />
+            <p className="text-[11px] text-slate-500">
+              Minimum number of indicators that must agree on a direction before a manual trade is allowed in the Pairs tab. Blocks execution below this threshold.
+            </p>
+          </div>
+
+          <Separator className="bg-slate-800" />
+
           {/* Advanced: factor weights & enables */}
           <div className="space-y-3">
             <button

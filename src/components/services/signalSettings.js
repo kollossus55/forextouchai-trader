@@ -10,6 +10,7 @@ export const DEFAULT_SIGNAL_SETTINGS = {
   minLockConfidence: 60,         // only lock confluence-backed signals
   recalcInterval: 15,            // recompute every 15s for responsiveness
   topPickConfidence: 70,         // min AI confidence for a pair to qualify as a Top Pick
+  minIndicatorAgreement: 3,     // min number of indicators that must agree on direction to validate a manual trade
   factors: {
     // Trend confirmation is the strongest, most reliable driver for forex pairs.
     emaCross:   { weight: 25, enabled: true },   // primary EMA20/50 trend signal

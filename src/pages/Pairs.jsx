@@ -296,6 +296,14 @@ export default function Pairs() {
     }
   };
 
+  // Count how many indicators agree on a given direction from the factors array
+  const getIndicatorAgreement = (pairId, direction) => {
+    const factors = pairFactors[pairId] || [];
+    const agreeing = factors.filter(f => f.direction === direction);
+    const opposing = factors.filter(f => f.direction && f.direction !== 'NEUTRAL' && f.direction !== direction);
+    return { agreeing: agreeing.length, opposing: opposing.length, names: agreeing.map(f => f.name) };
+  };
+
   const getManualPipSize = (symbol) => {
     const s = (symbol || '').replace('/', '').toUpperCase();
     return s.includes('JPY') ? 0.01 : 0.0001;
@@ -319,6 +327,15 @@ export default function Pairs() {
 
   const executeTrade = () => {
     if (!selectedPair) return;
+    const minAgree = signalSettings.minIndicatorAgreement ?? 3;
+    const { agreeing } = getIndicatorAgreement(selectedPair.id, tradeType);
+    if (agreeing < minAgree) {
+      toast.error('Trade Blocked — Insufficient Confluence', {
+        description: `Only ${agreeing} of ${minAgree} required indicators agree ${tradeType} on ${selectedPair.symbol}.`,
+        duration: 5000
+      });
+      return;
+    }
     const { slPrice, tpPrice, executionPrice } = calcSLTP();
 
     // Warn (but allow) if trading against AI signal direction
@@ -587,6 +604,35 @@ export default function Pairs() {
                 </div>
               );
             })()}
+            {/* Indicator Confluence Validation */}
+            {selectedPair && (() => {
+              const minAgree = signalSettings.minIndicatorAgreement ?? 3;
+              const { agreeing, opposing, names } = getIndicatorAgreement(selectedPair.id, tradeType);
+              const passes = agreeing >= minAgree;
+              return (
+                <div className={`rounded-lg px-3 py-2.5 flex items-start gap-2.5 border text-sm ${
+                  passes ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/40 text-rose-300'
+                }`}>
+                  {passes ? <ShieldCheck className="w-4 h-4 mt-0.5 text-emerald-400 shrink-0" /> : <ShieldAlert className="w-4 h-4 mt-0.5 text-rose-400 shrink-0" />}
+                  <div className="flex-1">
+                    <div className="font-semibold">
+                      {passes
+                        ? `Confluence Validated: ${agreeing} indicators agree ${tradeType}`
+                        : `Insufficient Confluence: ${agreeing}/${minAgree} indicators agree ${tradeType}`}
+                    </div>
+                    <div className="text-xs mt-0.5 opacity-75">
+                      {names.length > 0 ? names.join(' · ') : 'No indicators aligned with this direction'}
+                      {opposing > 0 && ` · ${opposing} opposing`}
+                    </div>
+                    {!passes && (
+                      <div className="text-xs mt-1 text-rose-400 font-semibold">
+                        Trade blocked — need at least {minAgree} indicators to agree {tradeType}.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Account selector */}
             {connections && connections.length > 0 && (
               <div className="grid grid-cols-4 items-start gap-4">
@@ -689,13 +735,15 @@ export default function Pairs() {
               Cancel
             </Button>
             {(() => {
+              const minAgree = signalSettings.minIndicatorAgreement ?? 3;
+              const confluencePasses = selectedPair && getIndicatorAgreement(selectedPair.id, tradeType).agreeing >= minAgree;
               return (
                 <Button 
                   onClick={executeTrade}
-                  disabled={selectedAccounts.length === 0 || sendSignal.isPending}
+                  disabled={selectedAccounts.length === 0 || sendSignal.isPending || !confluencePasses}
                   className={tradeType === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40' : 'bg-rose-600 hover:bg-rose-700 disabled:opacity-40'}
                 >
-                  {sendSignal.isPending ? 'Sending...' : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
+                  {sendSignal.isPending ? 'Sending...' : !confluencePasses ? `Need ${minAgree} indicators` : tradeType === 'BUY' ? 'Buy by Market' : 'Sell by Market'}
                 </Button>
               );
             })()}
