@@ -452,12 +452,31 @@ Deno.serve(async (req) => {
                     return false;
                 }
 
-                // Manual signals: only check account targeting and per-cycle dedup — bypass cooldown & open-pair checks
+                // Manual signals: bypass cooldown & open-pair checks, but STILL respect Gold/Silver EA routing
+                // (standard EA filters out Gold symbols in MQL4, so a manual Gold signal must go to the Gold EA)
                 if (isManual) {
                     if (s.owner_email && s.owner_email !== acctKey) return false;
+                    const isGoldPairM = ['XAUUSD', 'GOLD', 'XAU'].includes(pairRaw.toUpperCase());
+                    const isSilverPairM = ['XAGUSD', 'SILVER', 'XAG'].includes(pairRaw.toUpperCase());
+                    if (isGoldPairM && !isGoldEA) {
+                        console.log(`[BRIDGE] Skipping manual Gold signal for standard EA — Gold EA handles XAUUSD`);
+                        return false;
+                    }
+                    if (isSilverPairM && !isSilverEA) {
+                        console.log(`[BRIDGE] Skipping manual Silver signal for ${isGoldEA ? 'Gold' : 'standard'} EA — Silver EA handles XAGUSD`);
+                        return false;
+                    }
+                    if (isGoldEA && !isGoldPairM) {
+                        console.log(`[BRIDGE] Gold EA skipping manual non-Gold signal ${pairRaw}`);
+                        return false;
+                    }
+                    if (isSilverEA && !isSilverPairM) {
+                        console.log(`[BRIDGE] Silver EA skipping manual non-Silver signal ${pairRaw}`);
+                        return false;
+                    }
                     if (dispatchedPairsThisCycle.has(`manual:${pairRaw}`)) return false;
                     dispatchedPairsThisCycle.add(`manual:${pairRaw}`);
-                    console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown/open-pair checks`);
+                    console.log(`[BRIDGE] Manual signal for ${pairRaw} — bypassing cooldown/open-pair checks (routed to ${isGoldEA ? 'Gold' : isSilverEA ? 'Silver' : 'standard'} EA)`);
                     return true;
                 }
 
