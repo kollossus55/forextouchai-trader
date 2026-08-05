@@ -220,7 +220,6 @@ Deno.serve(async (req) => {
                 retry_after_ms: rateLimitInterval - (now - lastCall),
                 heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,
                 pending_signals: [],
-                _debug: { isGoldEA, isSilverEA, rateLimitKey, rateLimitInterval, eaPricesRawLen: eaPricesRaw?.length, eaPricesRawSymbol: eaPricesRaw?.[0]?.symbol, normSym: eaPricesRaw?.[0] ? _normSym(eaPricesRaw[0].symbol) : null },
             }, { status: 200, headers: corsHeaders() });
         }
         lastCallTs[rateLimitKey] = now;
@@ -526,12 +525,18 @@ Deno.serve(async (req) => {
                 if (openPairs.has(pairRaw)) return false;
                 // Skip if we already queued a signal for this pair this heartbeat cycle
                 if (dispatchedPairsThisCycle.has(pairRaw)) return false;
-                // Skip if this pair was dispatched to this account within the last 15 minutes
-                const cooldownKey = `${acctKey}:${pairRaw}`;
-                const lastDispatch = pairDispatchCooldown[cooldownKey] || 0;
-                if (now - lastDispatch < PAIR_COOLDOWN_MS) {
-                    console.log(`[BRIDGE] Pair ${pairRaw} cooldown active for ${acctKey} — skipping`);
-                    return false;
+                // Cooldown: only block PENDING signals from rapid re-dispatch.
+                // ACTIVE signals MUST bypass cooldown — they're already locked but the EA may have
+                // failed to execute (e.g. MT5 error 10030). Re-dispatching gives the EA another chance
+                // on every heartbeat. The openPairs check below prevents duplicate trades once the
+                // broker position is actually open.
+                if (s.status === 'PENDING') {
+                    const cooldownKey = `${acctKey}:${pairRaw}`;
+                    const lastDispatch = pairDispatchCooldown[cooldownKey] || 0;
+                    if (now - lastDispatch < PAIR_COOLDOWN_MS) {
+                        console.log(`[BRIDGE] Pair ${pairRaw} cooldown active for ${acctKey} — skipping PENDING signal`);
+                        return false;
+                    }
                 }
                 // Trading hours check at dispatch time — prevent signals dispatched outside bot's configured window
                 if (s.bot_id && botConfigMap[s.bot_id]) {
@@ -678,16 +683,7 @@ Deno.serve(async (req) => {
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
             close_commands: closeCommands,
-            _debug: {
-                isGoldEA, isSilverEA, scheduleOffNow, blockAutoSignals,
-                allPendingCount: (allPendingSignals || []).length,
-                candidateCount: candidateSignals.length,
-                candidateIds: candidateSignals.map(s => ({ id: s.id, pair: s.pair, status: s.status, strat: s.strategy, owner: s.owner_email, created: s.created_date })),
-                freshCount: freshSignals.length,
-                freshIds: freshSignals.map(s => ({ id: s.id, pair: s.pair, status: s.status })),
-                openPairs: [...openPairs],
-                dispatchedInSet: [...dispatchedSignalIds].slice(-10),
-            },
+
         }, { headers: corsHeaders() });
 
     } catch (error) {
