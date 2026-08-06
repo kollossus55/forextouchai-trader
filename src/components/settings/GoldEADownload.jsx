@@ -182,7 +182,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = StringReplace(sigPair, "/", "");
+        string sigPairNorm = sigPair;
+        StringReplace(sigPairNorm, "/", "");
         Print("[GoldEA MT5] Signal pair='", sigPair, "' normalized='", sigPairNorm, "' vs GoldSymbol='", GoldSymbol, "' match=", sigPairNorm == GoldSymbol);
         if (sigPairNorm == GoldSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
@@ -458,7 +459,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = StringReplace(sigPair, "/", "");
+        string sigPairNorm = sigPair;
+        StringReplace(sigPairNorm, "/", "");
         if (sigPairNorm == GoldSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
