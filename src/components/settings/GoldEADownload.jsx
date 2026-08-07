@@ -9,7 +9,7 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 //|   v1.03: Fixed StringReplace in-place symbol matching + hide_sl_tp|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -43,7 +43,7 @@ int OnInit() {
     if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
     else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
     else trade.SetTypeFilling(ORDER_FILLING_RETURN);
-    Print("[GoldEA MT5] Gold EA v1.03 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
+    Print("[GoldEA MT5] Gold EA v1.04 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -183,10 +183,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = sigPair;
-        StringReplace(sigPairNorm, "/", "");
-        Print("[GoldEA MT5] Signal pair='", sigPair, "' normalized='", sigPairNorm, "' vs GoldSymbol='", GoldSymbol, "' match=", sigPairNorm == GoldSymbol);
-        if (sigPairNorm == GoldSymbol) ExecuteSignal(obj);
+        Print("[GoldEA MT5] Signal pair='", sigPair, "' vs GoldSymbol='", GoldSymbol, "' match=", sigPair == GoldSymbol);
+        if (sigPair == GoldSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
@@ -311,7 +309,7 @@ const GOLD_EA_CODE = `//+-------------------------------------------------------
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)   |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 
 // --- INPUTS ---
@@ -334,7 +332,7 @@ int OnInit() {
         Print("[GoldEA] WARNING: ApiKey empty - get it from the ForexTouchAI Settings page.");
     if (MarketInfo(GoldSymbol, MODE_BID) <= 0)
         Print("[GoldEA] WARNING: Symbol '", GoldSymbol, "' not in Market Watch. Add it.");
-    Print("[GoldEA] Gold EA v1.02 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[GoldEA] Gold EA v1.03 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -460,9 +458,7 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = sigPair;
-        StringReplace(sigPairNorm, "/", "");
-        if (sigPairNorm == GoldSymbol) ExecuteSignal(obj);
+        if (sigPair == GoldSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
@@ -626,14 +622,14 @@ export default function GoldEADownload() {
                             className="bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-amber-100 text-xs"
                             size="sm"
                         >
-                            🥇 Download Gold EA MT4 (.mq4) — v1.02
+                            🥇 Download Gold EA MT4 (.mq4) — v1.03
                         </Button>
                         <Button
                             onClick={() => download(GOLD_EA_MT5_CODE, "GoldForexTouchAI_EA.mq5")}
                             className="bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 hover:text-purple-100 text-xs"
                             size="sm"
                         >
-                            🥇 Download Gold EA MT5 (.mq5) — v1.03
+                            🥇 Download Gold EA MT5 (.mq5) — v1.04
                         </Button>
                     </div>
                 </div>

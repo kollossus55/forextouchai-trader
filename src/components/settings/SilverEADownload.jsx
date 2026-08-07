@@ -9,7 +9,7 @@ const SILVER_EA_MT5_CODE = `//+-------------------------------------------------
 //|   v1.02: Fixed StringReplace in-place symbol matching + hide_sl_tp|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -43,7 +43,7 @@ int OnInit() {
     if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
     else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
     else trade.SetTypeFilling(ORDER_FILLING_RETURN);
-    Print("[SilverEA MT5] Silver EA v1.02 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
+    Print("[SilverEA MT5] Silver EA v1.03 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -183,10 +183,8 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = sigPair;
-        StringReplace(sigPairNorm, "/", "");
-        Print("[SilverEA MT5] Signal pair='", sigPair, "' normalized='", sigPairNorm, "' vs SilverSymbol='", SilverSymbol, "' match=", sigPairNorm == SilverSymbol);
-        if (sigPairNorm == SilverSymbol) ExecuteSignal(obj);
+        Print("[SilverEA MT5] Signal pair='", sigPair, "' vs SilverSymbol='", SilverSymbol, "' match=", sigPair == SilverSymbol);
+        if (sigPair == SilverSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
@@ -311,7 +309,7 @@ const SILVER_EA_CODE = `//+-----------------------------------------------------
 //|   Uses MagicNumber 88888 - SEPARATE from Gold (99999) & std EA |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 
 // --- INPUTS ---
@@ -334,7 +332,7 @@ int OnInit() {
         Print("[SilverEA] WARNING: ApiKey empty - get it from the ForexTouchAI Settings page.");
     if (MarketInfo(SilverSymbol, MODE_BID) <= 0)
         Print("[SilverEA] WARNING: Symbol '", SilverSymbol, "' not in Market Watch. Add it.");
-    Print("[SilverEA] Silver EA v1.01 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[SilverEA] Silver EA v1.02 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -460,9 +458,7 @@ void ProcessSignals(string json) {
         if (objEnd == -1) break;
         string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
         string sigPair = ExtractStr(obj, "pair");
-        string sigPairNorm = sigPair;
-        StringReplace(sigPairNorm, "/", "");
-        if (sigPairNorm == SilverSymbol) ExecuteSignal(obj);
+        if (sigPair == SilverSymbol) ExecuteSignal(obj);
         pos = objEnd + 1;
     }
 }
@@ -622,14 +618,14 @@ export default function SilverEADownload() {
                             className="bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 hover:text-white text-xs"
                             size="sm"
                         >
-                            🥈 Download Silver EA MT4 (.mq4) — v1.01
+                            🥈 Download Silver EA MT4 (.mq4) — v1.02
                         </Button>
                         <Button
                             onClick={() => download(SILVER_EA_MT5_CODE, "SilverForexTouchAI_EA.mq5")}
                             className="bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-100 text-xs"
                             size="sm"
                         >
-                            🥈 Download Silver EA MT5 (.mq5) — v1.02
+                            🥈 Download Silver EA MT5 (.mq5) — v1.03
                         </Button>
                     </div>
                 </div>
