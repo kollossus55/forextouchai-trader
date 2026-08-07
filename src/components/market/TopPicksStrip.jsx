@@ -4,7 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
 export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
-  const hasPicks = picks && picks.length > 0;
+  // Hard guard: never render a pick below the threshold, no matter what the
+  // parent passes. This is the single source of truth for what the strip shows.
+  const safePicks = (picks || []).filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= threshold);
+  const hasPicks = safePicks.length > 0;
 
   return (
     <div className="relative rounded-2xl border-2 border-amber-400/40 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden">
@@ -27,7 +30,7 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
 
       {hasPicks ? (
         <div className="relative grid grid-cols-2 md:grid-cols-4 gap-3">
-          {picks.map((p, i) => {
+          {safePicks.map((p, i) => {
             const sig = p.ai_signal;
             const isBuy = sig !== 'SELL';
             const isFirst = i === 0;
