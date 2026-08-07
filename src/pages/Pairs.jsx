@@ -428,7 +428,7 @@ export default function Pairs() {
   // & price (updated every tick). Refreshes early only if the current #1
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
-  const HOLD_MS = 60 * 1000;
+  const HOLD_MS = 2 * 60 * 1000;
   const topPickThreshold = signalSettings.topPickConfidence ?? 75;
   // No grace needed: we rank by locked ai_confidence (stable for the 30-min
   // signal lock), so confidence can't wobble during a 60s hold. Picks below
