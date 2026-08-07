@@ -6,9 +6,10 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 //|         Dedicated Gold (XAUUSD) EA for ForexTouchAI (MT5)       |
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)    |
 //|   v1.02: Added broker filling mode detection (fixes error 10030)|
+//|   v1.03: Fixed StringReplace in-place symbol matching + hide_sl_tp|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -42,7 +43,7 @@ int OnInit() {
     if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
     else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
     else trade.SetTypeFilling(ORDER_FILLING_RETURN);
-    Print("[GoldEA MT5] Gold EA v1.02 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
+    Print("[GoldEA MT5] Gold EA v1.03 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -310,7 +311,7 @@ const GOLD_EA_CODE = `//+-------------------------------------------------------
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)   |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 
 // --- INPUTS ---
@@ -333,7 +334,7 @@ int OnInit() {
         Print("[GoldEA] WARNING: ApiKey empty - get it from the ForexTouchAI Settings page.");
     if (MarketInfo(GoldSymbol, MODE_BID) <= 0)
         Print("[GoldEA] WARNING: Symbol '", GoldSymbol, "' not in Market Watch. Add it.");
-    Print("[GoldEA] Gold EA v1.01 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[GoldEA] Gold EA v1.02 | Symbol: ", GoldSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -625,14 +626,14 @@ export default function GoldEADownload() {
                             className="bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-amber-100 text-xs"
                             size="sm"
                         >
-                            🥇 Download Gold EA MT4 (.mq4)
+                            🥇 Download Gold EA MT4 (.mq4) — v1.02
                         </Button>
                         <Button
                             onClick={() => download(GOLD_EA_MT5_CODE, "GoldForexTouchAI_EA.mq5")}
                             className="bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 hover:text-purple-100 text-xs"
                             size="sm"
                         >
-                            🥇 Download Gold EA MT5 (.mq5)
+                            🥇 Download Gold EA MT5 (.mq5) — v1.03
                         </Button>
                     </div>
                 </div>
