@@ -7,6 +7,7 @@ const SILVER_EA_MT5_CODE = `//+-------------------------------------------------
 //|   Uses MagicNumber 88888 - SEPARATE from Gold (99999) & std EA  |
 //|   v1.01: Added broker filling mode detection (fixes error 10030) |
 //|   v1.02: Fixed StringReplace in-place symbol matching + hide_sl_tp|
+//|   v1.03: Removed StringReplace normalization - direct symbol match  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
 #property version   "1.03"
@@ -307,6 +308,7 @@ const SILVER_EA_CODE = `//+-----------------------------------------------------
 //|                                    SilverForexTouchAI_EA.mq4    |
 //|              Dedicated Silver (XAGUSD) EA for ForexTouchAI      |
 //|   Uses MagicNumber 88888 - SEPARATE from Gold (99999) & std EA |
+//|   v1.02: Removed StringReplace normalization - direct symbol match  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
 #property version   "1.02"
@@ -617,14 +619,14 @@ export default function SilverEADownload() {
                     </div>
                     <div className="flex gap-2 flex-wrap">
                         <Button
-                            onClick={() => download(SILVER_EA_CODE, "SilverForexTouchAI_EA.mq4")}
+                            onClick={() => download(SILVER_EA_CODE, "SilverForexTouchAI_EA_v102.mq4")}
                             className="bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 hover:text-white text-xs"
                             size="sm"
                         >
                             🥈 Download Silver EA MT4 (.mq4) — v1.02
                         </Button>
                         <Button
-                            onClick={() => download(SILVER_EA_MT5_CODE, "SilverForexTouchAI_EA.mq5")}
+                            onClick={() => download(SILVER_EA_MT5_CODE, "SilverForexTouchAI_EA_v103.mq5")}
                             className="bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-100 text-xs"
                             size="sm"
                         >

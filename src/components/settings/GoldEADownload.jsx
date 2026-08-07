@@ -7,6 +7,7 @@ const GOLD_EA_MT5_CODE = `//+---------------------------------------------------
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)    |
 //|   v1.02: Added broker filling mode detection (fixes error 10030)|
 //|   v1.03: Fixed StringReplace in-place symbol matching + hide_sl_tp|
+//|   v1.04: Removed StringReplace normalization - direct symbol match  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
 #property version   "1.04"
@@ -307,6 +308,7 @@ const GOLD_EA_CODE = `//+-------------------------------------------------------
 //|                                    GoldForexTouchAI_EA.mq4      |
 //|              Dedicated Gold (XAUUSD) EA for ForexTouchAI        |
 //|   Uses MagicNumber 99999 - SEPARATE from standard EA (12345)   |
+//|   v1.03: Removed StringReplace normalization - direct symbol match  |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
 #property version   "1.03"
@@ -621,14 +623,14 @@ export default function GoldEADownload() {
                     </p>
                     <div className="flex gap-2 flex-wrap">
                         <Button
-                            onClick={() => download(GOLD_EA_CODE, "GoldForexTouchAI_EA.mq4")}
+                            onClick={() => download(GOLD_EA_CODE, "GoldForexTouchAI_EA_v103.mq4")}
                             className="bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-amber-100 text-xs"
                             size="sm"
                         >
                             🥇 Download Gold EA MT4 (.mq4) — v1.03
                         </Button>
                         <Button
-                            onClick={() => download(GOLD_EA_MT5_CODE, "GoldForexTouchAI_EA.mq5")}
+                            onClick={() => download(GOLD_EA_MT5_CODE, "GoldForexTouchAI_EA_v104.mq5")}
                             className="bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 hover:text-purple-100 text-xs"
                             size="sm"
                         >
