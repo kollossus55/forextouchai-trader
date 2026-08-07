@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, TrendingUp, TrendingDown, Activity, Sparkles, Lock } from 'lucide-react';
+import { Crown, TrendingUp, TrendingDown, Activity, Sparkles, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
@@ -46,7 +46,7 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
             className="flex items-center gap-1.5 text-sm font-extrabold text-amber-950 bg-amber-400 border-2 border-amber-300 rounded-full px-3 py-1"
             title="Composition is frozen for 2 minutes for stability — confidence & price still update live"
           >
-            <Lock className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
             {hasPicks ? (isLocked ? `LOCKED ${mm}:${ss.toString().padStart(2, '0')}` : 'REFRESH') : 'LOCKED 2:00'}
           </span>
           <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
