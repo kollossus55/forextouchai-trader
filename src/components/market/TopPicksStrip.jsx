@@ -1,16 +1,37 @@
-import React from 'react';
-import { Crown, TrendingUp, TrendingDown, Activity, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Crown, TrendingUp, TrendingDown, Activity, Sparkles, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
-export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
+export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt = 0, holdMs = 120000 }) {
   // Hard guard: never render a pick below the threshold, no matter what the
   // parent passes. This is the single source of truth for what the strip shows.
   const safePicks = (picks || []).filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= threshold);
   const hasPicks = safePicks.length > 0;
 
+  // Countdown for the 2-minute composition hold. Shows the user that the
+  // displayed set is a frozen snapshot and how long until it can refresh.
+  const [remaining, setRemaining] = useState(0);
+  useEffect(() => {
+    if (!frozenAt || !hasPicks) { setRemaining(0); return; }
+    const tick = () => {
+      const ms = Math.max(0, holdMs - (Date.now() - frozenAt));
+      setRemaining(ms);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [frozenAt, holdMs, hasPicks]);
+
+  const isLocked = remaining > 0 && hasPicks;
+  const secs = Math.ceil(remaining / 1000);
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+
   return (
-    <div className="relative rounded-2xl border-2 border-amber-400/40 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden">
+    <div className={`relative rounded-2xl border-2 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden transition-colors ${
+      isLocked ? 'border-amber-400/70 animate-pulse' : 'border-amber-400/40'
+    }`}>
       <div className="absolute -top-12 -right-12 w-40 h-40 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -22,10 +43,18 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
           </h2>
         </div>
         <span className="text-xs text-slate-400">Highest AI confidence ≥ {threshold}%</span>
-        <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          LIVE
-        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          {isLocked && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-200 bg-amber-500/20 border border-amber-400/50 rounded-full px-2 py-0.5" title="Composition is frozen for stability — confidence & price still update live">
+              <Lock className="w-2.5 h-2.5" />
+              {mm}:{ss.toString().padStart(2, '0')}
+            </span>
+          )}
+          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            LIVE
+          </span>
+        </div>
       </div>
 
       {hasPicks ? (
