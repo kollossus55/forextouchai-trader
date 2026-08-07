@@ -48,6 +48,25 @@ const STRATEGY_INDICATOR_FIELDS = {
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
 
+        // ── Expire stale signals so they don't block new generation ──────────────
+        // ACTIVE signals older than 20 min will never be dispatched by the bridge
+        // (it filters candidates to the last 30 min and expires ACTIVE > 20 min).
+        // PENDING signals older than 30 min are equally dead. Without this cleanup,
+        // stale signals sit in the DB forever when no EA is heartbeating, and the
+        // per-pair max check below blocks new signal creation — a deadlock that
+        // especially affects Gold/Silver (which need a dedicated EA to dispatch).
+        const twentyMinAgoIso = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+        const thirtyMinAgoIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const staleActive = activeSignals.filter(s => s.created_date < twentyMinAgoIso);
+        const stalePending = pendingSignals.filter(s => s.created_date < thirtyMinAgoIso);
+        if (staleActive.length > 0 || stalePending.length > 0) {
+            const toExpire = [...staleActive, ...stalePending];
+            console.log(`[generateBotSignals] Expiring ${toExpire.length} stale signal(s) (${staleActive.length} ACTIVE >20min, ${stalePending.length} PENDING >30min)`);
+            await Promise.all(toExpire.map(s =>
+                base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' }).catch(e => console.warn(`[generateBotSignals] Expire error for ${s.id}:`, e.message))
+            ));
+        }
+
         // Build per-account risk map: account_number → risk settings (account-specific preferred, then global fallback)
         const globalRiskSettings = riskSettingsList.find(r => !r.account_number) || null;
         const accountRiskMap = {};
@@ -1368,8 +1387,8 @@ Also provide:
             const userOpenTrades = openTrades.filter(t => acctSet.has(t.owner_email));
 
             const userPendingSignals = [
-                ...pendingSignals.filter(s => acctSet.has(s.owner_email)),
-                ...activeSignals.filter(s => acctSet.has(s.owner_email)),
+                ...pendingSignals.filter(s => acctSet.has(s.owner_email) && s.created_date >= thirtyMinAgoIso),
+                ...activeSignals.filter(s => acctSet.has(s.owner_email) && s.created_date >= twentyMinAgoIso),
             ];
 
             // Filter out accounts where auto-trade is manually disabled OR risk has paused trading.
