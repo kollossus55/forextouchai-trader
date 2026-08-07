@@ -430,17 +430,18 @@ export default function Pairs() {
   // & price (updated every tick). Refreshes early only if the current #1
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
-  const HOLD_MS = 90 * 1000;
+  const HOLD_MS = 60 * 1000;
   const topPickThreshold = signalSettings.topPickConfidence ?? 70;
-  // Grace below threshold: a frozen pick stays visible even if its live
+  // Grace below threshold: a frozen pick stays visible even if its locked
   // confidence dips slightly below the qualifying threshold during the hold,
   // so minor confidence wobble doesn't make picks vanish from the strip.
   const DISPLAY_GRACE = 8;
-  // Rank by LIVE (unlocked) confidence so the strip reflects current market
-  // leaders and rotates as confidence shifts — not stuck on 30-min-locked pairs.
+  // Rank by the SAME locked ai_confidence the pair grid uses, so the #1 pick
+  // in the strip is always the #1 card in the grid. Locked confidence is stable
+  // for the signal lock window, so picks don't vanish mid-hold from wobble.
   const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= topPickThreshold)
-    .sort((a, b) => (b.liveConfidence || 0) - (a.liveConfidence || 0))
+    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= topPickThreshold)
+    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
     .slice(0, 4);
 
   const [frozenIds, setFrozenIds] = useState(null);
@@ -465,12 +466,12 @@ export default function Pairs() {
   }, [topPicks]);
 
   // Map frozen order back to live data. A pick stays visible as long as its
-  // live confidence is within DISPLAY_GRACE of the threshold — minor dips
+  // locked confidence is within DISPLAY_GRACE of the threshold — minor dips
   // during the hold don't make it vanish. Only drops well below threshold
   // (e.g. signal flipped to NEUTRAL) hide a pick until the next refresh.
   const displayPicks = (frozenIds || [])
     .map(id => mergedPairs.find(p => p.id === id))
-    .filter(p => p && p.liveSignal && p.liveSignal !== 'NEUTRAL' && (p.liveConfidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
+    .filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
