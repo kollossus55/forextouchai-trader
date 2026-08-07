@@ -431,11 +431,11 @@ export default function Pairs() {
   // drops out of the qualifying set. "Scanning" only shows before the first
   // signals are computed.
   const HOLD_MS = 60 * 1000;
-  const topPickThreshold = signalSettings.topPickConfidence ?? 70;
-  // Grace below threshold: a frozen pick stays visible even if its locked
-  // confidence dips slightly below the qualifying threshold during the hold,
-  // so minor confidence wobble doesn't make picks vanish from the strip.
-  const DISPLAY_GRACE = 8;
+  const topPickThreshold = signalSettings.topPickConfidence ?? 75;
+  // No grace needed: we rank by locked ai_confidence (stable for the 30-min
+  // signal lock), so confidence can't wobble during a 60s hold. Picks below
+  // the threshold are never shown.
+  const DISPLAY_GRACE = 0;
   // Rank by the SAME locked ai_confidence the pair grid uses, so the #1 pick
   // in the strip is always the #1 card in the grid. Locked confidence is stable
   // for the signal lock window, so picks don't vanish mid-hold from wobble.

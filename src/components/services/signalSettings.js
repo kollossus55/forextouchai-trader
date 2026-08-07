@@ -9,7 +9,7 @@ export const DEFAULT_SIGNAL_SETTINGS = {
   lockMinutes: 30,               // hold directional signals 30 min to ride trends
   minLockConfidence: 60,         // only lock confluence-backed signals
   recalcInterval: 15,            // recompute every 15s for responsiveness
-  topPickConfidence: 70,         // min AI confidence for a pair to qualify as a Top Pick
+  topPickConfidence: 75,         // min AI confidence for a pair to qualify as a Top Pick
   minIndicatorAgreement: 3,     // min number of indicators that must agree on direction to validate a manual trade
   factors: {
     // Trend confirmation is the strongest, most reliable driver for forex pairs.
