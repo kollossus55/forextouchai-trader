@@ -613,7 +613,8 @@ Deno.serve(async (req) => {
         const eaBrokerSymbol = (isGoldEA || isSilverEA) && Array.isArray(eaPricesRaw) && eaPricesRaw[0]?.symbol
             ? eaPricesRaw[0].symbol : null;
         const sanitizedSignals = freshSignals.map(s => {
-            const sanitized = sanitizeSignal(s, livePriceMap);
+            const botCfg = s.bot_id ? botConfigMap[s.bot_id] : null;
+            const sanitized = sanitizeSignal(s, livePriceMap, botCfg);
             if (eaBrokerSymbol) {
                 sanitized.pair = eaBrokerSymbol;
             }
@@ -811,10 +812,11 @@ function isScheduleOff(riskSettings, now) {
     }
 }
 
-function sanitizeSignal(s, livePriceMap) {
+function sanitizeSignal(s, livePriceMap, botCfg) {
     const originalPair = s.pair || ''; // preserve original pair name (e.g. AUS/200) for EA
     const pair = originalPair.replace('/', ''); // bare symbol for price lookups only
     const type = s.type;
+    const hideSlTp = botCfg?.hide_sl_tp === true;
     const liveAsk = livePriceMap[pair + '_ask'] || livePriceMap[pair] || 0;
     const liveBid = livePriceMap[pair] || 0;
     const refPrice = type === 'BUY' ? (liveAsk || liveBid) : liveBid;
@@ -950,6 +952,14 @@ function sanitizeSignal(s, livePriceMap) {
     const isGoldSignal = (pair === 'XAUUSD' || pair === 'GOLD' || pair === 'XAU' || s.strategy === 'GOLD_XAUUSD');
     const isSilverSignal = (pair === 'XAGUSD' || pair === 'SILVER' || pair === 'XAG' || s.strategy === 'SILVER_XAGUSD');
     const orderComment = isGoldSignal ? 'GoldForexTouchAI' : isSilverSignal ? 'SilverForexTouchAI' : 'ForexTouchAI';
+
+    // Respect bot's hide_sl_tp setting — send 0 so the EA doesn't attach SL/TP to the broker order.
+    // The EA manages SL/TP internally (or via bridge close commands) when this is enabled.
+    if (hideSlTp) {
+        console.log(`[BRIDGE] sanitizeSignal ${pair} hide_sl_tp=true — zeroing SL/TP for broker order`);
+        safeSL = 0;
+        safeTP = 0;
+    }
 
     return { id: s.id, pair: originalPair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
 }
