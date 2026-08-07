@@ -3,7 +3,7 @@ import { Crown, TrendingUp, TrendingDown, Activity, Sparkles } from 'lucide-reac
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
-export default function TopPicksStrip({ picks, onTrade, threshold = 70 }) {
+export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
   const hasPicks = picks && picks.length > 0;
 
   return (

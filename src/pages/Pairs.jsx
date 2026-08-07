@@ -527,7 +527,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} threshold={signalSettings.topPickConfidence ?? 70} />
+      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} threshold={signalSettings.topPickConfidence ?? 75} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
