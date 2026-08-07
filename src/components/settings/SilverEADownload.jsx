@@ -591,7 +591,10 @@ export default function SilverEADownload() {
             <div className="flex items-start gap-3">
                 <span className="text-2xl">🥈</span>
                 <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-1">Silver (XAGUSD) Dedicated EA</h4>
+                    <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-semibold text-slate-200">Silver (XAGUSD) Dedicated EA</h4>
+                        <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full">LATEST: MT5 v1.03 / MT4 v1.02</span>
+                    </div>
                     <p className="text-xs text-slate-300/70 mb-1">
                         Use this separate EA exclusively for your <strong>SILVER_XAGUSD</strong> bot. It runs independently from the standard and Gold bridge EAs with:
                     </p>
