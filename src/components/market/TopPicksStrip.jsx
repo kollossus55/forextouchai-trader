@@ -44,15 +44,13 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
         </div>
         <span className="text-xs text-slate-400">Highest AI confidence ≥ {threshold}%</span>
         <div className="ml-auto flex items-center gap-1.5">
-          {hasPicks && (
-            <span
-              className="flex items-center gap-1.5 text-xs font-bold text-amber-100 bg-amber-500/30 border border-amber-400/60 rounded-full px-2.5 py-1 shadow-[0_0_12px_-2px_rgba(245,158,11,0.6)]"
-              title="Composition is frozen for stability — confidence & price still update live"
-            >
-              <Lock className="w-3 h-3" />
-              {isLocked ? `${mm}:${ss.toString().padStart(2, '0')}` : 'Refresh'}
-            </span>
-          )}
+          <span
+            className="flex items-center gap-1.5 text-xs font-bold text-amber-100 bg-amber-500/30 border border-amber-400/60 rounded-full px-2.5 py-1 shadow-[0_0_12px_-2px_rgba(245,158,11,0.6)]"
+            title="Composition is frozen for 2 minutes for stability — confidence & price still update live"
+          >
+            <Lock className="w-3 h-3" />
+            {hasPicks ? (isLocked ? `${mm}:${ss.toString().padStart(2, '0')}` : 'Refresh') : '2:00'}
+          </span>
           <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             LIVE
