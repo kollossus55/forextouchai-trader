@@ -25,7 +25,7 @@ export const DEFAULT_SIGNAL_SETTINGS = {
 // Maps a sensitivity level to the minimum buy%/sell% required to emit a signal.
 export const SENSITIVITY_THRESHOLDS = { LOW: 50, MEDIUM: 35, HIGH: 22 };
 
-const STORAGE_KEY = 'forextouchai_signal_settings_v2';
+const STORAGE_KEY = 'forextouchai_signal_settings_v3';
 
 function loadSettings() {
   try {
@@ -66,7 +66,7 @@ export function getRecalcIntervalMs() {
 }
 
 export function getTopPickConfidence() {
-  return Math.min(100, Math.max(0, current.topPickConfidence ?? 70));
+  return Math.min(100, Math.max(0, current.topPickConfidence ?? 75));
 }
 
 function persist() {

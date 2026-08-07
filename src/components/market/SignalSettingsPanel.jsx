@@ -140,10 +140,10 @@ export default function SignalSettingsPanel({ open, onOpenChange }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-slate-200">Top Pick Confidence</Label>
-              <span className="text-xs text-emerald-400 font-mono">{settings.topPickConfidence ?? 70}%</span>
+              <span className="text-xs text-emerald-400 font-mono">{settings.topPickConfidence ?? 75}%</span>
             </div>
             <Slider
-              value={[settings.topPickConfidence ?? 70]}
+              value={[settings.topPickConfidence ?? 75]}
               min={50} max={95} step={5}
               onValueChange={([v]) => update({ topPickConfidence: v })}
               className="py-2"
