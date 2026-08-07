@@ -437,9 +437,11 @@ export default function Pairs() {
   // Rank by the SAME locked ai_confidence the pair grid uses, so the #1 pick
   // in the strip is always the #1 card in the grid. Locked confidence is stable
   // for the signal lock window, so picks don't vanish mid-hold from wobble.
-  const topPicks = mergedPairs
-    .filter(p => getCategory(p) !== null && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= topPickThreshold)
-    .sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0))
+  // Derive Top Picks from the SAME deduplicated, sorted source the grid uses
+  // (filteredPairs) so the strip's #1 is always the grid's #1 — no duplicates
+  // or ordering drift between the two views.
+  const topPicks = filteredPairs
+    .filter(p => p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= topPickThreshold)
     .slice(0, 4);
 
   const [frozenIds, setFrozenIds] = useState(null);
@@ -468,7 +470,7 @@ export default function Pairs() {
   // during the hold don't make it vanish. Only drops well below threshold
   // (e.g. signal flipped to NEUTRAL) hide a pick until the next refresh.
   const displayPicks = (frozenIds || [])
-    .map(id => mergedPairs.find(p => p.id === id))
+    .map(id => uniquePairs.find(p => p.id === id))
     .filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
 
   // IDs currently shown in the Top Picks strip — passed to PairCard so the
