@@ -29,9 +29,7 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
   const ss = secs % 60;
 
   return (
-    <div className={`relative rounded-2xl border-2 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden transition-colors ${
-      isLocked ? 'border-amber-400/70 animate-pulse' : 'border-amber-400/40'
-    }`}>
+    <div className="relative rounded-2xl border-2 border-amber-400/40 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden">
       <div className="absolute -top-12 -right-12 w-40 h-40 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -45,11 +43,11 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
         <span className="text-xs text-slate-400">Highest AI confidence ≥ {threshold}%</span>
         <div className="ml-auto flex items-center gap-1.5">
           <span
-            className="flex items-center gap-1.5 text-xs font-bold text-amber-100 bg-amber-500/30 border border-amber-400/60 rounded-full px-2.5 py-1 shadow-[0_0_12px_-2px_rgba(245,158,11,0.6)]"
+            className="flex items-center gap-1.5 text-sm font-extrabold text-amber-950 bg-amber-400 border-2 border-amber-300 rounded-full px-3 py-1"
             title="Composition is frozen for 2 minutes for stability — confidence & price still update live"
           >
-            <Lock className="w-3 h-3" />
-            {hasPicks ? (isLocked ? `${mm}:${ss.toString().padStart(2, '0')}` : 'Refresh') : '2:00'}
+            <Lock className="w-4 h-4" />
+            {hasPicks ? (isLocked ? `LOCKED ${mm}:${ss.toString().padStart(2, '0')}` : 'REFRESH') : 'LOCKED 2:00'}
           </span>
           <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
