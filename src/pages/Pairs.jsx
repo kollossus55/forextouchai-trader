@@ -422,8 +422,6 @@ export default function Pairs() {
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
-  const maxConfidence = Math.max(...mergedPairs.map(p => p.ai_confidence || 0));
-
   // Top Picks: the strongest directional (BUY/SELL) setups by live AI
   // confidence. The pick SET is held for HOLD_MS so the strip doesn't
   // re-shuffle every recalc, but each pick renders with its LIVE confidence
@@ -472,6 +470,11 @@ export default function Pairs() {
   const displayPicks = (frozenIds || [])
     .map(id => mergedPairs.find(p => p.id === id))
     .filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
+
+  // IDs currently shown in the Top Picks strip — passed to PairCard so the
+  // "Top Pick" badge in the grid matches the strip EXACTLY (same threshold,
+  // same directional requirement, same held set).
+  const topPickIds = new Set(displayPicks.map(p => p.id));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
@@ -544,7 +547,7 @@ export default function Pairs() {
         <TabsContent value="majors" className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {majorPairs.map(pair => (
-              <PairCard key={pair.id} pair={pair} maxConfidence={maxConfidence} factors={pairFactors[pair.id]} onViewDetails={handleViewDetails} onTrade={handleTradeClick} />
+              <PairCard key={pair.id} pair={pair} topPickIds={topPickIds} factors={pairFactors[pair.id]} onViewDetails={handleViewDetails} onTrade={handleTradeClick} />
             ))}
             {majorPairs.length === 0 && <div className="text-slate-500 col-span-full text-center py-10">No major pairs found</div>}
           </div>
@@ -553,7 +556,7 @@ export default function Pairs() {
         <TabsContent value="minors" className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {minorPairs.map(pair => (
-              <PairCard key={pair.id} pair={pair} maxConfidence={maxConfidence} factors={pairFactors[pair.id]} onViewDetails={handleViewDetails} onTrade={handleTradeClick} />
+              <PairCard key={pair.id} pair={pair} topPickIds={topPickIds} factors={pairFactors[pair.id]} onViewDetails={handleViewDetails} onTrade={handleTradeClick} />
             ))}
             {minorPairs.length === 0 && <div className="text-slate-500 col-span-full text-center py-10">No minor pairs found</div>}
           </div>

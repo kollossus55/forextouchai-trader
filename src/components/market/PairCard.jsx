@@ -14,8 +14,8 @@ import { useSignalSettings } from '@/components/services/signalSettings';
  * every card + its Recharts TickChart to unmount/remount each tick and
  * freezing the tab).
  */
-function PairCardInner({ pair, maxConfidence, factors, onViewDetails, onTrade }) {
-  const isTopPick = (pair.ai_confidence || 0) === maxConfidence && maxConfidence > 70;
+function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
+  const isTopPick = topPickIds?.has(pair.id) ?? false;
   const { settings: signalSettings } = useSignalSettings();
 
   const [signalAge, setSignalAge] = useState('');
