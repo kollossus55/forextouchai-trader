@@ -790,10 +790,33 @@ Analysis time: ${now}
 
 For EACH pair, analyze across D1 (bias) → H4 (structure) → H1 (entry trigger) using the following framework:
 
-1. HIGHER TIMEFRAME BIAS (D1):
-   - Determine the dominant trend direction from D1 first — this governs ALL entries
+════════════════════════════════════════
+STEP 0: HIGHER-TIMEFRAME BIAS (D1 + H4 — MANDATORY, checked first)
+════════════════════════════════════════
+Before any entry analysis, determine the higher-timeframe trend — ALL signals must align with it unless a strict reversal exception is met:
+
+D1 BIAS (daily chart):
+- D1 EMA 20/50/200 alignment: price > EMA20 > EMA50 > EMA200 = strong bullish D1; inverse = strong bearish D1; tangled = neutral/avoid
+- D1 market structure: Higher Highs + Higher Lows = bullish; Lower Highs + Lower Lows = bearish; range = neutral
+- D1 key swing highs/lows and major support/resistance zones govern all entries
+
+H4 BIAS (4-hour chart):
+- H4 EMA 20/50 alignment with price: above both = bullish H4; below both = bearish H4
+- H4 structure: recent H4 swing sequence (HH/HL or LH/LL)
+- H4 must agree with D1 for a trend-continuation signal
+
+BIAS RULE (hard gate):
+- BUY signals require D1 bullish OR neutral AND H4 bullish. SELL signals require D1 bearish OR neutral AND H4 bearish.
+- Counter-trend signals (BUY in D1 bearish, SELL in D1 bullish) are ONLY allowed when ALL of the following are true:
+  * Price is at a major D1 support (for BUY) or resistance (for SELL) level — prior swing, round number, or Fibonacci 61.8-78.6%
+  * A clear liquidity sweep / stop hunt has just occurred against the D1 trend
+  * A closed reversal candlestick pattern (pin bar, engulfing, morning/evening star) at the level
+  * Minimum 4 confluence factors from the framework below
+- If D1 and H4 conflict (e.g. D1 bullish, H4 bearish): output NEUTRAL — do not guess direction.
+
+1. D1 KEY LEVELS (reference for STEP 0):
    - Identify D1 key swing highs/lows, major support/resistance zones
-   - Only take trades aligned with D1 bias (counter-trend only on strong D1 reversals)
+   - These levels are the only valid locations for counter-trend reversal entries
 
 2. MARKET STRUCTURE (H4 + H1):
    - Break of Structure (BOS): price breaks a previous significant high (bullish BOS) or low (bearish BOS) → confirms trend continuation
@@ -833,7 +856,7 @@ For EACH pair, analyze across D1 (bias) → H4 (structure) → H1 (entry trigger
    - Avoid signals 30 minutes before/after major news events
 
 SIGNAL REQUIREMENTS (ALL must be met):
-- D1 bias aligns with trade direction
+- **D1 + H4 higher-timeframe bias aligns with signal direction (MANDATORY — hard gate, see STEP 0)**
 - Price at a key level (supply/demand zone, S/R, OB, or FVG)
 - At least ONE structural confirmation: BOS, CHoCH, or liquidity sweep
 - At least ONE price action trigger candle confirmed (not anticipated)
@@ -849,11 +872,34 @@ Analysis time: ${now}
 
 For EACH pair, apply a top-down multi-timeframe analysis: D1 (bias) → H4 (pattern formation) → H1/M30 (entry trigger):
 
-1. HIGHER TIMEFRAME BIAS (D1 — mandatory first step):
-   - Establish the dominant D1 trend before scanning for any patterns
+════════════════════════════════════════
+STEP 0: HIGHER-TIMEFRAME BIAS (D1 + H4 — MANDATORY, checked first)
+════════════════════════════════════════
+Before scanning for any patterns, determine the higher-timeframe trend — ALL signals must align with it unless a strict reversal exception is met:
+
+D1 BIAS (daily chart):
+- D1 EMA 20/50/200 alignment: price > EMA20 > EMA50 > EMA200 = strong bullish D1; inverse = strong bearish D1; tangled = neutral/avoid
+- D1 market structure: Higher Highs + Higher Lows = bullish; Lower Highs + Lower Lows = bearish; range = neutral
+- D1 close above prior D1 swing high = bullish BOS (continuation); below prior swing low = bearish BOS
+
+H4 BIAS (4-hour chart):
+- H4 EMA 20/50 alignment with price: above both = bullish H4; below both = bearish H4
+- H4 structure: recent H4 swing sequence (HH/HL or LH/LL)
+- H4 must agree with D1 for a trend-continuation (continuation pattern) signal
+
+BIAS RULE (hard gate):
+- BUY signals (continuation patterns) require D1 bullish OR neutral AND H4 bullish. SELL signals require D1 bearish OR neutral AND H4 bearish.
+- Counter-trend reversal patterns (BUY in D1 bearish, SELL in D1 bullish) are ONLY allowed when ALL of the following are true:
+  * Price is at a major D1 support (for BUY) or resistance (for SELL) level — key swing high/low, major S/R, or Fibonacci 61.8-78.6%
+  * A clear liquidity sweep / stop hunt has just occurred against the D1 trend
+  * The reversal pattern is fully formed and the breakout candle has CLOSED beyond the boundary
+  * Pattern quality score ≥ 7/10 (higher bar than trend-aligned entries)
+- If D1 and H4 conflict (e.g. D1 bullish, H4 bearish): output NEUTRAL — do not guess direction.
+
+1. D1 KEY LEVELS (reference for STEP 0):
    - Continuation patterns are only valid IN the direction of the D1 trend
    - Reversal patterns require D1 price to be at a major structural level (key swing high/low, major S/R, Fibonacci)
-   - Counter-trend reversals need confluence of at least 3 factors to override D1 bias
+   - These levels are the only valid locations for counter-trend reversal entries
 
 2. REVERSAL PATTERNS (signal against prevailing trend — require strong D1 level confluence):
    - Head & Shoulders (3 peaks, middle highest, neckline connecting the two troughs) → SELL on confirmed neckline close break; measured move = head-to-neckline distance projected down
@@ -949,7 +995,7 @@ For EACH pair, apply a top-down multi-timeframe analysis: D1 (bias) → H4 (patt
     - Harmonic patterns are entirely Fibonacci-based — D point is the primary entry
 
 SIGNAL REQUIREMENTS (ALL must be met):
-- D1 bias supports the pattern direction (continuation) OR price is at a major D1 structural level (reversal)
+- **D1 + H4 higher-timeframe bias aligns with signal direction (MANDATORY — hard gate, see STEP 0)**
 - Pattern is FULLY FORMED and CLOSED — never anticipate incomplete patterns
 - Breakout candle has CLOSED beyond the pattern boundary
 - Pattern quality score ≥ 6/10 (symmetry, touch count, volume, clarity)
