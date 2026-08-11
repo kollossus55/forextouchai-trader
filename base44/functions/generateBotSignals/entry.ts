@@ -1178,7 +1178,34 @@ Analysis time: ${now}
 
 Gold is highly sensitive to: USD strength/weakness, geopolitical risk, inflation expectations, bond yields, and session-specific liquidity (Asian/London/NY).
 
-Analyze XAUUSD across M15 and H1 timeframes using ALL of the following gold-specific indicators:
+Execute a TOP-DOWN analysis: D1 (macro bias) → H4 (structure) → H1 (signal) → M15 (entry trigger).
+
+════════════════════════════════════════
+STEP 0: HIGHER-TIMEFRAME BIAS (D1 + H4 — MANDATORY, checked first)
+════════════════════════════════════════
+Before any entry analysis, determine the higher-timeframe trend — ALL signals must align with it unless a strict reversal exception is met:
+
+D1 BIAS (daily chart):
+- D1 EMA 20/50/200 alignment: price > EMA20 > EMA50 > EMA200 = strong bullish D1; inverse = strong bearish D1; tangled = neutral/avoid
+- D1 market structure: Higher Highs + Higher Lows = bullish; Lower Highs + Lower Lows = bearish; range = neutral
+- D1 close above prior D1 swing high = bullish BOS (continuation); below prior swing low = bearish BOS
+- D1 key levels: round numbers (3200, 3250, 3300, 3350, 3400) and prior week high/low act as major bias pivot points
+
+H4 BIAS (4-hour chart):
+- H4 EMA 20/50 alignment with price: above both = bullish H4; below both = bearish H4
+- H4 structure: recent H4 swing sequence (HH/HL or LH/LL)
+- H4 must agree with D1 for a trend-continuation signal
+
+BIAS RULE (hard gate):
+- BUY signals require D1 bullish OR neutral AND H4 bullish. SELL signals require D1 bearish OR neutral AND H4 bearish.
+- Counter-trend signals (BUY in D1 bearish, SELL in D1 bullish) are ONLY allowed when ALL of the following are true:
+  * Price is at a major D1 support (for BUY) or resistance (for SELL) level — round number, prior swing, or Fibonacci 61.8-78.6%
+  * A clear liquidity sweep / stop hunt has just occurred against the D1 trend
+  * Confluence score is 5+ (see scoring below) — higher bar than trend-aligned entries
+  * A closed reversal candlestick pattern (pin bar, engulfing, morning/evening star) at the level
+- If D1 and H4 conflict (e.g. D1 bullish, H4 bearish): output NEUTRAL — do not guess direction.
+
+Now analyze XAUUSD on M15 and H1 for entry timing using ALL of the following gold-specific indicators:
 
 1. TREND & STRUCTURE:
    - EMA 20, 50, 200 alignment on H1 (above all EMAs = strong bullish, below all = strong bearish)
@@ -1214,11 +1241,12 @@ Analyze XAUUSD across M15 and H1 timeframes using ALL of the following gold-spec
    - London close (16:00-17:00 UTC): Potential reversals as positions close
    - Avoid signals during very low liquidity (22:00-00:00 UTC)
 
-7. CONFLUENCE REQUIREMENTS (must have at least 2 — gold often moves fast off fewer confirmations):
+7. CONFLUENCE REQUIREMENTS (must have at least 3 — gold often moves fast off fewer confirmations, but HTF bias is mandatory):
+   - **D1 + H4 higher-timeframe bias aligns with signal direction (MANDATORY — hard gate, see STEP 0)**
    - H1 EMA direction supports the signal (price above EMA50 = bullish bias, below = bearish)
    - RSI supports the signal direction (RSI > 40 for BUY, RSI < 60 for SELL — wider tolerance than forex)
    - MACD histogram or signal line confirms momentum direction
-   - Price at or near a key level (support/resistance, round number like 4300/4350/4400, pivot)
+   - Price at or near a key level (support/resistance, round number like 3200/3250/3300/3350, pivot)
    - Candlestick confirmation candle in signal direction — can be on M15 or M30, not just H1
    - Active or upcoming high-liquidity session (London/NY)
 
@@ -1238,7 +1266,35 @@ Analysis time: ${now}
 
 Silver is sensitive to: USD strength/weakness, gold correlation (silver typically follows gold with amplified beta), industrial demand (solar/EV/electronics), geopolitical risk, and session-specific liquidity (Asian/London/NY).
 
-Analyze XAGUSD across M15 and H1 timeframes using ALL of the following silver-specific indicators:
+Execute a TOP-DOWN analysis: D1 (macro bias) → H4 (structure) → H1 (signal) → M15 (entry trigger).
+
+════════════════════════════════════════
+STEP 0: HIGHER-TIMEFRAME BIAS (D1 + H4 — MANDATORY, checked first)
+════════════════════════════════════════
+Before any entry analysis, determine the higher-timeframe trend — ALL signals must align with it unless a strict reversal exception is met:
+
+D1 BIAS (daily chart):
+- D1 EMA 20/50/200 alignment: price > EMA20 > EMA50 > EMA200 = strong bullish D1; inverse = strong bearish D1; tangled = neutral/avoid
+- D1 market structure: Higher Highs + Higher Lows = bullish; Lower Highs + Lower Lows = bearish; range = neutral
+- D1 close above prior D1 swing high = bullish BOS (continuation); below prior swing low = bearish BOS
+- D1 key levels: round numbers (30.00, 32.00, 35.00, 40.00) and prior week high/low act as major bias pivot points
+
+H4 BIAS (4-hour chart):
+- H4 EMA 20/50 alignment with price: above both = bullish H4; below both = bearish H4
+- H4 structure: recent H4 swing sequence (HH/HL or LH/LL)
+- H4 must agree with D1 for a trend-continuation signal
+
+BIAS RULE (hard gate):
+- BUY signals require D1 bullish OR neutral AND H4 bullish. SELL signals require D1 bearish OR neutral AND H4 bearish.
+- Counter-trend signals (BUY in D1 bearish, SELL in D1 bullish) are ONLY allowed when ALL of the following are true:
+  * Price is at a major D1 support (for BUY) or resistance (for SELL) level — round number, prior swing, or Fibonacci 61.8-78.6%
+  * A clear liquidity sweep / stop hunt has just occurred against the D1 trend
+  * Confluence score is 5+ (see scoring below) — higher bar than trend-aligned entries
+  * A closed reversal candlestick pattern (pin bar, engulfing, morning/evening star) at the level
+- If D1 and H4 conflict (e.g. D1 bullish, H4 bearish): output NEUTRAL — do not guess direction.
+- Silver typically follows gold's D1 direction — if gold's D1 trend is clearly opposite to the silver signal, reduce confidence or output NEUTRAL.
+
+Now analyze XAGUSD on M15 and H1 for entry timing using ALL of the following silver-specific indicators:
 
 1. TREND & STRUCTURE:
    - EMA 20, 50, 200 alignment on H1 (above all EMAs = strong bullish, below all = strong bearish)
@@ -1279,14 +1335,15 @@ Analyze XAGUSD across M15 and H1 timeframes using ALL of the following silver-sp
    - If gold is in a strong trend, favour silver signals in the same direction
    - Divergence between gold and silver can signal an impending silver catch-up move
 
-8. CONFLUENCE REQUIREMENTS (must have at least 2 — silver often moves fast off fewer confirmations):
+8. CONFLUENCE REQUIREMENTS (must have at least 3 — silver often moves fast off fewer confirmations, but HTF bias is mandatory):
+   - **D1 + H4 higher-timeframe bias aligns with signal direction (MANDATORY — hard gate, see STEP 0)**
    - H1 EMA direction supports the signal (price above EMA50 = bullish bias, below = bearish)
    - RSI supports the signal direction (RSI > 40 for BUY, RSI < 60 for SELL — wider tolerance than forex)
    - MACD histogram or signal line confirms momentum direction
    - Price at or near a key level (support/resistance, round number like 30.00/32.00/35.00, pivot)
    - Candlestick confirmation candle in signal direction — can be on M15 or M30, not just H1
    - Active or upcoming high-liquidity session (London/NY)
-   - Gold's current direction aligns with the silver signal (strong confluence)
+   - Gold's current D1 direction aligns with the silver signal (strong confluence)
 
 Only output NEUTRAL when there is NO directional bias at all (RSI dead-centre 48-52, EMAs flat/tangled, no levels nearby). Otherwise signal BUY or SELL with appropriate confidence.
 Minimum confidence threshold: 70%. Silver gives fewer but bigger moves — don't miss entries by being too strict.
