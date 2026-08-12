@@ -282,7 +282,7 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     // Capture live (pre-lock) values — Top Picks ranks by these so the strip
     // reflects current market strength instead of a 30-min locked confidence.
     const liveSignal = signal;
-    const liveConfidence = confidence;
+    let liveConfidence = confidence;
 
     // ── Signal Lock (duration & min confidence from user settings) ───────────
     // If a directional signal was locked recently, hold it unless the lock
