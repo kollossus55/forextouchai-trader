@@ -60,7 +60,8 @@ function buildCandles(symbol, timeframe) {
 // Uses real current price as anchor and applies a trending random walk with
 // momentum — real markets trend, and the indicators need that trend to produce
 // the confluence that reaches Top Pick confidence levels.
-function generateRealisticHistory(currentPrice, periods, timeframe) {
+function generateRealisticHistory(currentPrice, periods, timeframe, rng) {
+    const rand = rng || Math.random;
     const tfVolatility = {
         M1: 0.0003, M5: 0.0006, M15: 0.001,
         H1: 0.0018, H4: 0.003, D1: 0.006
@@ -70,12 +71,12 @@ function generateRealisticHistory(currentPrice, periods, timeframe) {
     const candles = [];
     // Market regime: 60% trending, 40% ranging — real markets mix both, and
     // Top Picks should surface only the trending pairs with strong confluence
-    const isTrending = Math.random() < 0.6;
+    const isTrending = rand() < 0.6;
     // Random trend direction: +1 = uptrend, -1 = downtrend
-    const trendDir = Math.random() > 0.5 ? 1 : -1;
+    const trendDir = rand() > 0.5 ? 1 : -1;
     // Trend magnitude: how far the price moves from start to end (as % of price)
     // Varies so some pairs produce 75-90% confluence, others ~70%
-    const trendMagnitude = isTrending ? vol * (8 + Math.random() * 20) : vol * 2;
+    const trendMagnitude = isTrending ? vol * (8 + rand() * 20) : vol * 2;
     // Start price: opposite end of the trend from currentPrice
     const startPrice = currentPrice * (1 - trendDir * trendMagnitude);
     // Linear trend per step so price naturally arrives at currentPrice
@@ -90,21 +91,69 @@ function generateRealisticHistory(currentPrice, periods, timeframe) {
         // Trend component: distributed linearly so price reaches currentPrice
         const trend = trendPerStep * trendScale + (1 - trendScale) * trendPerStep * 0.5;
         // Momentum: creates realistic waves on top of the trend
-        momentum = momentum * 0.8 + (Math.random() - 0.5) * vol * price * 0.5;
+        momentum = momentum * 0.8 + (rand() - 0.5) * vol * price * 0.5;
         // Noise: random component — higher in ranging markets
         const noiseScale = isTrending ? 1 : 2.5;
-        const noise = (Math.random() - 0.5) * 2 * vol * price * noiseScale;
+        const noise = (rand() - 0.5) * 2 * vol * price * noiseScale;
         const open = price;
         const close = price + trend + momentum * 0.2 + noise;
-        const range = Math.abs(close - open) * (1 + Math.random()) + vol * price * 0.5;
-        const high = Math.max(open, close) + range * Math.random() * 0.5;
-        const low = Math.min(open, close) - range * Math.random() * 0.5;
+        const range = Math.abs(close - open) * (1 + rand()) + vol * price * 0.5;
+        const high = Math.max(open, close) + range * rand() * 0.5;
+        const low = Math.min(open, close) - range * rand() * 0.5;
         candles.push({ time: Date.now() - (periods - i) * 3600000, open, high, low, close });
         price = close;
     }
     // Patch last close to real price so live price is accurate
     candles[candles.length - 1].close = currentPrice;
     return candles;
+}
+
+// ─── Deterministic D1 higher-timeframe bias ───────────────────────────────────
+// Seeded by symbol so the D1 trend is STABLE across recalcs (it would flap
+// every 30s if we used Math.random() like the selected-timeframe history).
+// The Pairs grid + Top Picks use this as a hard trend filter: signals that
+// fight the D1 trend get their confidence capped below the Top Picks / bot
+// threshold, so only trend-aligned setups surface as high-confidence picks.
+function _hashString(str) {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) {
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+        h = (h << 13) | (h >>> 19);
+    }
+    return h >>> 0;
+}
+function _mulberry32(seed) {
+    let s = seed >>> 0;
+    return function () {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function computeD1Bias(symbol, currentPrice) {
+    const rng = _mulberry32(_hashString(symbol));
+    const candles = generateRealisticHistory(currentPrice, 250, 'D1', rng);
+    const closes = candles.map(c => c.close);
+    const ema20Arr = EMA.calculate({ period: 20, values: closes });
+    const ema50Arr = EMA.calculate({ period: 50, values: closes });
+    const ema200Arr = EMA.calculate({ period: 200, values: closes });
+    const ema20 = ema20Arr.length ? ema20Arr[ema20Arr.length - 1] : null;
+    const ema50 = ema50Arr.length ? ema50Arr[ema50Arr.length - 1] : null;
+    const ema200 = ema200Arr.length ? ema200Arr[ema200Arr.length - 1] : null;
+    const price = closes[closes.length - 1];
+
+    let bias = 'NEUTRAL';
+    if (ema20 != null && ema50 != null && ema200 != null) {
+        const bullStack = price > ema20 && ema20 > ema50 && price > ema200;
+        const bearStack = price < ema20 && ema20 < ema50 && price < ema200;
+        if (bullStack) bias = 'BULLISH';
+        else if (bearStack) bias = 'BEARISH';
+        else if (price > ema200) bias = 'BULLISH';
+        else if (price < ema200) bias = 'BEARISH';
+    }
+    return { bias, ema20, ema50, ema200, price };
 }
 
 // ─── Core Signal Calculation ────────────────────────────────────────────────
@@ -259,6 +308,23 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         }
     }
 
+    // ── D1 higher-timeframe bias gate ───────────────────────────────────────
+    // Filters counter-trend signals: if the selected-timeframe signal fights
+    // the D1 trend, confidence is capped below the Top Picks / bot threshold
+    // so only trend-aligned setups surface as high-confidence picks.
+    const d1 = computeD1Bias(symbol, currentPrice);
+    const d1Conflicts = d1.bias !== 'NEUTRAL' && signal !== 'NEUTRAL' && d1.bias !== signal;
+    const d1LiveConflicts = d1.bias !== 'NEUTRAL' && liveSignal !== 'NEUTRAL' && d1.bias !== liveSignal;
+    if (d1Conflicts) confidence = Math.min(confidence, 74);
+    if (d1LiveConflicts) liveConfidence = Math.min(liveConfidence, 74);
+    if (d1Conflicts) {
+        factors.push({ name: `D1 Trend Conflict (${d1.bias})`, score: 0, direction: 'NEUTRAL' });
+    } else if (signal !== 'NEUTRAL' && d1.bias !== 'NEUTRAL') {
+        factors.push({ name: `D1 Trend Aligned (${d1.bias})`, score: 0, direction: 'NEUTRAL' });
+    } else {
+        factors.push({ name: `D1 Trend: ${d1.bias}`, score: 0, direction: 'NEUTRAL' });
+    }
+
     // ── Build normalised indicator snapshot ─────────────────────────────────
     const bbRange2 = bb ? (bb.upper - bb.lower) : 0;
     const percentB = bb && bbRange2 > 0 ? ((price - bb.lower) / bbRange2) * 100 : 50;
@@ -278,7 +344,8 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         },
         stochastic: { k: stoch?.k || 50, d: stoch?.d || 50 },
         ema20, ema50, ema200,
-        atr: { value: atr || price * 0.001 }
+        atr: { value: atr || price * 0.001 },
+        d1: { bias: d1.bias, ema20: d1.ema20, ema50: d1.ema50, ema200: d1.ema200 }
     };
 
     // ── Build chart-ready candle series ─────────────────────────────────────
