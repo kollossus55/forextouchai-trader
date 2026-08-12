@@ -1611,8 +1611,8 @@ Also provide:
                     if (isGold) {
                         const goldAtr = currentPrice * 0.007; // ~0.7% of gold price ≈ typical H1 ATR
                         goldSl = analysis.type === 'BUY'
-                            ? currentPrice - (goldAtr * (bot.atr_multiplier_sl || 1.5))
-                            : currentPrice + (goldAtr * (bot.atr_multiplier_sl || 1.5));
+                            ? currentPrice - (goldAtr * (bot.atr_multiplier_sl || 0.8))
+                            : currentPrice + (goldAtr * (bot.atr_multiplier_sl || 0.8));
                         goldTp = analysis.type === 'BUY'
                             ? currentPrice + (goldAtr * (bot.atr_multiplier_tp || 3.0))
                             : currentPrice - (goldAtr * (bot.atr_multiplier_tp || 3.0));
@@ -1622,10 +1622,10 @@ Also provide:
                     const isSilver = pairRaw === 'XAGUSD' || bot.strategy_type === 'SILVER_XAGUSD';
                     let silverSl = null, silverTp = null;
                     if (isSilver) {
-                        const silverAtr = currentPrice * 0.02; // ~2% of silver price ≈ typical H1 ATR (silver is more volatile than gold in %)
+                        const silverAtr = currentPrice * 0.012; // ~1.2% of silver price (tightened from 2%)
                         silverSl = analysis.type === 'BUY'
-                            ? currentPrice - (silverAtr * (bot.atr_multiplier_sl || 1.5))
-                            : currentPrice + (silverAtr * (bot.atr_multiplier_sl || 1.5));
+                            ? currentPrice - (silverAtr * (bot.atr_multiplier_sl || 1.2))
+                            : currentPrice + (silverAtr * (bot.atr_multiplier_sl || 1.2));
                         silverTp = analysis.type === 'BUY'
                             ? currentPrice + (silverAtr * (bot.atr_multiplier_tp || 3.0))
                             : currentPrice - (silverAtr * (bot.atr_multiplier_tp || 3.0));

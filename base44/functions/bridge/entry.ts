@@ -852,7 +852,7 @@ function sanitizeSignal(s, livePriceMap, botCfg) {
         if (isGold) {
             // Gold: use ATR-based dollar distances (~0.7% of price)
             const goldAtr = basePrice * 0.007; // ~$22-25 on Gold at $3200
-            const defaultSlDist = goldAtr * 1.5;  // ~$33
+            const defaultSlDist = goldAtr * 0.8;  // ~$18 (tightened from 1.5x)
             const defaultTpDist = goldAtr * 3.0;  // ~$67
 
             if (safeSL === 0) {
@@ -869,9 +869,9 @@ function sanitizeSignal(s, livePriceMap, botCfg) {
             safeTP = parseFloat(safeTP.toFixed(2));
         } else if (isSilver) {
             // Silver: ATR-based dollar distances (~2% of price)
-            const silverAtr = basePrice * 0.02; // ~$0.60-1.60 on Silver at $30-80
-            const defaultSlDist = silverAtr * 1.5;  // ~$0.90-2.40
-            const defaultTpDist = silverAtr * 3.0;  // ~$1.80-4.80
+            const silverAtr = basePrice * 0.012; // ~$0.36-0.96 on Silver at $30-80 (tightened from 2%)
+            const defaultSlDist = silverAtr * 1.2;  // ~$0.43-1.15
+            const defaultTpDist = silverAtr * 3.0;  // ~$1.08-2.88
 
             if (safeSL === 0) {
                 safeSL = type === 'BUY'
