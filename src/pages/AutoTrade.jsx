@@ -83,19 +83,14 @@ export default function AutoTrade() {
     
     console.log('[AutoTrade] Filtering bots for user:', user.email, 'role:', user.role);
     
-    let result;
-    if (user.role === 'admin') {
-      console.log('[AutoTrade] Admin user - showing all bots:', allBots.length);
-      result = allBots;
-    } else {
-      // Traders see bots they own or created (backward compatibility for bots without owner_email)
-      result = allBots.filter(bot => 
-        bot.owner_email === user.email || 
-        bot.created_by === user.email ||
-        (!bot.owner_email && bot.created_by === user.email)
-      );
-      console.log('[AutoTrade] Filtered bots for trader:', result.length, 'out of', allBots.length);
-    }
+    // Everyone (including admins) only sees their own bots to avoid mixing
+    // cross-user bot management with personal trading on this page.
+    let result = allBots.filter(bot =>
+      bot.owner_email === user.email ||
+      bot.created_by === user.email ||
+      (!bot.owner_email && bot.created_by === user.email)
+    );
+    console.log('[AutoTrade] Filtered bots for user:', user.email, result.length, 'out of', allBots.length);
 
     // Apply saved order if available, otherwise AI_PREDICTIVE first
     if (botOrder.length > 0) {
@@ -408,14 +403,9 @@ export default function AutoTrade() {
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
             <Bot className="w-8 h-8 text-emerald-500" /> Auto Trading Bots
-            {user?.role === 'admin' && (
-              <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-400 bg-amber-500/10">
-                Admin View - All Bots
-              </Badge>
-            )}
           </h1>
           <p className="text-slate-400 mt-1">
-            {user?.role === 'admin' ? 'Manage all trading bots across the platform' : 'Manage your AI automated trading strategies'}
+            Manage your AI automated trading strategies
           </p>
         </div>
         
@@ -546,11 +536,7 @@ export default function AutoTrade() {
                           ⏰ Outside Hours
                         </Badge>
                       )}
-                      {user?.role === 'admin' && bot.owner_email && (
-                        <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
-                          Owner: {bot.owner_email}
-                        </Badge>
-                      )}
+
                     </CardTitle>
                     <CardDescription className="text-slate-400">
                       {bot.strategy_type.replace('_', ' ')}
