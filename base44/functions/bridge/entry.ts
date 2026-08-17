@@ -413,9 +413,12 @@ Deno.serve(async (req) => {
         // The EA may have just opened a trade that reconcile hasn't persisted yet — without
         // including eaTrades here, the bridge would re-dispatch the same ACTIVE signal and
         // the EA would open a duplicate position on the next heartbeat.
+        // Normalize by stripping broker suffixes (.PRO, .r, .m, .raw) so "EURUSD.PRO" from
+        // the EA matches a bare "EURUSD" signal pair.
+        const _barePair = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
         const openPairs = new Set([
-            ...acctOpenTrades.map(t => (t.pair || '').replace('/', '').toUpperCase()),
-            ...(eaTrades || []).map(t => ((t.pair || t.symbol || '').replace('/', '').toUpperCase()))
+            ...acctOpenTrades.map(t => _barePair(t.pair || '')),
+            ...(eaTrades || []).map(t => _barePair(t.pair || t.symbol || ''))
         ]);
 
         // Load running bot configs for trading-hours enforcement at dispatch time
@@ -612,15 +615,47 @@ Deno.serve(async (req) => {
         // so without this remap a broker suffix would cause the EA to reject the signal.
         const eaBrokerSymbol = (isGoldEA || isSilverEA) && Array.isArray(eaPricesRaw) && eaPricesRaw[0]?.symbol
             ? eaPricesRaw[0].symbol : null;
+
+        // For the standard EA, build a map of bare pair → broker symbol so signals can
+        // be remapped to the broker's actual symbol (e.g. "EURUSD" → "EURUSD.PRO").
+        // Brokers like IC Markets use suffixes (.PRO, .r, .m, .raw) on every symbol;
+        // without this remap, the EA receives "EURUSD" but Market Watch has "EURUSD.PRO",
+        // so MarketInfo returns 0 and the trade is never placed.
+        const brokerSymbolMap = {}; // "EURUSD" → "EURUSD.PRO"
+        if (!isGoldEA && !isSilverEA && Array.isArray(eaPricesRaw)) {
+            for (const p of eaPricesRaw) {
+                if (!p?.symbol) continue;
+                const sym = String(p.symbol);
+                const bare = sym.replace('/', '').toUpperCase();
+                const dotIdx = bare.indexOf('.');
+                const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
+                // Only map if the base is a known-length forex/crypto/index symbol (6+ chars)
+                // to avoid false matches. Store the first match per base.
+                if (base.length >= 4 && !brokerSymbolMap[base]) {
+                    brokerSymbolMap[base] = sym;
+                }
+            }
+        }
+        const hasBrokerSuffixMap = Object.keys(brokerSymbolMap).length > 0;
+        if (hasBrokerSuffixMap) {
+            console.log('[BRIDGE]', acctKey, '→ broker suffix map:', JSON.stringify(brokerSymbolMap));
+        }
+
         const sanitizedSignals = freshSignals.map(s => {
             const botCfg = s.bot_id ? botConfigMap[s.bot_id] : null;
             const sanitized = sanitizeSignal(s, livePriceMap, botCfg);
             if (eaBrokerSymbol) {
                 sanitized.pair = eaBrokerSymbol;
+            } else if (hasBrokerSuffixMap) {
+                // Standard EA: remap bare pair to broker's suffixed symbol
+                const barePair = (s.pair || '').replace('/', '').toUpperCase();
+                if (brokerSymbolMap[barePair]) {
+                    sanitized.pair = brokerSymbolMap[barePair];
+                }
             }
             return sanitized;
         });
-        console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals', eaBrokerSymbol ? `(broker symbol: ${eaBrokerSymbol})` : '');
+        console.log('[BRIDGE]', acctKey, '→', sanitizedSignals.length, 'signals', eaBrokerSymbol ? `(broker symbol: ${eaBrokerSymbol})` : (hasBrokerSuffixMap ? '(suffix remapped)' : ''));
 
         // ── Global schedule: if OFF now, flag all open trades for close (EA flattens them) ──
         if (scheduleOffNow) {
@@ -1076,8 +1111,9 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 status: 'ACTIVE',
                 owner_email: acctKey,
             }, '-created_date', 50);
+            const _barePairNorm = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
             for (const s of activeSignals) {
-                const pairNorm = (s.pair || '').replace('/', '').toUpperCase();
+                const pairNorm = _barePairNorm(s.pair || '');
                 activeSignalMap.set(pairNorm, s);
             }
             console.log('[BRIDGE] Loaded', activeSignals.length, 'ACTIVE signals for trade attribution');
@@ -1104,7 +1140,8 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                 ?? livePriceMap[(t.pair || t.symbol)]
                 ?? 0;
 
-            const pairNorm = sym.toUpperCase();
+            // Normalize broker symbol to bare pair (strip suffix like .PRO, .r) for signal matching
+            const pairNorm = (function() { const u = sym.toUpperCase(); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); })();
             const matchedSignal = activeSignalMap.get(pairNorm);
             const matchedBotId = matchedSignal?.bot_id || null;
             if (matchedSignal) {
