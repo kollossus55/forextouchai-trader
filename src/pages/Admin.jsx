@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import useSignalNotifications from '@/hooks/useSignalNotifications';
 import RiskManagementPanel from '@/components/autotrade/RiskManagementPanel';
+import InviteUserDialog from '@/components/admin/InviteUserDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -377,10 +378,15 @@ export default function Admin() {
       {/* User Management Section */}
       <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-cyan-400" /> User Management
-          </CardTitle>
-          <CardDescription className="text-slate-400">All registered users and their details</CardDescription>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-cyan-400" /> User Management
+              </CardTitle>
+              <CardDescription className="text-slate-400">All registered users and their details</CardDescription>
+            </div>
+            <InviteUserDialog />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
