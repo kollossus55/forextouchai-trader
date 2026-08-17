@@ -359,12 +359,12 @@ export default function Settings() {
 //|                                   ForexTouchAI Bridge EA (MT5) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.11"
+#property version   "1.12"
 #property strict
 
 #include <Trade\\Trade.mqh>
 
-#define EA_VERSION "1.11"
+#define EA_VERSION "1.12"
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
@@ -381,6 +381,7 @@ input string TradingEndTime    = "23:59";
 input bool   CountAllTrades   = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
 input int    MagicNumber      = 12345;
 input string FilterByComment  = "";    // Only count trades with this exact comment (empty = use CountAllTrades/MagicNumber). e.g. "ForexTouchAI"
+input string SymbolSuffix     = "";    // Broker symbol suffix (e.g. ".PRO", ".r", ".m"). Leave empty if your broker uses no suffix.
 
 // --- GLOBALS ---
 string Endpoint;
@@ -592,6 +593,9 @@ void ExecuteSignalObj(string obj) {
    int slashPos = StringFind(pair, "/");
    if(slashPos != -1)
       symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
+   // Append broker symbol suffix (e.g. EURUSD -> EURUSD.PRO) if not already present
+   if(StringLen(SymbolSuffix) > 0 && StringFind(symbol, SymbolSuffix) < 0)
+      symbol = symbol + SymbolSuffix;
    int myOpenCount = 0;
    if(StringLen(FilterByComment) > 0) {
       for(int ci = 0; ci < PositionsTotal(); ci++) {
@@ -704,7 +708,7 @@ void CloseTicket(ulong ticket) {
     const element = document.createElement("a");
     const file = new Blob([mql5Code], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "ForexTouchAI_Bridge_MT5.mq5";
+    element.download = "ForexTouchAI_Bridge_MT5_v1.12.mq5";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -719,10 +723,10 @@ void CloseTicket(ulong ticket) {
       //+------------------------------------------------------------------+
       #property copyright "Copyright 2024, ForexTouchAI"
       #property link      "https://www.forextouchai.com"
-      #property version   "3.11"
+      #property version   "3.12"
       #property strict
       
-      #define EA_VERSION "3.11"
+      #define EA_VERSION "3.12"
 
       // --- INPUTS ---
       input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
@@ -742,6 +746,7 @@ void CloseTicket(ulong ticket) {
       input bool CountAllTrades = true;   // true = count ALL open trades (all EAs + manual); false = only this EA's trades
       input int MagicNumber = 12345;
       input string FilterByComment = "";  // Only count trades with this exact comment (empty = use CountAllTrades/MagicNumber). e.g. "ForexTouchAI"
+      input string SymbolSuffix = "";  // Broker symbol suffix (e.g. ".PRO", ".r", ".m"). Leave empty if your broker uses no suffix.
 
       // --- GLOBALS ---
       string ServiceUrl;
@@ -1184,6 +1189,9 @@ void CloseTicket(ulong ticket) {
          int slashPos = StringFind(pair, "/");
          if(slashPos != -1)
             symbol = StringSubstr(pair, 0, slashPos) + StringSubstr(pair, slashPos + 1);
+         // Append broker symbol suffix (e.g. EURUSD -> EURUSD.PRO) if not already present
+         if(StringLen(SymbolSuffix) > 0 && StringFind(symbol, SymbolSuffix) < 0)
+            symbol = symbol + SymbolSuffix;
 
          int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
          double currentPrice = MarketInfo(symbol, (cmd == OP_BUY ? MODE_ASK : MODE_BID));
@@ -1311,7 +1319,7 @@ void CloseTicket(ulong ticket) {
     const element = document.createElement("a");
     const file = new Blob([mql4Code], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "ForexTouchAI_Bridge.mq4";
+    element.download = "ForexTouchAI_Bridge_v3.12.mq4";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -1668,6 +1676,7 @@ void CloseTicket(ulong ticket) {
                   <li className="text-amber-400 font-bold">Do NOT include a trailing slash "/" at the end of either URL.</li>
                   <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
                   <li className="text-amber-300 font-semibold">In the EA inputs, paste your <strong>API Key</strong> (shown above) into the <code>ApiKey</code> field.</li>
+                  <li className="text-cyan-300 font-semibold">If your broker uses a symbol suffix (e.g. IC Markets ".PRO", Pepperstone ".r"), enter it in the <code>SymbolSuffix</code> input (e.g. ".PRO"). Leave empty if your broker has no suffix.</li>
                   <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
                   <li className="text-emerald-400 font-medium">If setup is correct, you'll see "SUCCESS: Connected to server successfully" in the Experts tab.</li>
                   <li><strong>Common Errors:</strong>
