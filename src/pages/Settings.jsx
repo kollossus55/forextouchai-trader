@@ -359,12 +359,12 @@ export default function Settings() {
 //|                                   ForexTouchAI Bridge EA (MT5) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.12"
+#property version   "1.13"
 #property strict
 
 #include <Trade\\Trade.mqh>
 
-#define EA_VERSION "1.12"
+#define EA_VERSION "1.13"
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
@@ -401,6 +401,9 @@ int OnInit() {
       url = StringSubstr(url, 0, len-1);
    Endpoint = url + "/functions/bridge";
    trade.SetExpertMagicNumber(MagicNumber);
+   // Live accounts reject orders if the fill mode doesn't match the broker's config.
+   // IOC is the most widely supported; FOK is the CTrade default but many live brokers reject it.
+   trade.SetTypeFilling(ORDER_FILLING_IOC);
 
    Print("===================================");
    Print("ForexTouchAI Bridge EA MT5 v", EA_VERSION);
@@ -627,6 +630,32 @@ void ExecuteSignalObj(string obj) {
       return;
    }
 
+   // --- Live-account safety checks (demo accounts skip these silently) ---
+   // 1. Symbol trade mode: live brokers disable symbols outside market hours or by account type
+   long tradeMode = SymbolInfoInteger(symbol, SYMBOL_TRADE_MODE);
+   if(tradeMode == SYMBOL_TRADE_MODE_DISABLED) {
+      Print("[BRIDGE MT5] REJECTED: Trading disabled for ", symbol, " on this account (check broker permissions / market hours)");
+      return;
+   }
+   if(tradeMode == SYMBOL_TRADE_MODE_CLOSEONLY) {
+      Print("[BRIDGE MT5] REJECTED: ", symbol, " is close-only on this account (cannot open new positions)");
+      return;
+   }
+
+   // 2. Spread check — live spreads are wider and can breach MaxSpreadPips
+   double spreadPts = SymbolInfoInteger(symbol, SYMBOL_SPREAD);
+   double point     = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
+   if(MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
+      Print("[BRIDGE MT5] REJECTED: Spread ", DoubleToString(spreadPips, 1), " pips > MaxSpreadPips ", MaxSpreadPips, " for ", symbol);
+      return;
+   }
+
+   // 3. Minimum stops level — live brokers enforce this; demo often has 0.
+   //    If SL/TP is closer than the minimum, the order is rejected (Error 10016).
+   long stopsLevel = SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double minStopDist = stopsLevel * point;
+
    double finalSL = 0, finalTP = 0;
    if(sigEntry > 0) {
       if(isBuy) {
@@ -638,8 +667,29 @@ void ExecuteSignalObj(string obj) {
       }
    }
 
+   // Enforce minimum stops distance on live accounts
+   if(minStopDist > 0) {
+      if(finalSL > 0) {
+         if(isBuy && (price - finalSL) < minStopDist) finalSL = NormalizeDouble(price - minStopDist, digits);
+         if(!isBuy && (finalSL - price) < minStopDist) finalSL = NormalizeDouble(price + minStopDist, digits);
+      }
+      if(finalTP > 0) {
+         if(isBuy && (finalTP - price) < minStopDist) finalTP = NormalizeDouble(price + minStopDist, digits);
+         if(!isBuy && (price - finalTP) < minStopDist) finalTP = NormalizeDouble(price - minStopDist, digits);
+      }
+   }
+
+   // 4. Normalize lot size to broker's volume step (live accounts reject unnormalized lots)
+   double minVol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   double maxVol  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   double volStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
    double lot = (sigLot > 0) ? sigLot : FixedLotSize;
-   Print("[BRIDGE MT5] Executing: ", type, " ", symbol, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
+   if(volStep > 0) lot = MathFloor(lot / volStep) * volStep;
+   if(lot < minVol) lot = minVol;
+   if(lot > maxVol) lot = maxVol;
+   lot = NormalizeDouble(lot, 2);
+
+   Print("[BRIDGE MT5] Executing: ", type, " ", symbol, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP, " StopsLevel=", stopsLevel, " SpreadPips=", DoubleToString(spreadPips, 1));
 
    bool ok = isBuy
       ? trade.Buy(lot, symbol, price, finalSL, finalTP, orderComment)
@@ -650,9 +700,9 @@ void ExecuteSignalObj(string obj) {
       lastSignalId = id;
       TradesToday++;
    } else {
-      Print("[BRIDGE MT5] OrderSend FAILED. RetCode=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription());
+      Print("[BRIDGE MT5] OrderSend FAILED. RetCode=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription(), " Symbol=", symbol, " Lot=", lot, " Price=", price, " SL=", finalSL, " TP=", finalTP);
    }
-}
+   }
 
 //+------------------------------------------------------------------+
 string GetJsonValue(string json, string key) {
@@ -708,7 +758,7 @@ void CloseTicket(ulong ticket) {
     const element = document.createElement("a");
     const file = new Blob([mql5Code], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "ForexTouchAI_Bridge_MT5_v1.12.mq5";
+    element.download = "ForexTouchAI_Bridge_MT5_v1.13.mq5";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -1196,12 +1246,27 @@ void CloseTicket(ulong ticket) {
          int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
          double currentPrice = MarketInfo(symbol, (cmd == OP_BUY ? MODE_ASK : MODE_BID));
          int digits = (int)MarketInfo(symbol, MODE_DIGITS);
-         
+
          if(currentPrice == 0) {
             Print("[BRIDGE] ERROR: Cannot get price for ", symbol, " - add symbol to Market Watch");
             return;
          }
-         
+
+         // --- Live-account safety checks (demo accounts skip these silently) ---
+         // 1. Spread check — live spreads are wider and can breach MaxSpreadPips
+         double spreadPts = MarketInfo(symbol, MODE_SPREAD);
+         double point     = MarketInfo(symbol, MODE_POINT);
+         double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
+         if(MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
+            Print("[BRIDGE] REJECTED: Spread ", DoubleToString(spreadPips, 1), " pips > MaxSpreadPips ", MaxSpreadPips, " for ", symbol);
+            return;
+         }
+
+         // 2. Minimum stops level — live brokers enforce this; demo often has 0.
+         //    If SL/TP is closer than the minimum, the order is rejected (Error 130).
+         double stopsLevel = MarketInfo(symbol, MODE_STOPLEVEL);
+         double minStopDist = stopsLevel * point;
+
          // Calculate SL/TP as distance from signal entry, apply to current price
          double finalSL = 0, finalTP = 0;
          if(sigEntry > 0) {
@@ -1218,12 +1283,33 @@ void CloseTicket(ulong ticket) {
                if(tpDist > 0) finalTP = NormalizeDouble(currentPrice - tpDist, digits);
             }
          }
-         
+
+         // Enforce minimum stops distance on live accounts
+         if(minStopDist > 0) {
+            if(finalSL > 0) {
+               if(cmd == OP_BUY && (currentPrice - finalSL) < minStopDist) finalSL = NormalizeDouble(currentPrice - minStopDist, digits);
+               if(cmd == OP_SELL && (finalSL - currentPrice) < minStopDist) finalSL = NormalizeDouble(currentPrice + minStopDist, digits);
+            }
+            if(finalTP > 0) {
+               if(cmd == OP_BUY && (finalTP - currentPrice) < minStopDist) finalTP = NormalizeDouble(currentPrice + minStopDist, digits);
+               if(cmd == OP_SELL && (currentPrice - finalTP) < minStopDist) finalTP = NormalizeDouble(currentPrice - minStopDist, digits);
+            }
+         }
+
+         // 3. Normalize lot size to broker's volume step (live accounts reject unnormalized lots)
+         double minVol  = MarketInfo(symbol, MODE_MINLOT);
+         double maxVol  = MarketInfo(symbol, MODE_MAXLOT);
+         double volStep = MarketInfo(symbol, MODE_LOTSTEP);
+         double finalLot  = (sigLot > 0) ? sigLot : FixedLotSize;
+         if(volStep > 0) finalLot = MathFloor(finalLot / volStep) * volStep;
+         if(finalLot < minVol) finalLot = minVol;
+         if(finalLot > maxVol) finalLot = maxVol;
+         finalLot = NormalizeDouble(finalLot, 2);
+
          double displaySL = HideSLTP ? 0 : finalSL;
          double displayTP = HideSLTP ? 0 : finalTP;
-         double finalLot  = (sigLot > 0) ? sigLot : FixedLotSize;
-         
-         Print("[BRIDGE] Executing: ", type, " ", symbol, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP);
+
+         Print("[BRIDGE] Executing: ", type, " ", symbol, " Lot=", finalLot, " Price=", currentPrice, " SL=", finalSL, " TP=", finalTP, " StopsLevel=", stopsLevel, " SpreadPips=", DoubleToString(spreadPips, 1));
          
          int ticket = OrderSend(symbol, cmd, finalLot, currentPrice, 20, displaySL, displayTP, orderComment, MagicNumber, 0, cmd == OP_BUY ? clrGreen : clrRed);
          
@@ -1677,6 +1763,7 @@ void CloseTicket(ulong ticket) {
                   <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
                   <li className="text-amber-300 font-semibold">In the EA inputs, paste your <strong>API Key</strong> (shown above) into the <code>ApiKey</code> field.</li>
                   <li className="text-cyan-300 font-semibold">If your broker uses a symbol suffix (e.g. IC Markets ".PRO", Pepperstone ".r"), enter it in the <code>SymbolSuffix</code> input (e.g. ".PRO"). Leave empty if your broker has no suffix.</li>
+                  <li className="text-emerald-300 font-semibold">Live accounts: The EA v1.13+ automatically enforces your broker's minimum stop distance, spread limits, lot-step normalization, and IOC fill mode. If a trade is rejected, check the Experts tab log — the rejection reason (spread, stops level, trade mode) is printed in plain English.</li>
                   <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
                   <li className="text-emerald-400 font-medium">If setup is correct, you'll see "SUCCESS: Connected to server successfully" in the Experts tab.</li>
                   <li><strong>Common Errors:</strong>
