@@ -8,9 +8,10 @@ const SILVER_EA_MT5_CODE = `//+-------------------------------------------------
 //|   v1.01: Added broker filling mode detection (fixes error 10030) |
 //|   v1.02: Fixed StringReplace in-place symbol matching + hide_sl_tp|
 //|   v1.03: Removed StringReplace normalization - direct symbol match  |
+//|   v1.04: Live-account hardening (trade mode, spread, stops, lot step)|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 #include <Trade\\Trade.mqh>
@@ -21,6 +22,7 @@ input string ApiKey         = "";       // Paste your API Key from ForexTouchAI 
 input int    HeartbeatSec   = 30;       // Poll interval (seconds)
 input ulong  MagicNumber    = 88888;    // MUST differ from Gold (99999) & standard EA (12345)
 input int    Slippage       = 50;       // Slippage tolerance for Silver (points)
+input double MaxSpreadPips  = 0;        // Max spread in pips (0 = no check) - set ~5 for Silver
 input string SilverSymbol   = "XAGUSD"; // Adjust if broker uses XAGUSDm, XAGUSD. etc.
 input int    MaxSilverTrades   = 3;     // Maximum concurrent Silver trades (0 = unlimited)
 input bool   EnableTrailing     = false; // Enable trailing stop
@@ -44,7 +46,7 @@ int OnInit() {
     if ((fillFlags & 1) != 0) trade.SetTypeFilling(ORDER_FILLING_FOK);
     else if ((fillFlags & 2) != 0) trade.SetTypeFilling(ORDER_FILLING_IOC);
     else trade.SetTypeFilling(ORDER_FILLING_RETURN);
-    Print("[SilverEA MT5] Silver EA v1.03 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
+    Print("[SilverEA MT5] Silver EA v1.04 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber, " | FillFlags: ", fillFlags);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -217,38 +219,88 @@ double ExtractDbl(string json, string key) {
 void ExecuteSignal(string obj) {
     string signalId = ExtractStr(obj, "id");
     string type     = ExtractStr(obj, "type");
-    double lotSize  = ExtractDbl(obj, "lot_size");
-    double sl       = ExtractDbl(obj, "stop_loss");
-    double tp       = ExtractDbl(obj, "take_profit");
+    double sigEntry = ExtractDbl(obj, "entry_price");
+    double sigLot   = ExtractDbl(obj, "lot_size");
+    double sigSL    = ExtractDbl(obj, "stop_loss");
+    double sigTP    = ExtractDbl(obj, "take_profit");
     string orderComment = ExtractStr(obj, "comment");
     if (StringLen(orderComment) == 0) orderComment = "SilverForexTouchAI";
 
-    if (lotSize <= 0) lotSize = 0.01;
     bool isBuy = (type == "BUY");
     double price = isBuy ? SymbolInfoDouble(SilverSymbol, SYMBOL_ASK) : SymbolInfoDouble(SilverSymbol, SYMBOL_BID);
+    int    digits = (int)SymbolInfoInteger(SilverSymbol, SYMBOL_DIGITS);
     if (price == 0) { Print("[SilverEA MT5] Cannot get price for ", SilverSymbol); return; }
 
-    // Safety: ensure SL/TP are at least $0.20 away (broker min stop distance for Silver)
-    double minDist = 0.20;
-    if (sl > 0) {
-        if (isBuy && price - sl < minDist) sl = NormalizeDouble(price - minDist * 2, 3);
-        if (!isBuy && sl - price < minDist) sl = NormalizeDouble(price + minDist * 2, 3);
+    // --- Live-account safety checks (demo accounts skip these silently) ---
+    // 1. Symbol trade mode: live brokers disable symbols outside market hours
+    long tradeMode = SymbolInfoInteger(SilverSymbol, SYMBOL_TRADE_MODE);
+    if (tradeMode == SYMBOL_TRADE_MODE_DISABLED) {
+        Print("[SilverEA MT5] REJECTED: Trading disabled for ", SilverSymbol, " (check broker permissions / market hours)");
+        return;
     }
-    if (tp > 0) {
-        if (isBuy && tp - price < minDist) tp = NormalizeDouble(price + minDist * 2, 3);
-        if (!isBuy && price - tp < minDist) tp = NormalizeDouble(price - minDist * 2, 3);
+    if (tradeMode == SYMBOL_TRADE_MODE_CLOSEONLY) {
+        Print("[SilverEA MT5] REJECTED: ", SilverSymbol, " is close-only on this account");
+        return;
     }
 
-    Print("[SilverEA MT5] Executing SILVER ", type, " @ ", price, " SL=", sl, " TP=", tp, " Lot=", lotSize);
+    // 2. Spread check — live spreads are wider
+    double spreadPts = (double)SymbolInfoInteger(SilverSymbol, SYMBOL_SPREAD);
+    double point     = SymbolInfoDouble(SilverSymbol, SYMBOL_POINT);
+    double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
+    if (MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
+        Print("[SilverEA MT5] REJECTED: Spread ", DoubleToString(spreadPips, 1), " pips > MaxSpreadPips ", MaxSpreadPips);
+        return;
+    }
+
+    // 3. Minimum stops level — live brokers enforce this (Error 10016 if too close)
+    long stopsLevel = SymbolInfoInteger(SilverSymbol, SYMBOL_TRADE_STOPS_LEVEL);
+    double minStopDist = stopsLevel * point;
+    double silverMinFallback = 0.20;  // Fallback: enforce at least $0.20 distance for Silver
+    if (minStopDist < silverMinFallback) minStopDist = silverMinFallback;
+
+    double finalSL = 0, finalTP = 0;
+    if (sigEntry > 0) {
+        if (isBuy) {
+            if (sigSL > 0) finalSL = NormalizeDouble(price - (sigEntry - sigSL), digits);
+            if (sigTP > 0) finalTP = NormalizeDouble(price + (sigTP - sigEntry), digits);
+        } else {
+            if (sigSL > 0) finalSL = NormalizeDouble(price + (sigSL - sigEntry), digits);
+            if (sigTP > 0) finalTP = NormalizeDouble(price - (sigEntry - sigTP), digits);
+        }
+    } else {
+        finalSL = sigSL; finalTP = sigTP;
+    }
+
+    // Enforce minimum stops distance
+    if (finalSL > 0) {
+        if (isBuy && (price - finalSL) < minStopDist) finalSL = NormalizeDouble(price - minStopDist, digits);
+        if (!isBuy && (finalSL - price) < minStopDist) finalSL = NormalizeDouble(price + minStopDist, digits);
+    }
+    if (finalTP > 0) {
+        if (isBuy && (finalTP - price) < minStopDist) finalTP = NormalizeDouble(price + minStopDist, digits);
+        if (!isBuy && (price - finalTP) < minStopDist) finalTP = NormalizeDouble(price - minStopDist, digits);
+    }
+
+    // 4. Normalize lot size to broker's volume step (live accounts reject unnormalized lots)
+    double minVol  = SymbolInfoDouble(SilverSymbol, SYMBOL_VOLUME_MIN);
+    double maxVol  = SymbolInfoDouble(SilverSymbol, SYMBOL_VOLUME_MAX);
+    double volStep = SymbolInfoDouble(SilverSymbol, SYMBOL_VOLUME_STEP);
+    double lot = (sigLot > 0) ? sigLot : 0.01;
+    if (volStep > 0) lot = MathFloor(lot / volStep) * volStep;
+    if (lot < minVol) lot = minVol;
+    if (lot > maxVol) lot = maxVol;
+    lot = NormalizeDouble(lot, 2);
+
+    Print("[SilverEA MT5] Executing SILVER ", type, " @ ", price, " SL=", finalSL, " TP=", finalTP, " Lot=", lot, " StopsLevel=", stopsLevel, " SpreadPips=", DoubleToString(spreadPips, 1));
 
     bool ok = isBuy
-        ? trade.Buy(lotSize, SilverSymbol, price, sl, tp, orderComment)
-        : trade.Sell(lotSize, SilverSymbol, price, sl, tp, orderComment);
+        ? trade.Buy(lot, SilverSymbol, price, finalSL, finalTP, orderComment)
+        : trade.Sell(lot, SilverSymbol, price, finalSL, finalTP, orderComment);
 
     if (ok) {
         ulong ticket = trade.ResultOrder();
         Print("[SilverEA MT5] Silver order placed! Ticket=", ticket, " RetCode=", trade.ResultRetcode());
-        ConfirmExecution(signalId, (long)ticket, type, lotSize, price);
+        ConfirmExecution(signalId, (long)ticket, type, lot, price);
     } else {
         Print("[SilverEA MT5] OrderSend FAILED. RetCode=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription());
         Print("[SilverEA MT5] Ensure XAGUSD is in Market Watch and margin is sufficient.");
@@ -309,9 +361,10 @@ const SILVER_EA_CODE = `//+-----------------------------------------------------
 //|              Dedicated Silver (XAGUSD) EA for ForexTouchAI      |
 //|   Uses MagicNumber 88888 - SEPARATE from Gold (99999) & std EA |
 //|   v1.02: Removed StringReplace normalization - direct symbol match  |
+//|   v1.03: Live-account hardening (spread, stops level, lot step norm)|
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 
 // --- INPUTS ---
@@ -320,6 +373,7 @@ input string ApiKey         = "";      // Paste your API Key from ForexTouchAI S
 input int    HeartbeatSec   = 30;      // Poll interval (seconds)
 input int    MagicNumber    = 88888;   // MUST differ from Gold (99999) & standard EA (12345)
 input int    Slippage       = 50;      // Slippage tolerance for Silver (points)
+input double MaxSpreadPips  = 0;       // Max spread in pips (0 = no check) - set ~5 for Silver
 input string SilverSymbol   = "XAGUSD"; // Adjust if your broker uses XAGUSDm, XAGUSD. etc.
 input int    MaxSilverTrades   = 3;    // Maximum concurrent Silver trades (0 = unlimited)
 input bool   EnableTrailing     = false; // Enable trailing stop
@@ -334,7 +388,7 @@ int OnInit() {
         Print("[SilverEA] WARNING: ApiKey empty - get it from the ForexTouchAI Settings page.");
     if (MarketInfo(SilverSymbol, MODE_BID) <= 0)
         Print("[SilverEA] WARNING: Symbol '", SilverSymbol, "' not in Market Watch. Add it.");
-    Print("[SilverEA] Silver EA v1.02 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber);
+    Print("[SilverEA] Silver EA v1.03 | Symbol: ", SilverSymbol, " | MagicNumber: ", MagicNumber);
     EventSetTimer(1);
     return INIT_SUCCEEDED;
 }
@@ -492,34 +546,74 @@ double ExtractDbl(string json, string key) {
 void ExecuteSignal(string obj) {
     string signalId = ExtractStr(obj, "id");
     string type     = ExtractStr(obj, "type");
-    double lotSize  = ExtractDbl(obj, "lot_size");
-    double sl       = ExtractDbl(obj, "stop_loss");
-    double tp       = ExtractDbl(obj, "take_profit");
+    double sigEntry = ExtractDbl(obj, "entry_price");
+    double sigLot   = ExtractDbl(obj, "lot_size");
+    double sigSL    = ExtractDbl(obj, "stop_loss");
+    double sigTP    = ExtractDbl(obj, "take_profit");
     string orderComment = ExtractStr(obj, "comment");
     if (StringLen(orderComment) == 0) orderComment = "SilverForexTouchAI";
 
-    if (lotSize <= 0) lotSize = 0.01;
     int cmd = (type == "BUY") ? OP_BUY : OP_SELL;
     double price = (cmd == OP_BUY) ? MarketInfo(SilverSymbol, MODE_ASK) : MarketInfo(SilverSymbol, MODE_BID);
+    int digits = (int)MarketInfo(SilverSymbol, MODE_DIGITS);
     if (price == 0) { Print("[SilverEA] Cannot get price for ", SilverSymbol); return; }
 
-    double minDist = 0.20;
-    if (sl > 0) {
-        if (cmd == OP_BUY && price - sl < minDist) sl = NormalizeDouble(price - minDist * 2, 3);
-        if (cmd == OP_SELL && sl - price < minDist) sl = NormalizeDouble(price + minDist * 2, 3);
-    }
-    if (tp > 0) {
-        if (cmd == OP_BUY && tp - price < minDist) tp = NormalizeDouble(price + minDist * 2, 3);
-        if (cmd == OP_SELL && price - tp < minDist) tp = NormalizeDouble(price - minDist * 2, 3);
+    // --- Live-account safety checks (demo accounts skip these silently) ---
+    // 1. Spread check — live spreads are wider
+    double spreadPts = MarketInfo(SilverSymbol, MODE_SPREAD);
+    double point     = MarketInfo(SilverSymbol, MODE_POINT);
+    double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
+    if (MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
+        Print("[SilverEA] REJECTED: Spread ", DoubleToString(spreadPips, 1), " pips > MaxSpreadPips ", MaxSpreadPips);
+        return;
     }
 
-    Print("[SilverEA] Executing SILVER ", type, " @ ", price, " SL=", sl, " TP=", tp, " Lot=", lotSize);
+    // 2. Minimum stops level — live brokers enforce this (Error 130 if too close)
+    double stopsLevel = MarketInfo(SilverSymbol, MODE_STOPLEVEL);
+    double minStopDist = stopsLevel * point;
+    double silverMinFallback = 0.20;  // Fallback: enforce at least $0.20 distance for Silver
+    if (minStopDist < silverMinFallback) minStopDist = silverMinFallback;
 
-    int ticket = OrderSend(SilverSymbol, cmd, lotSize, price, Slippage, sl, tp, orderComment, MagicNumber, 0, cmd == OP_BUY ? clrSilver : clrSlateGray);
+    double finalSL = 0, finalTP = 0;
+    if (sigEntry > 0) {
+        if (cmd == OP_BUY) {
+            if (sigSL > 0) finalSL = NormalizeDouble(price - (sigEntry - sigSL), digits);
+            if (sigTP > 0) finalTP = NormalizeDouble(price + (sigTP - sigEntry), digits);
+        } else {
+            if (sigSL > 0) finalSL = NormalizeDouble(price + (sigSL - sigEntry), digits);
+            if (sigTP > 0) finalTP = NormalizeDouble(price - (sigEntry - sigTP), digits);
+        }
+    } else {
+        finalSL = sigSL; finalTP = sigTP;
+    }
+
+    // Enforce minimum stops distance
+    if (finalSL > 0) {
+        if (cmd == OP_BUY && (price - finalSL) < minStopDist) finalSL = NormalizeDouble(price - minStopDist, digits);
+        if (cmd == OP_SELL && (finalSL - price) < minStopDist) finalSL = NormalizeDouble(price + minStopDist, digits);
+    }
+    if (finalTP > 0) {
+        if (cmd == OP_BUY && (finalTP - price) < minStopDist) finalTP = NormalizeDouble(price + minStopDist, digits);
+        if (cmd == OP_SELL && (price - finalTP) < minStopDist) finalTP = NormalizeDouble(price - minStopDist, digits);
+    }
+
+    // 3. Normalize lot size to broker's volume step (live accounts reject unnormalized lots)
+    double minVol  = MarketInfo(SilverSymbol, MODE_MINLOT);
+    double maxVol  = MarketInfo(SilverSymbol, MODE_MAXLOT);
+    double volStep = MarketInfo(SilverSymbol, MODE_LOTSTEP);
+    double lot = (sigLot > 0) ? sigLot : 0.01;
+    if (volStep > 0) lot = MathFloor(lot / volStep) * volStep;
+    if (lot < minVol) lot = minVol;
+    if (lot > maxVol) lot = maxVol;
+    lot = NormalizeDouble(lot, 2);
+
+    Print("[SilverEA] Executing SILVER ", type, " @ ", price, " SL=", finalSL, " TP=", finalTP, " Lot=", lot, " StopsLevel=", stopsLevel, " SpreadPips=", DoubleToString(spreadPips, 1));
+
+    int ticket = OrderSend(SilverSymbol, cmd, lot, price, Slippage, finalSL, finalTP, orderComment, MagicNumber, 0, cmd == OP_BUY ? clrSilver : clrSlateGray);
 
     if (ticket > 0) {
         Print("[SilverEA] Silver order placed! Ticket=", ticket);
-        ConfirmExecution(signalId, ticket, type, lotSize, price);
+        ConfirmExecution(signalId, ticket, type, lot, price);
     } else {
         Print("[SilverEA] OrderSend FAILED. Error=", GetLastError(), " Ensure XAGUSD is in Market Watch and margin is sufficient.");
     }
@@ -595,7 +689,7 @@ export default function SilverEADownload() {
                 <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                         <h4 className="text-sm font-semibold text-slate-200">Silver (XAGUSD) Dedicated EA</h4>
-                        <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full">LATEST: MT5 v1.03 / MT4 v1.02</span>
+                        <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full">LATEST: MT5 v1.04 / MT4 v1.03</span>
                     </div>
                     <p className="text-xs text-slate-300/70 mb-1">
                         Use this separate EA exclusively for your <strong>SILVER_XAGUSD</strong> bot. It runs independently from the standard and Gold bridge EAs with:
@@ -606,6 +700,7 @@ export default function SilverEADownload() {
                         <li><strong>Slippage 50 points</strong> — appropriate tolerance for Silver execution</li>
                         <li>Only picks up XAGUSD signals — ignores all Forex & Gold signals</li>
                         <li><strong>MaxSilverTrades = 3</strong> (default) — limits concurrent Silver trades; set to 0 for unlimited</li>
+                        <li><strong>Live-account hardening</strong> — trade-mode guard, spread check, broker min-stop enforcement, lot-step normalization</li>
                         <li><strong>Min SL/TP distance $0.20</strong> — respects broker minimum stop distance for Silver</li>
                         <li><strong>EnableTrailing</strong> — set to true to activate trailing stop on all Silver trades</li>
                     </ul>
@@ -619,18 +714,18 @@ export default function SilverEADownload() {
                     </div>
                     <div className="flex gap-2 flex-wrap">
                         <Button
-                            onClick={() => download(SILVER_EA_CODE, "SilverForexTouchAI_EA_v102.mq4")}
+                            onClick={() => download(SILVER_EA_CODE, "SilverForexTouchAI_EA_v103.mq4")}
                             className="bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 hover:text-white text-xs"
                             size="sm"
                         >
-                            🥈 Download Silver EA MT4 (.mq4) — v1.02
+                            🥈 Download Silver EA MT4 (.mq4) — v1.03
                         </Button>
                         <Button
-                            onClick={() => download(SILVER_EA_MT5_CODE, "SilverForexTouchAI_EA_v103.mq5")}
+                            onClick={() => download(SILVER_EA_MT5_CODE, "SilverForexTouchAI_EA_v104.mq5")}
                             className="bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-100 text-xs"
                             size="sm"
                         >
-                            🥈 Download Silver EA MT5 (.mq5) — v1.03
+                            🥈 Download Silver EA MT5 (.mq5) — v1.04
                         </Button>
                     </div>
                 </div>
