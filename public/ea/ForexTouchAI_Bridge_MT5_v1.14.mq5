@@ -166,9 +166,7 @@ string BuildJson() {
 void SendPost(string json) {
    char data[], res[];
    StringToCharArray(json, data, 0, StringLen(json));
-   string headers = "Content-Type: application/json
-Authorization: Bearer " + ApiKey + "
-";
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + ApiKey + "\r\n";
    string resHeaders;
    ResetLastError();
    // 20s timeout: the bridge serializes accounts via a global lock (up to 15s wait) and
