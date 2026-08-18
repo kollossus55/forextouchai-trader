@@ -359,12 +359,12 @@ export default function Settings() {
 //|                                   ForexTouchAI Bridge EA (MT5) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.13"
+#property version   "1.14"
 #property strict
 
 #include <Trade\\Trade.mqh>
 
-#define EA_VERSION "1.13"
+#define EA_VERSION "1.14"
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
@@ -406,7 +406,7 @@ int OnInit() {
    trade.SetTypeFilling(ORDER_FILLING_IOC);
 
    Print("===================================");
-   Print("ForexTouchAI Bridge EA MT5 v", EA_VERSION);
+   Print("ForexTouchAI Bridge EA MT5 v", EA_VERSION, " (LATEST)");
    Print("===================================");
    Print("Endpoint: ", Endpoint);
 
@@ -758,7 +758,7 @@ void CloseTicket(ulong ticket) {
     const element = document.createElement("a");
     const file = new Blob([mql5Code], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "ForexTouchAI_Bridge_MT5_v1.13.mq5";
+    element.download = "ForexTouchAI_Bridge_MT5_v1.14.mq5";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -1763,7 +1763,7 @@ void CloseTicket(ulong ticket) {
                   <li>Drag the EA from Navigator onto ANY chart (only attach once).</li>
                   <li className="text-amber-300 font-semibold">In the EA inputs, paste your <strong>API Key</strong> (shown above) into the <code>ApiKey</code> field.</li>
                   <li className="text-cyan-300 font-semibold">If your broker uses a symbol suffix (e.g. IC Markets ".PRO", Pepperstone ".r"), enter it in the <code>SymbolSuffix</code> input (e.g. ".PRO"). Leave empty if your broker has no suffix.</li>
-                  <li className="text-emerald-300 font-semibold">Live accounts: The EA v1.13+ automatically enforces your broker's minimum stop distance, spread limits, lot-step normalization, and IOC fill mode. If a trade is rejected, check the Experts tab log — the rejection reason (spread, stops level, trade mode) is printed in plain English.</li>
+                  <li className="text-emerald-300 font-semibold">Live accounts: The EA v1.14+ automatically enforces your broker's minimum stop distance, spread limits, lot-step normalization, and IOC fill mode. If a trade is rejected, check the Experts tab log — the rejection reason (spread, stops level, trade mode) is printed in plain English.</li>
                   <li>Click "Allow live trading" and "Allow DLL imports" when prompted.</li>
                   <li className="text-emerald-400 font-medium">If setup is correct, you'll see "SUCCESS: Connected to server successfully" in the Experts tab.</li>
                   <li><strong>Common Errors:</strong>
