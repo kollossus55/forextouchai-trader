@@ -287,7 +287,7 @@ void ExecuteSignalObj(string obj) {
    }
 
    // 2. Spread check — live spreads are wider and can breach MaxSpreadPips
-   double spreadPts = SymbolInfoInteger(symbol, SYMBOL_SPREAD);
+   double spreadPts = (double)SymbolInfoInteger(symbol, SYMBOL_SPREAD);
    double point     = SymbolInfoDouble(symbol, SYMBOL_POINT);
    double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
    if(MaxSpreadPips > 0 && spreadPips > MaxSpreadPips) {
