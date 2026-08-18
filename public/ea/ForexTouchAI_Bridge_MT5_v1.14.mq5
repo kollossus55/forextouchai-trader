@@ -136,16 +136,16 @@ string BuildJson() {
    double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
    double marginLvl = (margin > 0) ? equity / margin * 100 : 0;
 
-   string j = "{\\"account\\":{" +
-      "\\"account_number\\":\\"" + IntegerToString(acct) + "\\"," +
-      "\\"server_name\\":\\"" + server + "\\"," +
-      "\\"platform\\":\\"MT5\\"," +
-      "\\"balance\\":" + DoubleToString(balance, 2) + "," +
-      "\\"equity\\":" + DoubleToString(equity, 2) + "," +
-      "\\"margin\\":" + DoubleToString(margin, 2) + "," +
-      "\\"free_margin\\":" + DoubleToString(freeMargin, 2) + "," +
-      "\\"margin_level\\":" + DoubleToString(marginLvl, 2) +
-      "},\\"trades\\":[";
+   string j = "{\"account\":{" +
+      "\"account_number\":\"" + IntegerToString(acct) + "\"," +
+      "\"server_name\":\"" + server + "\"," +
+      "\"platform\":\"MT5\"," +
+      "\"balance\":" + DoubleToString(balance, 2) + "," +
+      "\"equity\":" + DoubleToString(equity, 2) + "," +
+      "\"margin\":" + DoubleToString(margin, 2) + "," +
+      "\"free_margin\":" + DoubleToString(freeMargin, 2) + "," +
+      "\"margin_level\":" + DoubleToString(marginLvl, 2) +
+      "},\"trades\":[";
 
    int total = PositionsTotal();
    for(int i = 0; i < total; i++) {
@@ -153,10 +153,10 @@ string BuildJson() {
       if(!PositionSelectByTicket(ticket)) continue;
       if(i > 0) j += ",";
       long ptype = PositionGetInteger(POSITION_TYPE);
-      j += "{\\"ticket\\":" + IntegerToString((long)ticket) +
-           ",\\"symbol\\":\\"" + PositionGetString(POSITION_SYMBOL) + "\\"" +
-           ",\\"type\\":\\"" + (ptype == POSITION_TYPE_BUY ? "BUY" : "SELL") + "\\"" +
-           ",\\"pnl\\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + "}";
+      j += "{\"ticket\":" + IntegerToString((long)ticket) +
+           ",\"symbol\":\"" + PositionGetString(POSITION_SYMBOL) + "\"" +
+           ",\"type\":\"" + (ptype == POSITION_TYPE_BUY ? "BUY" : "SELL") + "\"" +
+           ",\"pnl\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + "}";
    }
    j += "]}";
    return j;
@@ -166,7 +166,9 @@ string BuildJson() {
 void SendPost(string json) {
    char data[], res[];
    StringToCharArray(json, data, 0, StringLen(json));
-   string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
+   string headers = "Content-Type: application/json
+Authorization: Bearer " + ApiKey + "
+";
    string resHeaders;
    ResetLastError();
    // 20s timeout: the bridge serializes accounts via a global lock (up to 15s wait) and
@@ -191,7 +193,7 @@ void SendPost(string json) {
 
 //+------------------------------------------------------------------+
 void ProcessPendingSignals(string json) {
-   int arrStart = StringFind(json, "\\"pending_signals\\"");
+   int arrStart = StringFind(json, "\"pending_signals\"");
    if(arrStart < 0) return;
    arrStart = StringFind(json, "[", arrStart);
    if(arrStart < 0) return;
@@ -350,7 +352,7 @@ void ExecuteSignalObj(string obj) {
 
 //+------------------------------------------------------------------+
 string GetJsonValue(string json, string key) {
-   int keyPos = StringFind(json, "\\"" + key + "\\"");
+   int keyPos = StringFind(json, "\"" + key + "\"");
    if(keyPos < 0) return "";
    int valStart = StringFind(json, ":", keyPos) + 1;
    int valEnd   = StringFind(json, ",", valStart);
@@ -359,13 +361,13 @@ string GetJsonValue(string json, string key) {
    if(braceEnd > 0 && braceEnd < valEnd) valEnd = braceEnd;
    if(valEnd < 0) return "";
    string val = StringSubstr(json, valStart, valEnd - valStart);
-   StringReplace(val, "\\"", "");
+   StringReplace(val, "\"", "");
    StringReplace(val, " ", "");
    return val;
 }
 
 void ProcessCloseCommands(string json) {
-   int arrStart = StringFind(json, "\\"close_commands\\"");
+   int arrStart = StringFind(json, "\"close_commands\"");
    if(arrStart < 0) return;
    arrStart = StringFind(json, "[", arrStart);
    if(arrStart < 0) return;
