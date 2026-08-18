@@ -5,8 +5,14 @@ import { Progress } from '@/components/ui/progress';
 
 export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt = 0, holdMs = 120000 }) {
   // Hard guard: never render a pick below the threshold, no matter what the
-  // parent passes. This is the single source of truth for what the strip shows.
-  const safePicks = (picks || []).filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= threshold);
+  // parent passes. Uses LIVE confidence (unlocked) so the strip reflects
+  // current market strength, not a 30-min-old locked value.
+  const safePicks = (picks || []).filter(p => {
+    if (!p) return false;
+    const sig = p.liveSignal || p.ai_signal;
+    const conf = p.liveConfidence ?? p.ai_confidence ?? 0;
+    return sig && sig !== 'NEUTRAL' && conf >= threshold;
+  });
   const hasPicks = safePicks.length > 0;
 
   // Countdown for the 2-minute composition hold. Shows the user that the
@@ -59,13 +65,13 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
       {hasPicks ? (
         <div className="relative grid grid-cols-2 md:grid-cols-4 gap-3">
           {safePicks.map((p, i) => {
-            const sig = p.ai_signal;
+            const sig = p.liveSignal || p.ai_signal;
             const isBuy = sig !== 'SELL';
             const isFirst = i === 0;
             return (
               <button
                 key={p.id}
-                onClick={() => onTrade(p, sig === 'SELL' ? 'SELL' : 'BUY')}
+                onClick={() => onTrade(p, (p.liveSignal || p.ai_signal) === 'SELL' ? 'SELL' : 'BUY')}
                 className={`text-left rounded-xl p-3 transition-all hover:scale-[1.03] ${
                   isFirst
                     ? 'bg-gradient-to-br from-amber-500/25 to-yellow-500/10 border-2 border-amber-400/60 shadow-[0_0_20px_-3px_rgba(245,158,11,0.5)]'
@@ -95,12 +101,12 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
                 </div>
                 <div className="flex items-center gap-2">
                   <Progress
-                    value={p.ai_confidence || 0}
+                    value={p.liveConfidence ?? p.ai_confidence ?? 0}
                     className="h-2 bg-slate-800"
                     indicatorClassName={isBuy ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-rose-400 to-pink-300'}
                   />
                   <span className="text-xs font-extrabold text-amber-300 whitespace-nowrap drop-shadow">
-                    {Math.round(p.ai_confidence || 0)}%
+                    {Math.round(p.liveConfidence ?? p.ai_confidence ?? 0)}%
                   </span>
                 </div>
               </button>

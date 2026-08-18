@@ -49,9 +49,10 @@ export default function TopPickWatcher() {
         if (!isForex(pair.symbol)) return;
         const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
         const result = computeSignal(pair.symbol, timeframe, price);
-        const conf = result.confidence || 0;
-        if (conf >= 75 && (!best || conf > best.ai_confidence)) {
-          best = { ...pair, current_price: price, ai_signal: result.signal, ai_confidence: conf, change_24h: pair.change_24h };
+        const conf = (result.liveConfidence ?? result.confidence) || 0;
+        const sig = result.liveSignal || result.signal;
+        if (conf >= 75 && sig !== 'NEUTRAL' && (!best || conf > (best.liveConfidence ?? best.ai_confidence))) {
+          best = { ...pair, current_price: price, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, change_24h: pair.change_24h };
         }
       });
       if (!active) return;

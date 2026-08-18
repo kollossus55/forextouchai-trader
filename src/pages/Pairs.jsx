@@ -422,26 +422,30 @@ export default function Pairs() {
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
 
-  // Top Picks: the strongest directional (BUY/SELL) setups by live AI
-  // confidence. The pick SET is held for HOLD_MS so the strip doesn't
-  // re-shuffle every recalc, but each pick renders with its LIVE confidence
-  // & price (updated every tick). Refreshes early only if the current #1
-  // drops out of the qualifying set. "Scanning" only shows before the first
-  // signals are computed.
+  // Top Picks: the strongest directional (BUY/SELL) setups by LIVE AI
+  // confidence (unlocked). The pick SET is held for HOLD_MS so the strip
+  // doesn't re-shuffle every recalc, but each pick renders with its LIVE
+  // confidence & price (updated every tick). "Scanning" only shows before
+  // the first signals are computed.
   const HOLD_MS = 2 * 60 * 1000;
   const topPickThreshold = signalSettings.topPickConfidence ?? 75;
-  // No grace needed: we rank by locked ai_confidence (stable for the 30-min
-  // signal lock), so confidence can't wobble during a 60s hold. Picks below
-  // the threshold are never shown.
-  const DISPLAY_GRACE = 0;
-  // Rank by the SAME locked ai_confidence the pair grid uses, so the #1 pick
-  // in the strip is always the #1 card in the grid. Locked confidence is stable
-  // for the signal lock window, so picks don't vanish mid-hold from wobble.
-  // Derive Top Picks from the SAME deduplicated, sorted source the grid uses
+  // Small grace so a frozen pick doesn't vanish the moment its live
+  // confidence dips 2% below the threshold during the 2-min hold.
+  const DISPLAY_GRACE = 2;
+  // Rank by LIVE confidence (liveConfidence) — the locked ai_confidence is
+  // frozen for 30 min by the signal lock, so it can be stuck below 75 even
+  // when the current live analysis shows 85%. Using liveConfidence surfaces
+  // current strong setups immediately. The 2-min hold on the SET (frozenIds)
+  // provides stability; the D1 gate still caps counter-trend signals at 74.
   // (filteredPairs) so the strip's #1 is always the grid's #1 — no duplicates
   // or ordering drift between the two views.
   const topPicks = filteredPairs
-    .filter(p => p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= topPickThreshold)
+    .filter(p => {
+      const sig = p.liveSignal || p.ai_signal;
+      const conf = p.liveConfidence ?? p.ai_confidence ?? 0;
+      return sig && sig !== 'NEUTRAL' && conf >= topPickThreshold;
+    })
+    .sort((a, b) => (b.liveConfidence ?? b.ai_confidence ?? 0) - (a.liveConfidence ?? a.ai_confidence ?? 0))
     .slice(0, 4);
 
   const [frozenIds, setFrozenIds] = useState(null);
@@ -466,12 +470,17 @@ export default function Pairs() {
   }, [topPicks]);
 
   // Map frozen order back to live data. A pick stays visible as long as its
-  // locked confidence is within DISPLAY_GRACE of the threshold — minor dips
+  // LIVE confidence is within DISPLAY_GRACE of the threshold — minor dips
   // during the hold don't make it vanish. Only drops well below threshold
   // (e.g. signal flipped to NEUTRAL) hide a pick until the next refresh.
   const displayPicks = (frozenIds || [])
     .map(id => uniquePairs.find(p => p.id === id))
-    .filter(p => p && p.ai_signal && p.ai_signal !== 'NEUTRAL' && (p.ai_confidence || 0) >= (topPickThreshold - DISPLAY_GRACE));
+    .filter(p => {
+      if (!p) return false;
+      const sig = p.liveSignal || p.ai_signal;
+      const conf = p.liveConfidence ?? p.ai_confidence ?? 0;
+      return sig && sig !== 'NEUTRAL' && conf >= (topPickThreshold - DISPLAY_GRACE);
+    });
 
   // IDs currently shown in the Top Picks strip — passed to PairCard so the
   // "Top Pick" badge in the grid matches the strip EXACTLY (same threshold,
