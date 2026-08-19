@@ -279,10 +279,10 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     // reach 80-95% while mixed signals stay below 75%.
     if (buyPct > sellPct && buyPct >= threshold) {
         signal = 'BUY';
-        confidence = Math.min(97, Math.round(50 + Math.max(0, netPct) * 0.7));
+        confidence = Math.min(97, Math.round(50 + Math.max(0, netPct) * 0.9));
     } else if (sellPct > buyPct && sellPct >= threshold) {
         signal = 'SELL';
-        confidence = Math.min(97, Math.round(50 + Math.max(0, -netPct) * 0.7));
+        confidence = Math.min(97, Math.round(50 + Math.max(0, -netPct) * 0.9));
     } else {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
     }
