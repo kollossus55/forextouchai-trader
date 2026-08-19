@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                      ForexTouchAI_Bridge_v3.mq4 |
+//|                                ForexTouchAI_Bridge_v3.14.mq4 |
 //|                                     Copyright 2024, ForexTouchAI |
 //|                                       https://www.forextouchai.com |
 //+------------------------------------------------------------------+
