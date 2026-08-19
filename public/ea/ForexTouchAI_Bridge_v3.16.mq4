@@ -1,14 +1,14 @@
 //+------------------------------------------------------------------+
-//|                                ForexTouchAI_Bridge_v3.15.mq4 |
+//|                                ForexTouchAI_Bridge_v3.16.mq4 |
 //|                                     Copyright 2024, ForexTouchAI |
 //|                                       https://www.forextouchai.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, ForexTouchAI"
 #property link      "https://www.forextouchai.com"
-#property version   "3.15"
+#property version   "3.16"
 #property strict
 
-#define EA_VERSION "3.15"
+#define EA_VERSION "3.16"
 
 // --- INPUTS ---
 input string AppUrl = "https://forex-ai-trader-cc744e2a.base44.app"; 
@@ -86,8 +86,8 @@ void OnDeinit(const int reason) { Print("Bridge Stopped."); }
 //+------------------------------------------------------------------+
 bool TestConnection() {
    char post[], result[];
-   string headers = "Content-Type: application/json\\r\\n";
-   string resHeaders;
+   string headers = "Content-Type: application/json\r\n";
+       string resHeaders;
    
    Print("... Testing connection to Backend ...");
    ResetLastError();
@@ -355,7 +355,7 @@ void SendPost(string json) {
    char data[];
    StringToCharArray(json, data, 0, StringLen(json));
    char res[];
-   string headers = "Content-Type: application/json\\r\\nAuthorization: Bearer " + ApiKey + "\\r\\n";
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + ApiKey + "\r\n";
    string resH;
 
    ResetLastError();
