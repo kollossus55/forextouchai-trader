@@ -622,7 +622,7 @@ string GetJsonValue(string json, string key) {
    string val = StringSubstr(json, valStart, valEnd - valStart);
 
    // Clean cleanup
-   StringReplace(val, "\"", "");
+   StringReplace(val, """", "");
    StringReplace(val, " ", "");
    StringReplace(val, "\\n", "");
    StringReplace(val, "\\r", "");
