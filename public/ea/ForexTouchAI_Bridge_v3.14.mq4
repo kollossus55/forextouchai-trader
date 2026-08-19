@@ -323,14 +323,14 @@ void CheckCloseAllConditions() {
 //+------------------------------------------------------------------+
 string BuildJson() {
    string j = "{\"account\":{" + 
-      \""account_number\":\"" + IntegerToString(AccountNumber()) + \""," +
-      \""server_name\":\"" + AccountServer() + \""," +
-      \""platform\":\"MT4\"," +
-      \""balance\":" + DoubleToString(AccountBalance(), 2) + "," +
-      \""equity\":" + DoubleToString(AccountEquity(), 2) + "," +
-      \""margin\":" + DoubleToString(AccountMargin(), 2) + "," +
-      \""free_margin\":" + DoubleToString(AccountFreeMargin(), 2) + "," +
-      \""margin_level\":" + DoubleToString(AccountMargin() > 0 ? (AccountEquity() / AccountMargin() * 100) : 0, 2) + 
+      "\"account_number\":\"" + IntegerToString(AccountNumber()) + "\"," +
+      "\"server_name\":\"" + AccountServer() + "\"," +
+      "\"platform\":\"MT4\"," +
+      "\"balance\":" + DoubleToString(AccountBalance(), 2) + "," +
+      "\"equity\":" + DoubleToString(AccountEquity(), 2) + "," +
+      "\"margin\":" + DoubleToString(AccountMargin(), 2) + "," +
+      "\"free_margin\":" + DoubleToString(AccountFreeMargin(), 2) + "," +
+      "\"margin_level\":" + DoubleToString(AccountMargin() > 0 ? (AccountEquity() / AccountMargin() * 100) : 0, 2) + 
       "}, \"trades\":[";
 
    int count = 0;
@@ -338,8 +338,8 @@ string BuildJson() {
       if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) {
          if(count > 0) j += ",";
          j += "{\"ticket\":" + IntegerToString(OrderTicket()) + 
-              ",\"symbol\":\"" + OrderSymbol() + \"\" + 
-              ",\"type\":\"" + (OrderType()==OP_BUY ? "BUY" : "SELL") + \"\" +
+              ",\"symbol\":\"" + OrderSymbol() + "\"" + 
+              ",\"type\":\"" + (OrderType()==OP_BUY ? "BUY" : "SELL") + "\"" +
               ",\"pnl\":" + DoubleToString(OrderProfit(), 2) + "}";
          count++;
       }
@@ -381,7 +381,7 @@ void SendPost(string json) {
 //+------------------------------------------------------------------+
 void ProcessPendingSignals(string json) {
    // Find the pending_signals array
-   int arrStart = StringFind(json, \""pending_signals\"");
+   int arrStart = StringFind(json, "\"pending_signals\"");
    if(arrStart < 0) return;
    
    arrStart = StringFind(json, "[", arrStart);
@@ -565,7 +565,7 @@ void CheckSignals() { /* Signals now come from POST response - see ProcessPendin
 //| Process close_commands from bridge — flatten broker positions   |
 //+------------------------------------------------------------------+
 void ProcessCloseCommands(string json) {
-   int arrStart = StringFind(json, \""close_commands\"");
+   int arrStart = StringFind(json, "\"close_commands\"");
    if(arrStart < 0) return;
    arrStart = StringFind(json, "[", arrStart);
    if(arrStart < 0) return;
@@ -607,7 +607,7 @@ void CloseTicket(int ticket) {
 //| JSON Parsing Helper                                              |
 //+------------------------------------------------------------------+
 string GetJsonValue(string json, string key) {
-   int keyPos = StringFind(json, \"\"\" + key + \"\");
+   int keyPos = StringFind(json, "\"" + key + "\"");
    if(keyPos < 0) return "";
 
    int valStart = StringFind(json, ":", keyPos) + 1;
@@ -622,7 +622,7 @@ string GetJsonValue(string json, string key) {
    string val = StringSubstr(json, valStart, valEnd - valStart);
 
    // Clean cleanup
-    StringReplace(val, "\"", "");
+   StringReplace(val, "\"", "");
    StringReplace(val, " ", "");
    StringReplace(val, "\\n", "");
    StringReplace(val, "\\r", "");
