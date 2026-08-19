@@ -262,19 +262,27 @@ export function computeSignal(symbol, timeframe, currentPrice) {
         .reduce((s, f) => s + (f.enabled ? f.weight : 0), 0) || 100;
     const buyPct  = totalWeight > 0 ? (buyScore  / maxPossible) * 100 : 0;
     const sellPct = totalWeight > 0 ? (sellScore / maxPossible) * 100 : 0;
+    // Net confluence: how strongly indicators agree (positive = bullish).
+    // Rewards clean agreement over mixed signals — a trend with oscillators
+    // fighting it scores lower than one where oscillators are neutral/aligned.
+    const netPct = totalWeight > 0 ? ((buyScore - sellScore) / maxPossible) * 100 : 0;
 
     const threshold = getDirectionalThreshold();
     let signal = 'NEUTRAL';
     let confidence = 50;
 
-    // Confidence scales from 50 at the threshold up to ~97, so it reflects
-    // genuine confluence strength rather than a bare threshold pass.
+    // Confidence scales from 50 at the threshold up to ~97 based on NET
+    // confluence (agreement minus opposition). The old formula used raw
+    // buyPct, which maxes at ~65% in real trends (oscillators naturally
+    // fight trends), capping confidence at 74% so no Top Picks ever cleared
+    // the 75% threshold. Net confluence lets clean 3-4 indicator agreement
+    // reach 80-95% while mixed signals stay below 75%.
     if (buyPct > sellPct && buyPct >= threshold) {
         signal = 'BUY';
-        confidence = Math.min(97, Math.round(50 + (buyPct - threshold) * 0.8));
+        confidence = Math.min(97, Math.round(50 + Math.max(0, netPct) * 0.7));
     } else if (sellPct > buyPct && sellPct >= threshold) {
         signal = 'SELL';
-        confidence = Math.min(97, Math.round(50 + (sellPct - threshold) * 0.8));
+        confidence = Math.min(97, Math.round(50 + Math.max(0, -netPct) * 0.7));
     } else {
         confidence = Math.round(50 - Math.abs(buyPct - sellPct));
     }
