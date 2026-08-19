@@ -107,7 +107,7 @@ bool TestConnection() {
    if(err == 5203 || err == 5200 || err == 4060) {
       Print(">>> 5203 / 12002 = receive timeout OR URL not whitelisted <<<");
       Print("1. Tools -> Options -> Expert Advisors > tick 'Allow WebRequest' and add: ", ServiceUrl, " (https, NO trailing slash)");
-      Print("2. If already whitelisted, the server took >20s (bridge busy)  re-attach the EA to retry.");
+      Print("2. If already whitelisted, the server took >20s (bridge busy) -- re-attach the EA to retry.");
       Print(">>> ---------------------- <<<");
    }
    
@@ -404,10 +404,10 @@ void ProcessPendingSignals(string json) {
       string obj = StringSubstr(arr, objStart, objEnd - objStart + 1);
       string sigPair = GetJsonValue(obj, "pair");
       
-      // Skip Gold/XAUUSD & Silver/XAGUSD signals  handled by dedicated EAs
+      // Skip Gold/XAUUSD & Silver/XAGUSD signals -- handled by dedicated EAs
       if(sigPair == "XAUUSD" || sigPair == "GOLD" || sigPair == "xauusd" || sigPair == "gold" ||
          sigPair == "XAGUSD" || sigPair == "SILVER" || sigPair == "xagusd" || sigPair == "silver") {
-         Print("[BRIDGE] Skipping ", sigPair, " signal  use dedicated Gold/Silver EA.");
+         Print("[BRIDGE] Skipping ", sigPair, " signal -- use dedicated Gold/Silver EA.");
          pos = objEnd + 1;
          continue;
       }
@@ -482,7 +482,7 @@ void ExecuteSignalObj(string obj) {
    }
 
    // --- Live-account safety checks (demo accounts skip these silently) ---
-   // 1. Spread check  live spreads are wider and can breach MaxSpreadPips
+   // 1. Spread check -- live spreads are wider and can breach MaxSpreadPips
    double spreadPts = MarketInfo(symbol, MODE_SPREAD);
    double point     = MarketInfo(symbol, MODE_POINT);
    double spreadPips = (point > 0) ? spreadPts * point * 10 : 0;
@@ -491,7 +491,7 @@ void ExecuteSignalObj(string obj) {
       return;
    }
 
-   // 2. Minimum stops level  live brokers enforce this; demo often has 0.
+   // 2. Minimum stops level -- live brokers enforce this; demo often has 0.
    //    If SL/TP is closer than the minimum, the order is rejected (Error 130).
    double stopsLevel = MarketInfo(symbol, MODE_STOPLEVEL);
    double minStopDist = stopsLevel * point;
@@ -562,7 +562,7 @@ void ExecuteSignalObj(string obj) {
 void CheckSignals() { /* Signals now come from POST response - see ProcessPendingSignals */ }
 
 //+------------------------------------------------------------------+
-//| Process close_commands from bridge  flatten broker positions   |
+//| Process close_commands from bridge -- flatten broker positions   |
 //+------------------------------------------------------------------+
 void ProcessCloseCommands(string json) {
    int arrStart = StringFind(json, "\"close_commands\"");
