@@ -421,6 +421,22 @@ Deno.serve(async (req) => {
             ...(eaTrades || []).map(t => _barePair(t.pair || t.symbol || ''))
         ]);
 
+        // Build set of all pairs the EA has in its Market Watch (from reported prices).
+        // If a pair isn't here, the EA can't trade it — don't dispatch signals for it.
+        // This prevents signals for crypto/indices the EA doesn't support from being
+        // stuck in ACTIVE for 20 minutes before expiring (e.g. BTCUSD on a forex-only EA).
+        const eaTradablePairs = new Set();
+        if (Array.isArray(eaPricesRaw) && eaPricesRaw.length > 0) {
+            for (const p of eaPricesRaw) {
+                if (!p?.symbol) continue;
+                const bare = String(p.symbol).replace('/', '').toUpperCase();
+                const dotIdx = bare.indexOf('.');
+                const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
+                eaTradablePairs.add(bare);
+                eaTradablePairs.add(base);
+            }
+        }
+
         // Load running bot configs for trading-hours enforcement at dispatch time
         let botConfigMap = {}; // bot_id → bot config (for trading hours check)
         if (candidateSignals.length > 0) {
@@ -522,6 +538,15 @@ Deno.serve(async (req) => {
                 if (isSilverEA && !isSilverPair) return false;
                 if (!isSilverEA && isSilverPair) {
                     console.log(`[BRIDGE] Skipping Silver signal for ${isGoldEA ? 'Gold' : 'standard'} EA — Silver EA handles XAGUSD`);
+                    return false;
+                }
+
+                // Skip signals for pairs the EA doesn't have in Market Watch (no price reported).
+                // The EA can't execute trades on symbols it doesn't have — the signal would sit
+                // ACTIVE for 20 minutes and expire. This especially affects crypto pairs (BTCUSD,
+                // ETHUSD) on standard forex EAs that don't have crypto symbols in Market Watch.
+                if (eaTradablePairs.size > 0 && !eaTradablePairs.has(pairRaw.toUpperCase())) {
+                    console.log(`[BRIDGE] ${pairRaw} not in EA Market Watch for ${acctKey} — EA can't trade this symbol, skipping signal ${s.id}`);
                     return false;
                 }
 
