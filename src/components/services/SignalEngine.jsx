@@ -321,8 +321,13 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     // the D1 trend, confidence is capped below the Top Picks / bot threshold
     // so only trend-aligned setups surface as high-confidence picks.
     const d1 = computeD1Bias(symbol, currentPrice);
-    const d1Conflicts = d1.bias !== 'NEUTRAL' && signal !== 'NEUTRAL' && d1.bias !== signal;
-    const d1LiveConflicts = d1.bias !== 'NEUTRAL' && liveSignal !== 'NEUTRAL' && d1.bias !== liveSignal;
+    // Map signal direction to D1 bias terminology for comparison:
+    // BUY = BULLISH, SELL = BEARISH. Without this mapping, 'BULLISH' !== 'BUY'
+    // is always true and EVERY directional signal gets capped at 74.
+    const signalBias = signal === 'BUY' ? 'BULLISH' : signal === 'SELL' ? 'BEARISH' : 'NEUTRAL';
+    const liveSignalBias = liveSignal === 'BUY' ? 'BULLISH' : liveSignal === 'SELL' ? 'BEARISH' : 'NEUTRAL';
+    const d1Conflicts = d1.bias !== 'NEUTRAL' && signalBias !== 'NEUTRAL' && d1.bias !== signalBias;
+    const d1LiveConflicts = d1.bias !== 'NEUTRAL' && liveSignalBias !== 'NEUTRAL' && d1.bias !== liveSignalBias;
     if (d1Conflicts) confidence = Math.min(confidence, 74);
     if (d1LiveConflicts) liveConfidence = Math.min(liveConfidence, 74);
     if (d1Conflicts) {
