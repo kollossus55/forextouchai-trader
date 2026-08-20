@@ -3,12 +3,12 @@
 //|                                   ForexTouchAI Bridge EA (MT5) |
 //+------------------------------------------------------------------+
 #property copyright "ForexTouchAI"
-#property version   "1.14"
+#property version   "1.15"
 #property strict
 
 #include <Trade\\Trade.mqh>
 
-#define EA_VERSION "1.14"
+#define EA_VERSION "1.15"
 
 // --- INPUTS ---
 input string AppUrl            = "https://forex-ai-trader-cc744e2a.base44.app";
