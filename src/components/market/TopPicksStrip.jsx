@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Crown, TrendingUp, TrendingDown, Activity, Sparkles, Clock } from 'lucide-react';
+import React from 'react';
+import { Crown, TrendingUp, TrendingDown, Activity, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
-export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt = 0, holdMs = 120000 }) {
+export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
   // Hard guard: never render a pick below the threshold, no matter what the
   // parent passes. Uses LIVE confidence (unlocked) so the strip reflects
   // current market strength, not a 30-min-old locked value.
@@ -14,25 +14,6 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
     return sig && sig !== 'NEUTRAL' && conf >= threshold;
   });
   const hasPicks = safePicks.length > 0;
-
-  // Countdown for the 2-minute composition hold. Shows the user that the
-  // displayed set is a frozen snapshot and how long until it can refresh.
-  const [remaining, setRemaining] = useState(0);
-  useEffect(() => {
-    if (!frozenAt || !hasPicks) { setRemaining(0); return; }
-    const tick = () => {
-      const ms = Math.max(0, holdMs - (Date.now() - frozenAt));
-      setRemaining(ms);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [frozenAt, holdMs, hasPicks]);
-
-  const isLocked = remaining > 0 && hasPicks;
-  const secs = Math.ceil(remaining / 1000);
-  const mm = Math.floor(secs / 60);
-  const ss = secs % 60;
 
   return (
     <div className="relative rounded-2xl border-2 border-amber-400/40 bg-gradient-to-br from-fuchsia-600/15 via-amber-500/15 to-cyan-500/15 p-4 shadow-[0_0_35px_-5px_rgba(245,158,11,0.35)] overflow-hidden">
@@ -48,13 +29,6 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75, frozenAt
         </div>
         <span className="text-xs text-slate-400">Highest AI confidence ≥ {threshold}%</span>
         <div className="ml-auto flex items-center gap-1.5">
-          <span
-            className="flex items-center gap-1.5 text-sm font-extrabold text-amber-950 bg-amber-400 border-2 border-amber-300 rounded-full px-3 py-1"
-            title="Composition is frozen for 2 minutes for stability — confidence & price still update live"
-          >
-            <Clock className="w-4 h-4" />
-            {hasPicks ? (isLocked ? `LOCKED ${mm}:${ss.toString().padStart(2, '0')}` : 'REFRESH') : 'LOCKED 2:00'}
-          </span>
           <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 rounded-full px-2 py-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             LIVE

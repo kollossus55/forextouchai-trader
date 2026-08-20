@@ -423,22 +423,9 @@ export default function Pairs() {
   ).sort((a, b) => (b.liveConfidence ?? b.ai_confidence ?? 0) - (a.liveConfidence ?? a.ai_confidence ?? 0));
 
   // Top Picks: the strongest directional (BUY/SELL) setups by LIVE AI
-  // confidence (unlocked). The pick SET is held for HOLD_MS so the strip
-  // doesn't re-shuffle every recalc, but each pick renders with its LIVE
-  // confidence & price (updated every tick). "Scanning" only shows before
-  // the first signals are computed.
-  const HOLD_MS = 2 * 60 * 1000;
+  // confidence, ranked identically to the grid (liveConfidence desc) so the
+  // strip's #1 is always the grid's #1 — no hold, no drift.
   const topPickThreshold = signalSettings.topPickConfidence ?? 75;
-  // Small grace so a frozen pick doesn't vanish the moment its live
-  // confidence dips 2% below the threshold during the 2-min hold.
-  const DISPLAY_GRACE = 2;
-  // Rank by LIVE confidence (liveConfidence) — the locked ai_confidence is
-  // frozen for 30 min by the signal lock, so it can be stuck below 75 even
-  // when the current live analysis shows 85%. Using liveConfidence surfaces
-  // current strong setups immediately. The 2-min hold on the SET (frozenIds)
-  // provides stability; the D1 gate still caps counter-trend signals at 74.
-  // (filteredPairs) so the strip's #1 is always the grid's #1 — no duplicates
-  // or ordering drift between the two views.
   const topPicks = filteredPairs
     .filter(p => {
       const sig = p.liveSignal || p.ai_signal;
@@ -448,52 +435,10 @@ export default function Pairs() {
     .sort((a, b) => (b.liveConfidence ?? b.ai_confidence ?? 0) - (a.liveConfidence ?? a.ai_confidence ?? 0))
     .slice(0, 4);
 
-  const [frozenIds, setFrozenIds] = useState(null);
-  const [frozenAt, setFrozenAt] = useState(0);
-
-  useEffect(() => {
-    const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
-    // Once the hold expires, refresh with the current qualifying picks (or
-    // clear if none qualify). Until then, NEVER touch the frozen set — even
-    // if a recalc cycle momentarily produces 0 picks, the held set stays so
-    // the strip composition remains stable for the full 2 minutes.
-    if (heldLongEnough) {
-      if (topPicks.length > 0) {
-        setFrozenIds(topPicks.map(p => p.id));
-        setFrozenAt(Date.now());
-      } else {
-        setFrozenIds(null);
-        setFrozenAt(0);
-      }
-      return;
-    }
-    // No frozen set yet — freeze the first qualifying picks immediately.
-    if (!frozenIds && topPicks.length > 0) {
-      setFrozenIds(topPicks.map(p => p.id));
-      setFrozenAt(Date.now());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topPicks]);
-
-  // Map frozen order back to live data. During a hold, a pick stays visible
-  // as long as it still has a directional signal — minor confidence dips don't
-  // make it vanish. Only a flip to NEUTRAL (or the pair disappearing) hides it.
-  // This makes the 2-min lock truly lock the composition.
-  const heldActive = frozenIds && frozenAt > 0 && (Date.now() - frozenAt) < HOLD_MS;
-  const displayPicks = (frozenIds || [])
-    .map(id => uniquePairs.find(p => p.id === id))
-    .filter(p => {
-      if (!p) return false;
-      const sig = p.liveSignal || p.ai_signal;
-      if (!sig || sig === 'NEUTRAL') return false;
-      if (heldActive) return true; // during hold: direction is enough
-      const conf = p.liveConfidence ?? p.ai_confidence ?? 0;
-      return conf >= (topPickThreshold - DISPLAY_GRACE);
-    });
-
-  // IDs currently shown in the Top Picks strip — passed to PairCard so the
-  // "Top Pick" badge in the grid matches the strip EXACTLY (same threshold,
-  // same directional requirement, same held set).
+  // Top Picks mirror the grid live — same sort (liveConfidence desc), same
+  // threshold + directional filter. No hold, so the strip always matches the
+  // top of the Pairs grid exactly.
+  const displayPicks = topPicks;
   const topPickIds = new Set(displayPicks.map(p => p.id));
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
@@ -550,7 +495,7 @@ export default function Pairs() {
         </div>
       ) : (
       <>
-      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} threshold={signalSettings.topPickConfidence ?? 75} frozenAt={frozenAt} holdMs={HOLD_MS} />
+      <TopPicksStrip picks={displayPicks} onTrade={handleTradeClick} threshold={signalSettings.topPickConfidence ?? 75} />
 
       <Tabs defaultValue="majors" className="w-full">
         <TabsList className="bg-slate-900 border border-slate-800">
