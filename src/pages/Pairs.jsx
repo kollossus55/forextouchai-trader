@@ -420,7 +420,7 @@ export default function Pairs() {
   const filteredPairs = uniquePairs.filter(pair =>
     getCategory(pair) !== null &&
     pair.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a, b) => (b.ai_confidence || 0) - (a.ai_confidence || 0));
+  ).sort((a, b) => (b.liveConfidence ?? b.ai_confidence ?? 0) - (a.liveConfidence ?? a.ai_confidence ?? 0));
 
   // Top Picks: the strongest directional (BUY/SELL) setups by LIVE AI
   // confidence (unlocked). The pick SET is held for HOLD_MS so the strip
