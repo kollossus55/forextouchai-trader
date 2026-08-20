@@ -1409,7 +1409,11 @@ Also provide:
                 for (const [field, label] of fields) {
                     if (refBot[field] === false) disabled.push(label); else enabled.push(label);
                 }
-                return base + `\n\n════════════════════════════════════════\nINDICATOR CONSTRAINTS (trader-configured)\n════════════════════════════════════════\nENABLED indicators (require and weight these in your confluence score): ${enabled.join(', ') || 'none'}\nDISABLED indicators (do NOT require; their absence must NOT block a signal): ${disabled.join(', ') || 'none'}\nScore confluence using ONLY the enabled indicators. A signal is valid if it satisfies the signal requirements using only the enabled indicators — ignore any disabled indicator entirely.`;
+                const minConfOverride = refBot.min_confidence != null ? refBot.min_confidence : null;
+                const confLine = minConfOverride != null
+                    ? `\n\n════════════════════════════════════════\nCONFIDENCE THRESHOLD OVERRIDE (trader-configured)\n════════════════════════════════════════\nThe trader has set the minimum confidence to ${minConfOverride}%. Output BUY or SELL when confluence requirements are met AND your confidence is >= ${minConfOverride}%. This OVERRIDES any higher minimum (75%, 80%, etc.) mentioned in the strategy description above. Do NOT return NEUTRAL solely because confidence is below the strategy's default minimum — if it meets the trader's ${minConfOverride}% threshold and the confluence requirements, signal it.`
+                    : '';
+                return base + confLine + `\n\n════════════════════════════════════════\nINDICATOR CONSTRAINTS (trader-configured)\n════════════════════════════════════════\nENABLED indicators (require and weight these in your confluence score): ${enabled.join(', ') || 'none'}\nDISABLED indicators (do NOT require; their absence must NOT block a signal): ${disabled.join(', ') || 'none'}\nScore confluence using ONLY the enabled indicators. A signal is valid if it satisfies the signal requirements using only the enabled indicators — ignore any disabled indicator entirely.`;
             }
             return base;
         }
@@ -1437,7 +1441,13 @@ Also provide:
                     console.log(`[generateBotSignals] SP500_AI: analyzed ${Object.keys(map).length} pairs`);
                     return;
                 }
-                const refBot = bots.find(b => (b.strategy_type || 'AI_PREDICTIVE') === strategy) || null;
+                // Use the bot with the LOWEST min_confidence as the prompt reference, so the
+                // AI produces signals at the most permissive threshold. Each bot's own
+                // min_confidence is still enforced individually at the filtering stage.
+                const strategyBots = bots.filter(b => (b.strategy_type || 'AI_PREDICTIVE') === strategy);
+                const refBot = strategyBots.length > 0
+                    ? strategyBots.reduce((min, b) => ((b.min_confidence ?? 75) < (min.min_confidence ?? 75) ? b : min))
+                    : null;
                 const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: buildPrompt(strategy, pairs, priceMap, refBot),
                     response_json_schema: {
