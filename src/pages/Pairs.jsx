@@ -452,34 +452,43 @@ export default function Pairs() {
   const [frozenAt, setFrozenAt] = useState(0);
 
   useEffect(() => {
-    // No qualifying picks — clear the held set so the strip shows "Scanning"
-    if (topPicks.length === 0) {
-      if (frozenIds) { setFrozenIds(null); setFrozenAt(0); }
+    const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
+    // Once the hold expires, refresh with the current qualifying picks (or
+    // clear if none qualify). Until then, NEVER touch the frozen set — even
+    // if a recalc cycle momentarily produces 0 picks, the held set stays so
+    // the strip composition remains stable for the full 2 minutes.
+    if (heldLongEnough) {
+      if (topPicks.length > 0) {
+        setFrozenIds(topPicks.map(p => p.id));
+        setFrozenAt(Date.now());
+      } else {
+        setFrozenIds(null);
+        setFrozenAt(0);
+      }
       return;
     }
-    const heldLongEnough = Date.now() - frozenAt >= HOLD_MS;
-    // Hold the set for the full HOLD_MS — no early refresh. This keeps the
-    // strip composition stable even if the #1 pick's confidence wobbles around
-    // the threshold. Live confidence bars still update every tick inside each
-    // pick card; only the SET (which pairs are shown) is frozen.
-    if (!frozenIds || heldLongEnough) {
+    // No frozen set yet — freeze the first qualifying picks immediately.
+    if (!frozenIds && topPicks.length > 0) {
       setFrozenIds(topPicks.map(p => p.id));
       setFrozenAt(Date.now());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topPicks]);
 
-  // Map frozen order back to live data. A pick stays visible as long as its
-  // LIVE confidence is within DISPLAY_GRACE of the threshold — minor dips
-  // during the hold don't make it vanish. Only drops well below threshold
-  // (e.g. signal flipped to NEUTRAL) hide a pick until the next refresh.
+  // Map frozen order back to live data. During a hold, a pick stays visible
+  // as long as it still has a directional signal — minor confidence dips don't
+  // make it vanish. Only a flip to NEUTRAL (or the pair disappearing) hides it.
+  // This makes the 2-min lock truly lock the composition.
+  const heldActive = frozenIds && frozenAt > 0 && (Date.now() - frozenAt) < HOLD_MS;
   const displayPicks = (frozenIds || [])
     .map(id => uniquePairs.find(p => p.id === id))
     .filter(p => {
       if (!p) return false;
       const sig = p.liveSignal || p.ai_signal;
+      if (!sig || sig === 'NEUTRAL') return false;
+      if (heldActive) return true; // during hold: direction is enough
       const conf = p.liveConfidence ?? p.ai_confidence ?? 0;
-      return sig && sig !== 'NEUTRAL' && conf >= (topPickThreshold - DISPLAY_GRACE);
+      return conf >= (topPickThreshold - DISPLAY_GRACE);
     });
 
   // IDs currently shown in the Top Picks strip — passed to PairCard so the
