@@ -425,7 +425,7 @@ void ProcessPendingSignals(string json) {
 //+------------------------------------------------------------------+
 bool IsCryptoSymbol(string sym) {
    string s = sym;
-   StringUpper(s);
+   StringToUpper(s);
    int p = StringFind(s, "/");
    if(p != -1) s = StringSubstr(s, 0, p) + StringSubstr(s, p + 1);
    int d = StringFind(s, ".");
