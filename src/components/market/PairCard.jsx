@@ -18,6 +18,11 @@ function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
   const isTopPick = topPickIds?.has(pair.id) ?? false;
   const { settings: signalSettings } = useSignalSettings();
 
+  // Use LIVE (unlocked) signal/confidence so the card matches the Top Picks
+  // strip exactly — the strip ranks by liveConfidence, not the locked value.
+  const liveSig = pair.liveSignal || pair.ai_signal;
+  const liveConf = pair.liveConfidence ?? pair.ai_confidence ?? 0;
+
   const [signalAge, setSignalAge] = useState('');
 
   useEffect(() => {
@@ -46,8 +51,8 @@ function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
       }`}>
       <div className={`h-1 w-full ${
         isTopPick ? 'bg-gradient-to-r from-amber-300 via-amber-500 to-amber-300' :
-        pair.ai_signal === 'BUY' ? 'bg-emerald-500' :
-        pair.ai_signal === 'SELL' ? 'bg-rose-500' : 'bg-slate-700'
+        liveSig === 'BUY' ? 'bg-emerald-500' :
+        liveSig === 'SELL' ? 'bg-rose-500' : 'bg-slate-700'
       }`} />
       <CardContent className="p-5 relative">
         {isTopPick && (
@@ -111,11 +116,11 @@ function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
                 </div>
               )}
               <Badge className={`text-[10px] h-5 px-2 font-bold ${
-                pair.ai_signal === 'BUY'  ? 'bg-emerald-500/20 text-emerald-400' :
-                pair.ai_signal === 'SELL' ? 'bg-rose-500/20 text-rose-400' :
+                liveSig === 'BUY'  ? 'bg-emerald-500/20 text-emerald-400' :
+                liveSig === 'SELL' ? 'bg-rose-500/20 text-rose-400' :
                 'bg-slate-700/20 text-slate-400'
               }`}>
-                {pair.ai_signal || 'NEUTRAL'}
+                {liveSig || 'NEUTRAL'}
               </Badge>
             </div>
           </div>
@@ -123,14 +128,14 @@ function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
           <div className="space-y-1.5">
             <div className="flex justify-between text-[10px] text-slate-400">
               <span>Indicator Confidence</span>
-              <span className={pair.ai_confidence > 80 ? 'text-emerald-400' : pair.ai_confidence > 65 ? 'text-amber-400' : 'text-slate-300'}>
-                {pair.ai_confidence || 0}%
+              <span className={liveConf > 80 ? 'text-emerald-400' : liveConf > 65 ? 'text-amber-400' : 'text-slate-300'}>
+                {Math.round(liveConf)}%
               </span>
             </div>
             <Progress
-              value={pair.ai_confidence || 0}
+              value={liveConf}
               className="h-1 bg-slate-800"
-              indicatorClassName={pair.ai_signal === 'SELL' ? 'bg-rose-500' : pair.ai_signal === 'BUY' ? 'bg-emerald-500' : 'bg-slate-600'}
+              indicatorClassName={liveSig === 'SELL' ? 'bg-rose-500' : liveSig === 'BUY' ? 'bg-emerald-500' : 'bg-slate-600'}
             />
             {/* Indicator chips — colour by direction, faded if disabled */}
             <IndicatorChips factors={factors} settings={signalSettings} variant="card" />
