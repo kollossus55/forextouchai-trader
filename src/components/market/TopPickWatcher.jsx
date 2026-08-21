@@ -181,12 +181,21 @@ export default function TopPickWatcher() {
                 />
               </div>
 
-              <Button
-                onClick={() => { dismiss(); navigate(createPageUrl('Pairs')); }}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
-              >
-                Open in Pairs <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={minimize}
+                  variant="outline"
+                  className="flex-1 border-slate-700 bg-slate-800/60 text-slate-200 hover:bg-slate-700 hover:text-white text-sm font-semibold"
+                >
+                  <Minus className="w-4 h-4 mr-1" /> Minimize
+                </Button>
+                <Button
+                  onClick={() => { dismiss(); navigate(createPageUrl('Pairs')); }}
+                  className="flex-[2] bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+                >
+                  Open in Pairs <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
