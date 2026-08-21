@@ -12,13 +12,14 @@ export const DEFAULT_SIGNAL_SETTINGS = {
   topPickConfidence: 75,         // min AI confidence for a pair to qualify as a Top Pick
   minIndicatorAgreement: 3,     // min number of indicators that must agree on direction to validate a manual trade
   factors: {
-    // Trend confirmation is the strongest, most reliable driver for forex pairs.
-    emaCross:   { weight: 25, enabled: true },   // primary EMA20/50 trend signal
-    macd:       { weight: 22, enabled: true },   // momentum confirmation
-    ema200:     { weight: 18, enabled: true },   // higher-timeframe trend bias
-    rsi:        { weight: 15, enabled: true },   // momentum / exhaustion
-    bollinger:  { weight: 12, enabled: true },   // mean-reversion / volatility
-    stochastic: { weight: 8,  enabled: true },    // noisiest oscillator — lowest weight
+    // H4 / LOW-sensitivity tuning: ~75% weight in trend + momentum so signals
+    // follow the dominant move and hold; oscillators demoted to light confirmation.
+    ema200:     { weight: 28, enabled: true },   // higher-timeframe trend bias — backbone on H4
+    emaCross:   { weight: 25, enabled: true },   // primary EMA20/50 trend trigger
+    macd:       { weight: 22, enabled: true },   // momentum confirms the trend
+    rsi:        { weight: 12, enabled: true },   // stays extended in H4 trends — lower weight
+    bollinger:  { weight: 8,  enabled: true },   // mean-reversion fights trends on H4 — low
+    stochastic: { weight: 5,  enabled: true },   // noisiest oscillator — lowest weight
   },
 };
 
