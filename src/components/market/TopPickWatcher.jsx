@@ -26,7 +26,6 @@ export default function TopPickWatcher() {
   const [topPick, setTopPick] = useState(null);
   const [visible, setVisible] = useState(false);
   const lastShown = useRef(null);
-  const timeframe = 'H1';
 
   // The Pairs page already shows the Top Picks strip — don't show the floating
   // alert there too (independent timers would desync and show a different pick).
@@ -54,7 +53,9 @@ export default function TopPickWatcher() {
       pairs.forEach(pair => {
         if (!isForex(pair.symbol)) return;
         const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
-        const result = computeSignal(pair.symbol, timeframe, price);
+        // Read the Pairs page's selected timeframe so the popup matches the strip exactly.
+        const tf = (typeof window !== 'undefined' && localStorage.getItem('forextouchai_pairs_timeframe')) || 'H1';
+        const result = computeSignal(pair.symbol, tf, price);
         const conf = (result.liveConfidence ?? result.confidence) || 0;
         const sig = result.liveSignal || result.signal;
         if (conf >= threshold && sig !== 'NEUTRAL' && (!best || conf > (best.liveConfidence ?? best.ai_confidence))) {

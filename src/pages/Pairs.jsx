@@ -57,7 +57,13 @@ export default function Pairs() {
   const [stopLossPips, setStopLossPips] = useState('30');
   const [takeProfitPips, setTakeProfitPips] = useState('60');
   const [selectedAccounts, setSelectedAccounts] = useState([]);
-  const [timeframe, setTimeframe] = useState('H1'); // Default to 1 Hour
+  const [timeframe, setTimeframe] = useState(() => {
+    try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H1'; } catch { return 'H1'; }
+  });
+  const handleTimeframeChange = (v) => {
+    setTimeframe(v);
+    try { localStorage.setItem('forextouchai_pairs_timeframe', v); } catch {}
+  };
   const [showAdvancedChart, setShowAdvancedChart] = useState(false);
   const [aiSuggestedLot, setAiSuggestedLot] = useState(null);
   const [signalSettingsOpen, setSignalSettingsOpen] = useState(false);
@@ -465,7 +471,7 @@ export default function Pairs() {
           />
         </div>
         <div className="w-[110px]">
-            <Select value={timeframe} onValueChange={setTimeframe}>
+            <Select value={timeframe} onValueChange={handleTimeframeChange}>
                 <SelectTrigger className="bg-emerald-950/30 border-emerald-500/50 text-emerald-400 font-bold h-10 hover:bg-emerald-500/10 hover:border-emerald-400 transition-all shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]">
                     <SelectValue placeholder="Period" />
                 </SelectTrigger>
