@@ -29,9 +29,9 @@ export default function TopPickWatcher() {
   const lastShown = useRef(null);
   const dismissTimer = useRef(null);
 
-  // The Pairs page already shows the Top Picks strip — don't show the floating
-  // alert there too (independent timers would desync and show a different pick).
-  const onPairsPage = location.pathname.replace('/', '') === 'Pairs';
+  // Show the floating Top Pick alert on every page (including Pairs) so the
+  // minimize/dismiss controls are always reachable.
+  const onPairsPage = false;
 
   // Shared query cache with the Pairs page → navigating to Pairs is instant
   const { data: pairs } = useQuery({
