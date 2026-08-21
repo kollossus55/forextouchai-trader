@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight } from 'lucide-react';
@@ -21,11 +21,16 @@ const isForex = (sym) => {
 
 export default function TopPickWatcher() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { settings } = useSignalSettings();
   const [topPick, setTopPick] = useState(null);
   const [visible, setVisible] = useState(false);
   const lastShown = useRef(null);
   const timeframe = 'H1';
+
+  // The Pairs page already shows the Top Picks strip — don't show the floating
+  // alert there too (independent timers would desync and show a different pick).
+  const onPairsPage = location.pathname.replace('/', '') === 'Pairs';
 
   // Shared query cache with the Pairs page → navigating to Pairs is instant
   const { data: pairs } = useQuery({
@@ -58,19 +63,22 @@ export default function TopPickWatcher() {
       });
       if (!active) return;
       setTopPick(best);
-      if (best) {
+      // Suppress the floating alert on the Pairs page (the strip is the source of truth there)
+      if (best && !onPairsPage) {
         const key = `${best.id}-${best.ai_signal}`;
         if (lastShown.current !== key) {
           lastShown.current = key;
           setVisible(true);
         }
+      } else {
+        setVisible(false);
       }
     };
 
     timer = setTimeout(compute, 1500);
     interval = setInterval(compute, (settings.recalcInterval || 30) * 1000);
     return () => { active = false; clearTimeout(timer); clearInterval(interval); };
-  }, [pairs, settings.recalcInterval]);
+  }, [pairs, settings.recalcInterval, onPairsPage]);
 
   const dismiss = () => setVisible(false);
 
