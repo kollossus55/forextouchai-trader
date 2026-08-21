@@ -44,6 +44,7 @@ export default function TopPickWatcher() {
 
     const compute = async () => {
       await MarketDataService.fetchAll();
+      const threshold = settings.topPickConfidence ?? 75;
       let best = null;
       pairs.forEach(pair => {
         if (!isForex(pair.symbol)) return;
@@ -51,8 +52,8 @@ export default function TopPickWatcher() {
         const result = computeSignal(pair.symbol, timeframe, price);
         const conf = (result.liveConfidence ?? result.confidence) || 0;
         const sig = result.liveSignal || result.signal;
-        if (conf >= 75 && sig !== 'NEUTRAL' && (!best || conf > (best.liveConfidence ?? best.ai_confidence))) {
-          best = { ...pair, current_price: price, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, change_24h: pair.change_24h };
+        if (conf >= threshold && sig !== 'NEUTRAL' && (!best || conf > (best.liveConfidence ?? best.ai_confidence))) {
+          best = { ...pair, current_price: price, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig, change_24h: pair.change_24h };
         }
       });
       if (!active) return;
