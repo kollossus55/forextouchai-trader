@@ -50,7 +50,7 @@ export default function TopPickWatcher() {
 
     const compute = async () => {
       await MarketDataService.fetchAll();
-      const threshold = settings.topPickConfidence ?? 75;
+      const threshold = settings.topPickConfidence ?? 60;
       let best = null;
       pairs.forEach(pair => {
         if (!isForex(pair.symbol)) return;
