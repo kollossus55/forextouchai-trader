@@ -73,9 +73,9 @@ export default function TopPickWatcher() {
           lastShown.current = key;
           setVisible(true);
           setMinimized(false);
-          // Auto-dismiss after 30 seconds
+          // Auto-dismiss after 30 seconds, then allow it to resurface on the next cycle
           if (dismissTimer.current) clearTimeout(dismissTimer.current);
-          dismissTimer.current = setTimeout(() => setVisible(false), 30000);
+          dismissTimer.current = setTimeout(() => { setVisible(false); lastShown.current = null; }, 30000);
         }
       } else {
         setVisible(false);
@@ -87,7 +87,7 @@ export default function TopPickWatcher() {
     return () => { active = false; clearTimeout(timer); clearInterval(interval); if (dismissTimer.current) clearTimeout(dismissTimer.current); };
   }, [pairs, settings.recalcInterval, onPairsPage]);
 
-  const dismiss = () => { setVisible(false); setMinimized(false); };
+  const dismiss = () => { setVisible(false); setMinimized(false); lastShown.current = null; };
   const minimize = () => setMinimized(true);
   const restore = () => { setMinimized(false); if (dismissTimer.current) clearTimeout(dismissTimer.current); dismissTimer.current = setTimeout(() => setVisible(false), 30000); };
 
