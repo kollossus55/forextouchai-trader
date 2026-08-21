@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight, Minus, Plus } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { MarketDataService } from '@/components/services/MarketDataService';
 import { computeSignal } from '@/components/services/SignalEngine';
@@ -25,7 +25,9 @@ export default function TopPickWatcher() {
   const { settings } = useSignalSettings();
   const [topPick, setTopPick] = useState(null);
   const [visible, setVisible] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const lastShown = useRef(null);
+  const dismissTimer = useRef(null);
 
   // The Pairs page already shows the Top Picks strip — don't show the floating
   // alert there too (independent timers would desync and show a different pick).
@@ -70,6 +72,10 @@ export default function TopPickWatcher() {
         if (lastShown.current !== key) {
           lastShown.current = key;
           setVisible(true);
+          setMinimized(false);
+          // Auto-dismiss after 30 seconds
+          if (dismissTimer.current) clearTimeout(dismissTimer.current);
+          dismissTimer.current = setTimeout(() => setVisible(false), 30000);
         }
       } else {
         setVisible(false);
@@ -78,10 +84,12 @@ export default function TopPickWatcher() {
 
     timer = setTimeout(compute, 1500);
     interval = setInterval(compute, (settings.recalcInterval || 30) * 1000);
-    return () => { active = false; clearTimeout(timer); clearInterval(interval); };
+    return () => { active = false; clearTimeout(timer); clearInterval(interval); if (dismissTimer.current) clearTimeout(dismissTimer.current); };
   }, [pairs, settings.recalcInterval, onPairsPage]);
 
-  const dismiss = () => setVisible(false);
+  const dismiss = () => { setVisible(false); setMinimized(false); };
+  const minimize = () => setMinimized(true);
+  const restore = () => { setMinimized(false); if (dismissTimer.current) clearTimeout(dismissTimer.current); dismissTimer.current = setTimeout(() => setVisible(false), 30000); };
 
   return (
     <AnimatePresence>
@@ -93,6 +101,22 @@ export default function TopPickWatcher() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="fixed bottom-4 right-4 z-[100] w-[320px] max-w-[calc(100vw-2rem)]"
         >
+        {minimized ? (
+          <button
+            onClick={restore}
+            className="w-full rounded-xl border-2 border-amber-400/50 bg-slate-900/95 backdrop-blur-md shadow-[0_0_30px_-6px_rgba(251,191,36,0.45)] overflow-hidden flex items-center gap-2 px-3 py-2.5 text-left hover:border-amber-400/80 transition-colors"
+          >
+            <span className="relative flex h-6 w-6 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-6 w-6 bg-amber-500 items-center justify-center">
+                <Activity className="h-3.5 w-3.5 text-amber-950" />
+              </span>
+            </span>
+            <span className="text-sm font-bold text-amber-300 flex-1">Top Pick: {topPick.symbol}</span>
+            <Badge className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border-0">{topPick.ai_confidence}%</Badge>
+            <Plus className="w-4 h-4 text-slate-400" />
+          </button>
+        ) : (
           <div className="rounded-xl border-2 border-amber-400/50 bg-slate-900/95 backdrop-blur-md shadow-[0_0_30px_-6px_rgba(251,191,36,0.45)] overflow-hidden">
             <div className="h-1.5 w-full bg-gradient-to-r from-amber-300 via-amber-500 to-amber-300" />
             <div className="p-4">
@@ -106,9 +130,14 @@ export default function TopPickWatcher() {
                   </span>
                   <span className="text-sm font-bold text-amber-300">Top Pick Alert</span>
                 </div>
-                <button onClick={dismiss} className="text-slate-500 hover:text-slate-300 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={minimize} className="text-slate-500 hover:text-amber-300 transition-colors" title="Minimize">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <button onClick={dismiss} className="text-slate-500 hover:text-rose-400 transition-colors" title="Dismiss">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between mb-3">
@@ -160,6 +189,7 @@ export default function TopPickWatcher() {
               </Button>
             </div>
           </div>
+        )}
         </motion.div>
       )}
     </AnimatePresence>
