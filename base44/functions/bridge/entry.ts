@@ -668,7 +668,7 @@ Deno.serve(async (req) => {
 
         const sanitizedSignals = freshSignals.map(s => {
             const botCfg = s.bot_id ? botConfigMap[s.bot_id] : null;
-            const sanitized = sanitizeSignal(s, livePriceMap, botCfg);
+            const sanitized = sanitizeSignal(s, livePriceMap, botCfg, acct);
             if (eaBrokerSymbol) {
                 sanitized.pair = eaBrokerSymbol;
             } else if (hasBrokerSuffixMap) {
@@ -872,7 +872,7 @@ function isScheduleOff(riskSettings, now) {
     }
 }
 
-function sanitizeSignal(s, livePriceMap, botCfg) {
+function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
     const originalPair = s.pair || ''; // preserve original pair name (e.g. AUS/200) for EA
     const pair = originalPair.replace('/', ''); // bare symbol for price lookups only
     const type = s.type;
@@ -1021,7 +1021,42 @@ function sanitizeSignal(s, livePriceMap, botCfg) {
         safeTP = 0;
     }
 
-    return { id: s.id, pair: originalPair, type, lot_size: s.lot_size || 0.1, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
+    // ── Margin-safe lot sizing for crypto ──────────────────────────────────────
+    // Crypto notional is huge (BTC ~$77k/coin). Many brokers apply reduced leverage
+    // to crypto (1:5–1:10) even when the account is 1:100 for forex, so a bot's
+    // default lot size (often 0.1) can exceed free margin → MT4 Error 134.
+    // Cap the lot so required margin stays under 50% of free margin. We assume the
+    // worst case (contract size = 1 unit/lot) and cap the effective leverage at 10x
+    // for crypto to stay safe across brokers that restrict crypto leverage.
+    let lotSize = s.lot_size || 0.1;
+    const CRYPTO_SYMBOLS_LS = ['BTCUSD', 'BITCOIN', 'BTC', 'ETHUSD', 'ETHEREUM', 'ETH', 'SOLUSD', 'SOL', 'XRPUSD', 'XRP', 'LTCUSD', 'LTC', 'ADAUSD', 'ADA', 'DOGEUSD', 'DOGE', 'AVAXUSD', 'AVAX', 'LINKUSD', 'LINK', 'MATICUSD', 'MATIC', 'DOTUSD', 'DOT'];
+    const isCryptoLot = CRYPTO_SYMBOLS_LS.includes(pair.toUpperCase());
+    if (isCryptoLot && basePrice > 0) {
+        const freeMargin = Number(acct.free_margin) || 0;
+        // Parse leverage string like "1:100" → 100
+        const levMatch = String(acct.leverage || '').match(/1:(\d+)/i);
+        const accountLev = levMatch ? parseInt(levMatch[1], 10) : 100;
+        // Brokers commonly cap crypto leverage well below forex leverage — assume max 10x for crypto
+        const cryptoLev = Math.min(accountLev, 10);
+        // required margin per lot = price / leverage (assumes 1 unit/lot — worst case)
+        const marginPerLot = basePrice / cryptoLev;
+        if (marginPerLot > 0 && freeMargin > 0) {
+            const maxLotByMargin = (freeMargin * 0.5) / marginPerLot;
+            // Round down to 2 decimals (broker min step is usually 0.01), floor at 0.01
+            let safeLot = Math.floor(maxLotByMargin * 100) / 100;
+            safeLot = Math.max(0.01, safeLot);
+            if (safeLot < lotSize) {
+                console.log(`[BRIDGE] sanitizeSignal ${pair} margin cap: free_margin=${freeMargin} lev=${cryptoLev}x marginPerLot=${marginPerLot.toFixed(2)} → lot ${lotSize} reduced to ${safeLot}`);
+                lotSize = safeLot;
+            }
+        } else if (freeMargin <= 0) {
+            // No free margin reported — fall back to a tiny crypto lot to avoid Error 134
+            lotSize = Math.min(lotSize, 0.01);
+            console.log(`[BRIDGE] sanitizeSignal ${pair} no free_margin reported — capping crypto lot to ${lotSize}`);
+        }
+    }
+
+    return { id: s.id, pair: originalPair, type, lot_size: lotSize, stop_loss: safeSL, take_profit: safeTP, entry_price: basePrice || s.entry_price || 0, comment: orderComment };
 }
 
 // ─── Reconcile trades ────────────────────────────────────────────────────────
