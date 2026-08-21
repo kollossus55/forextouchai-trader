@@ -37,27 +37,20 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
       </div>
 
       {hasPicks ? (
-        <div className="relative grid grid-cols-2 md:grid-cols-4 gap-3">
-          {safePicks.map((p, i) => {
+        <div className="relative grid grid-cols-1 gap-3">
+          {safePicks.map((p) => {
             const sig = p.liveSignal || p.ai_signal;
             const isBuy = sig !== 'SELL';
-            const isFirst = i === 0;
             return (
               <button
                 key={p.id}
                 onClick={() => onTrade(p, (p.liveSignal || p.ai_signal) === 'SELL' ? 'SELL' : 'BUY')}
-                className={`text-left rounded-xl p-3 transition-all hover:scale-[1.03] ${
-                  isFirst
-                    ? 'bg-gradient-to-br from-amber-500/25 to-yellow-500/10 border-2 border-amber-400/60 shadow-[0_0_20px_-3px_rgba(245,158,11,0.5)]'
-                    : isBuy
-                      ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-400/40'
-                      : 'bg-gradient-to-br from-rose-500/20 to-pink-500/10 border border-rose-400/40'
-                }`}
+                className={`text-left rounded-xl p-4 transition-all hover:scale-[1.01] bg-gradient-to-br from-amber-500/25 to-yellow-500/10 border-2 border-amber-400/60 shadow-[0_0_20px_-3px_rgba(245,158,11,0.5)]`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
-                    {isFirst && <Crown className="w-4 h-4 text-amber-300" />}
-                    <span className="font-extrabold text-white text-sm">{p.symbol}</span>
+                    <Crown className="w-4 h-4 text-amber-300" />
+                    <span className="font-extrabold text-white text-base">{p.symbol}</span>
                   </div>
                   <Badge className={`text-[10px] h-5 px-1.5 ${
                     isBuy ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/40'
@@ -67,7 +60,7 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
                     {isBuy ? 'BUY' : 'SELL'}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-300 mb-1.5">
                   <span className="font-mono">{p.current_price != null ? p.current_price.toFixed(5) : '—'}</span>
                   <span className={p.change_24h >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
                     {p.change_24h != null ? `${p.change_24h > 0 ? '+' : ''}${p.change_24h.toFixed(2)}%` : ''}
@@ -76,10 +69,10 @@ export default function TopPicksStrip({ picks, onTrade, threshold = 75 }) {
                 <div className="flex items-center gap-2">
                   <Progress
                     value={p.liveConfidence ?? p.ai_confidence ?? 0}
-                    className="h-2 bg-slate-800"
+                    className="h-2.5 bg-slate-800"
                     indicatorClassName={isBuy ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-rose-400 to-pink-300'}
                   />
-                  <span className="text-xs font-extrabold text-amber-300 whitespace-nowrap drop-shadow">
+                  <span className="text-sm font-extrabold text-amber-300 whitespace-nowrap drop-shadow">
                     {Math.round(p.liveConfidence ?? p.ai_confidence ?? 0)}%
                   </span>
                 </div>

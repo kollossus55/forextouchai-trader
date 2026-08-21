@@ -339,7 +339,7 @@ export default function Pairs() {
     const { slPrice, tpPrice, executionPrice } = calcSLTP();
 
     // Warn (but allow) if trading against AI signal direction
-    const aiSignal = liveData[selectedPair.id]?.ai_signal;
+    const aiSignal = liveData[selectedPair.id]?.liveSignal || liveData[selectedPair.id]?.ai_signal;
     if (aiSignal && aiSignal !== 'NEUTRAL' && aiSignal !== tradeType) {
       toast.warning('AI Signal Conflict', {
         description: `AI signals ${aiSignal} for ${selectedPair.symbol}. Proceeding with manual override.`,
@@ -433,7 +433,7 @@ export default function Pairs() {
       return sig && sig !== 'NEUTRAL' && conf >= topPickThreshold;
     })
     .sort((a, b) => (b.liveConfidence ?? b.ai_confidence ?? 0) - (a.liveConfidence ?? a.ai_confidence ?? 0))
-    .slice(0, 4);
+    .slice(0, 1);
 
   // Top Picks mirror the grid live — same sort (liveConfidence desc), same
   // threshold + directional filter. No hold, so the strip always matches the
@@ -545,8 +545,8 @@ export default function Pairs() {
           <div className="grid gap-4 py-4">
             {/* AI Signal Confirmation Banner */}
             {selectedPair && (() => {
-              const aiSignal = liveData[selectedPair.id]?.ai_signal;
-              const aiConf = liveData[selectedPair.id]?.ai_confidence || 0;
+              const aiSignal = liveData[selectedPair.id]?.liveSignal || liveData[selectedPair.id]?.ai_signal;
+              const aiConf = liveData[selectedPair.id]?.liveConfidence ?? liveData[selectedPair.id]?.ai_confidence ?? 0;
               const isAligned = !aiSignal || aiSignal === 'NEUTRAL' || aiSignal === tradeType;
               const isNeutral = !aiSignal || aiSignal === 'NEUTRAL';
               return (
