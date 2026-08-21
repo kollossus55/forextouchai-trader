@@ -131,10 +131,10 @@ export default function TopPickWatcher() {
                   <span className="text-sm font-bold text-amber-300">Top Pick Alert</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={minimize} className="text-slate-500 hover:text-amber-300 transition-colors" title="Minimize">
+                  <button onClick={minimize} className="w-7 h-7 flex items-center justify-center rounded-md text-slate-300 bg-slate-800/60 hover:bg-amber-500/20 hover:text-amber-300 transition-colors" title="Minimize">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <button onClick={dismiss} className="text-slate-500 hover:text-rose-400 transition-colors" title="Dismiss">
+                  <button onClick={dismiss} className="w-7 h-7 flex items-center justify-center rounded-md text-slate-300 bg-slate-800/60 hover:bg-rose-500/20 hover:text-rose-400 transition-colors" title="Dismiss">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
