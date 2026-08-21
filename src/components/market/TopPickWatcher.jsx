@@ -49,19 +49,16 @@ export default function TopPickWatcher() {
     MarketDataService.initialize();
 
     const compute = async () => {
-      await MarketDataService.fetchAll();
       const threshold = settings.topPickConfidence ?? 60;
       let best = null;
       pairs.forEach(pair => {
         if (!isForex(pair.symbol)) return;
-        const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
-        // Read the Pairs page's selected timeframe so the popup matches the strip exactly.
-        const tf = (typeof window !== 'undefined' && localStorage.getItem('forextouchai_pairs_timeframe')) || 'H1';
-        const result = computeSignal(pair.symbol, tf, price);
-        const conf = (result.liveConfidence ?? result.confidence) || 0;
-        const sig = result.liveSignal || result.signal;
-        if (conf >= threshold && sig !== 'NEUTRAL' && (!best || conf > (best.liveConfidence ?? best.ai_confidence))) {
-          best = { ...pair, current_price: price, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig, change_24h: pair.change_24h };
+        // Use the stored AI signal/confidence (same values shown on the Pairs page)
+        // so the popup reliably matches what's displayed elsewhere.
+        const conf = pair.ai_confidence || 0;
+        const sig = pair.ai_signal || 'NEUTRAL';
+        if (conf >= threshold && sig !== 'NEUTRAL' && (!best || conf > (best.ai_confidence || 0))) {
+          best = { ...pair, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig };
         }
       });
       if (!active) return;
