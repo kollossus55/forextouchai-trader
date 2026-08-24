@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { toast } from 'sonner';
 
 const MT5_VERSION = '1.15';
-const MT4_VERSION = '3.18';
+const MT4_VERSION = '3.19';
 const MT5_FILE = `ForexTouchAI_Bridge_MT5_v${MT5_VERSION}.mq5`;
 const MT4_FILE = `ForexTouchAI_Bridge_v${MT4_VERSION}.mq4`;
 
