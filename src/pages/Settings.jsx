@@ -236,6 +236,7 @@ export default function Settings() {
         account_number: mt4Config.login,
         password: mt4Config.password || '******',
         api_key: mt4Config.apiKey,
+        owner_email: user?.email,
         connection_status: 'CONNECTED', 
         last_sync: new Date().toISOString()
       };

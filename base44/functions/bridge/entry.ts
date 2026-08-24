@@ -135,6 +135,12 @@ Deno.serve(async (req) => {
         try {
             const existingConns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
             const connOwnerEmail = existingConns?.[0]?.owner_email || null;
+            // Reject when an existing connection has no owner_email — ownership cannot be
+            // verified, so accepting traffic would let any API-key holder claim the account.
+            if (existingConns?.length > 0 && !connOwnerEmail) {
+                console.warn(`[BRIDGE] Unowned BrokerConnection for account ${acctKey} — rejecting until owner_email is set in Settings`);
+                return Response.json({ error: 'Account connection has no registered owner. Re-save it in Settings to assign ownership.' }, { status: 403, headers: corsHeaders() });
+            }
             if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
                 console.warn(`[BRIDGE] Ownership mismatch for account ${acctKey}: key owner=${resolvedOwnerEmail}, conn owner=${connOwnerEmail}`);
                 return Response.json({ error: 'Account not authorized for this API key' }, { status: 403, headers: corsHeaders() });
@@ -260,10 +266,9 @@ Deno.serve(async (req) => {
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
                 if (conns?.length > 0) {
-                    // Backfill owner_email if missing and we resolved it from the API key
-                    const patch = { ...updateData };
-                    if (!conns[0].owner_email && resolvedOwnerEmail) patch.owner_email = resolvedOwnerEmail;
-                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, patch);
+                    // Do NOT backfill owner_email from the API key here — only the original
+                    // creator (via Settings) may own a connection. Ownership is enforced above.
+                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, updateData);
                 } else {
                     // New connection — set owner_email from the API key lookup
                     await base44.asServiceRole.entities.BrokerConnection.create({
