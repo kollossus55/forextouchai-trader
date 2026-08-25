@@ -59,7 +59,7 @@ export default function Pairs() {
   const [takeProfitPips, setTakeProfitPips] = useState('60');
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [timeframe, setTimeframe] = useState(() => {
-    try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H1'; } catch { return 'H1'; }
+    try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H4'; } catch { return 'H4'; }
   });
   const handleTimeframeChange = (v) => {
     setTimeframe(v);
@@ -558,10 +558,11 @@ export default function Pairs() {
           <div className="grid gap-4 py-4">
             {/* AI Signal Confirmation Banner */}
             {selectedPair && (() => {
-              const aiSignal = liveData[selectedPair.id]?.liveSignal || liveData[selectedPair.id]?.ai_signal;
-              const aiConf = liveData[selectedPair.id]?.liveConfidence ?? liveData[selectedPair.id]?.ai_confidence ?? 0;
-              const isAligned = !aiSignal || aiSignal === 'NEUTRAL' || aiSignal === tradeType;
-              const isNeutral = !aiSignal || aiSignal === 'NEUTRAL';
+              const lockedSignal = liveData[selectedPair.id]?.ai_signal;
+              const lockedConf = liveData[selectedPair.id]?.ai_confidence ?? 0;
+              const liveConf = liveData[selectedPair.id]?.liveConfidence ?? lockedConf;
+              const isAligned = !lockedSignal || lockedSignal === 'NEUTRAL' || lockedSignal === tradeType;
+              const isNeutral = !lockedSignal || lockedSignal === 'NEUTRAL';
               return (
                 <div className={`rounded-lg px-3 py-2.5 flex items-start gap-2.5 border text-sm ${
                   isNeutral ? 'bg-slate-800/50 border-slate-700 text-slate-400' :
@@ -574,12 +575,12 @@ export default function Pairs() {
                   <div>
                     <div className="font-semibold">
                       {isNeutral ? 'AI: No Signal' :
-                          isAligned ? `AI Confirmed: ${aiSignal} (${aiConf}% confidence)` :
-                          `⚠ AI signals ${aiSignal} — manual override active`}
+                          isAligned ? `AI Confirmed: ${lockedSignal} (${lockedConf}% locked)` :
+                          `⚠ AI signals ${lockedSignal} — manual override active`}
                         </div>
                         <div className="text-xs mt-0.5 opacity-75">
                           {isNeutral ? 'AI has no directional bias. Proceed with caution.' :
-                           isAligned ? 'Your trade direction matches the AI signal.' :
+                           isAligned ? `Locked signal holds steady for execution. Live: ${liveConf}%.` :
                            'You are trading against the AI signal. Order will still be sent.'}
                     </div>
                   </div>
