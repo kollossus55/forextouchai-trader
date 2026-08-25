@@ -59,7 +59,7 @@ export default function Pairs() {
   const [takeProfitPips, setTakeProfitPips] = useState('60');
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [timeframe, setTimeframe] = useState(() => {
-    try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H4'; } catch { return 'H4'; }
+    try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H1'; } catch { return 'H1'; }
   });
   const handleTimeframeChange = (v) => {
     setTimeframe(v);
