@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight, Minus, Plus } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { MarketDataService } from '@/components/services/MarketDataService';
-import { computeSignal } from '@/components/services/SignalEngine';
+import { computeSignal, recordTick } from '@/components/services/SignalEngine';
 import { useSignalSettings } from '@/components/services/signalSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,16 +49,24 @@ export default function TopPickWatcher() {
     MarketDataService.initialize();
 
     const compute = async () => {
-      const threshold = settings.topPickConfidence ?? 60;
+      // Refresh prices and feed the SignalEngine so the popup computes LIVE
+      // signals exactly like the Pairs page (which ranks its Top Picks strip
+      // by liveConfidence). Reading stored ai_confidence here made the popup
+      // diverge from the strip.
+      await MarketDataService.fetchAll();
+      const tf = (() => { try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H1'; } catch { return 'H1'; } })();
+      const threshold = settings.topPickConfidence ?? 75;
       let best = null;
       pairs.forEach(pair => {
         if (!isForex(pair.symbol)) return;
-        // Use the stored AI signal/confidence (same values shown on the Pairs page)
-        // so the popup reliably matches what's displayed elsewhere.
-        const conf = pair.ai_confidence || 0;
-        const sig = pair.ai_signal || 'NEUTRAL';
-        if (conf >= threshold && sig !== 'NEUTRAL' && (!best || conf > (best.ai_confidence || 0))) {
-          best = { ...pair, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig };
+        const price = MarketDataService.getPrice(pair.symbol);
+        if (!price || price <= 0) return;
+        recordTick(pair.symbol, price);
+        const result = computeSignal(pair.symbol, tf, price);
+        const sig = result.liveSignal || result.signal;
+        const conf = result.liveConfidence ?? result.confidence ?? 0;
+        if (sig && sig !== 'NEUTRAL' && conf >= threshold && (!best || conf > (best.ai_confidence || 0))) {
+          best = { ...pair, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig, current_price: price };
         }
       });
       if (!active) return;
