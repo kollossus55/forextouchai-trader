@@ -6,6 +6,7 @@ import { Activity, TrendingUp, TrendingDown, Zap, X, ArrowRight, Minus, Plus } f
 import { base44 } from '@/api/base44Client';
 import { MarketDataService } from '@/components/services/MarketDataService';
 import { computeSignal, recordTick } from '@/components/services/SignalEngine';
+import { subscribeTopPick, setTopPick as publishTopPick, isStale } from '@/lib/topPickStore';
 import { useSignalSettings } from '@/components/services/signalSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,32 @@ export default function TopPickWatcher() {
     initialData: [],
   });
 
+  // The Pairs page publishes its strip's EXACT #1 Top Pick to a shared store.
+  // The popup subscribes to it so it mirrors the strip instead of recomputing
+  // independently (which diverged due to different timing/history).
+  useEffect(() => {
+    const unsub = subscribeTopPick((pick) => {
+      setTopPick(pick);
+      if (pick && !onPairsPage) {
+        const key = `${pick.id}-${pick.ai_signal || pick.liveSignal}`;
+        if (lastShown.current !== key) {
+          lastShown.current = key;
+          setVisible(true);
+          setMinimized(false);
+          if (dismissTimer.current) clearTimeout(dismissTimer.current);
+          dismissTimer.current = setTimeout(() => { setVisible(false); lastShown.current = null; }, 30000);
+        }
+      } else {
+        setVisible(false);
+      }
+    });
+    return unsub;
+  }, [onPairsPage]);
+
+  // Fallback: when the Pairs page isn't mounted (store stale > 60s), compute a
+  // live top pick ourselves and feed the store so the popup still works on
+  // other pages. While Pairs is open it keeps the store fresh, so this never
+  // overrides the strip's pick.
   useEffect(() => {
     if (!pairs || pairs.length === 0) return;
     let active = true;
@@ -49,10 +76,7 @@ export default function TopPickWatcher() {
     MarketDataService.initialize();
 
     const compute = async () => {
-      // Refresh prices and feed the SignalEngine so the popup computes LIVE
-      // signals exactly like the Pairs page (which ranks its Top Picks strip
-      // by liveConfidence). Reading stored ai_confidence here made the popup
-      // diverge from the strip.
+      if (!isStale(60000)) return; // Pairs page is actively feeding the store
       await MarketDataService.fetchAll();
       const tf = (() => { try { return localStorage.getItem('forextouchai_pairs_timeframe') || 'H1'; } catch { return 'H1'; } })();
       const threshold = settings.topPickConfidence ?? 75;
@@ -69,28 +93,13 @@ export default function TopPickWatcher() {
           best = { ...pair, ai_signal: sig, ai_confidence: conf, liveConfidence: conf, liveSignal: sig, current_price: price };
         }
       });
-      if (!active) return;
-      setTopPick(best);
-      // Suppress the floating alert on the Pairs page (the strip is the source of truth there)
-      if (best && !onPairsPage) {
-        const key = `${best.id}-${best.ai_signal}`;
-        if (lastShown.current !== key) {
-          lastShown.current = key;
-          setVisible(true);
-          setMinimized(false);
-          // Auto-dismiss after 30 seconds, then allow it to resurface on the next cycle
-          if (dismissTimer.current) clearTimeout(dismissTimer.current);
-          dismissTimer.current = setTimeout(() => { setVisible(false); lastShown.current = null; }, 30000);
-        }
-      } else {
-        setVisible(false);
-      }
+      if (active && best) publishTopPick(best);
     };
 
-    timer = setTimeout(compute, 1500);
+    timer = setTimeout(compute, 2000);
     interval = setInterval(compute, (settings.recalcInterval || 30) * 1000);
     return () => { active = false; clearTimeout(timer); clearInterval(interval); if (dismissTimer.current) clearTimeout(dismissTimer.current); };
-  }, [pairs, settings.recalcInterval, onPairsPage]);
+  }, [pairs, settings.recalcInterval, settings.topPickConfidence]);
 
   const dismiss = () => { setVisible(false); setMinimized(false); lastShown.current = null; };
   const minimize = () => setMinimized(true);

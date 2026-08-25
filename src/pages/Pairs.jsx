@@ -44,6 +44,7 @@ import PairCard from '@/components/market/PairCard';
 import TopPicksStrip from '@/components/market/TopPicksStrip';
 import IndicatorChips from '@/components/market/IndicatorChips';
 import { useSignalSettings } from '@/components/services/signalSettings';
+import { setTopPick as publishTopPick } from '@/lib/topPickStore';
 
 export default function Pairs() {
   const queryClient = useQueryClient();
@@ -446,6 +447,12 @@ export default function Pairs() {
   // top of the Pairs grid exactly.
   const displayPicks = topPicks;
   const topPickIds = new Set(displayPicks.map(p => p.id));
+
+  // Publish the strip's exact #1 Top Pick to the shared store so the global
+  // TopPickWatcher popup mirrors the strip instead of recomputing independently.
+  useEffect(() => {
+    publishTopPick(displayPicks[0] || null);
+  }, [displayPicks]);
 
   const majorPairs = filteredPairs.filter(p => getCategory(p) === 'MAJOR');
   const minorPairs = filteredPairs.filter(p => getCategory(p) === 'MINOR');
