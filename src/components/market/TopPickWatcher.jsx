@@ -105,6 +105,10 @@ export default function TopPickWatcher() {
   const minimize = () => setMinimized(true);
   const restore = () => { setMinimized(false); if (dismissTimer.current) clearTimeout(dismissTimer.current); dismissTimer.current = setTimeout(() => setVisible(false), 30000); };
 
+  // Match the Pairs grid + strip: show LIVE (unlocked) signal/confidence.
+  const liveSig = topPick ? (topPick.liveSignal || topPick.ai_signal) : null;
+  const liveConf = topPick ? (topPick.liveConfidence ?? topPick.ai_confidence ?? 0) : 0;
+
   return (
     <AnimatePresence>
       {visible && topPick && (
@@ -127,7 +131,7 @@ export default function TopPickWatcher() {
               </span>
             </span>
             <span className="text-sm font-bold text-amber-300 flex-1">Top Pick: {topPick.symbol}</span>
-            <Badge className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border-0">{topPick.ai_confidence}%</Badge>
+            <Badge className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border-0">{Math.round(liveConf)}%</Badge>
             <Plus className="w-4 h-4 text-slate-400" />
           </button>
         ) : (
@@ -180,18 +184,18 @@ export default function TopPickWatcher() {
                   <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
                     <Zap className="w-3 h-3 text-amber-400" /> AI Signal
                   </span>
-                  <Badge className={`text-[10px] font-bold ${topPick.ai_signal !== 'SELL' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                    {topPick.ai_signal !== 'SELL' ? 'BUY' : 'SELL'}
+                  <Badge className={`text-[10px] font-bold ${liveSig !== 'SELL' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                    {liveSig !== 'SELL' ? 'BUY' : 'SELL'}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 mb-1">
                   <span>Confidence</span>
-                  <span className="text-amber-300 font-semibold">{topPick.ai_confidence}%</span>
+                  <span className="text-amber-300 font-semibold">{Math.round(liveConf)}%</span>
                 </div>
                 <Progress
-                  value={topPick.ai_confidence}
+                  value={liveConf}
                   className="h-1.5 bg-slate-800"
-                  indicatorClassName={topPick.ai_signal !== 'SELL' ? 'bg-emerald-500' : 'bg-rose-500'}
+                  indicatorClassName={liveSig !== 'SELL' ? 'bg-emerald-500' : 'bg-rose-500'}
                 />
               </div>
 
