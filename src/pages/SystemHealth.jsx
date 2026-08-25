@@ -54,8 +54,15 @@ export default function SystemHealth() {
   });
 
   const { data: bots = [], refetch: refetchBots, isFetching: f3 } = useQuery({
-    queryKey: ['sh-bots'],
+    queryKey: ['sh-bots', user?.email],
     queryFn: () => base44.entities.BotConfig.list('-updated_date', 50),
+    // Admins can read every user's BotConfig via RLS, but System Health is a
+    // personal monitor ("your trading accounts"), so scope the list to the
+    // current user's own bots only — otherwise other users' bots inflate the
+    // Running Bots count and Bot Status card.
+    select: (data) => user?.email
+      ? data.filter(b => b.owner_email === user.email || b.created_by_id === user.id)
+      : data,
     refetchInterval: 60000,
     initialData: []
   });
