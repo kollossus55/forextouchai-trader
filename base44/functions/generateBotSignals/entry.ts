@@ -225,8 +225,8 @@ const STRATEGY_INDICATOR_FIELDS = {
         }
 
         // Strategy-specific AI prompts
-        function buildPrompt(strategy, pairs, priceMap, refBot) {
-            const priceContext = pairs.map(pair => {
+        function buildPrompt(strategy, pairs, priceMap, refBot, ohlcContext) {
+            const priceContext = ohlcContext || pairs.map(pair => {
                 const price = priceMap[pair] || priceMap[pair.replace('/', '')];
                 return `${pair}: ${price}`;
             }).join(', ');
@@ -1448,8 +1448,18 @@ Also provide:
                 const refBot = strategyBots.length > 0
                     ? strategyBots.reduce((min, b) => ((b.min_confidence ?? 75) < (min.min_confidence ?? 75) ? b : min))
                     : null;
+                // PATTERN_TRADING needs real OHLC candles so the LLM can actually
+                // see chart patterns instead of guessing from a spot price.
+                let ohlcContext = null;
+                if (strategy === 'PATTERN_TRADING') {
+                    try {
+                        ohlcContext = await buildOhlcContext(pairs, priceMap);
+                    } catch (e) {
+                        console.error(`[generateBotSignals] PATTERN_TRADING OHLC fetch failed:`, e.message);
+                    }
+                }
                 const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: buildPrompt(strategy, pairs, priceMap, refBot),
+                    prompt: buildPrompt(strategy, pairs, priceMap, refBot, ohlcContext),
                     response_json_schema: {
                         type: "object",
                         properties: {
@@ -1990,6 +2000,33 @@ async function fetchYahooOHLC(pair, timeframe) {
     }
     if (candles.length < 50) throw new Error(`Only ${candles.length} candles for ${symbol} — need 50+`);
     return candles;
+}
+
+// ─── OHLC context builder for PATTERN_TRADING ──────────────────────────────
+// Fetches real D1 + H1 candles per pair so the LLM can genuinely read chart
+// patterns instead of guessing from a single spot price.
+async function buildOhlcContext(pairs, priceMap) {
+    const entries = await Promise.all(pairs.map(async pair => {
+        const price = priceMap[pair] || priceMap[pair.replace('/', '')] || 0;
+        const dec = price >= 500 ? 2 : price >= 10 ? 4 : 5;
+        const f = (v) => v.toFixed(dec);
+        const fmt = (candles, n) => {
+            if (!candles || candles.length < 10) return 'insufficient data';
+            return candles.slice(-n).map(c =>
+                `[O:${f(c.open)},H:${f(c.high)},L:${f(c.low)},C:${f(c.close)}]`
+            ).join(' ');
+        };
+        try {
+            const [d1, h1] = await Promise.all([
+                fetchYahooOHLC(pair, 'D1').catch(() => null),
+                fetchYahooOHLC(pair, 'H1').catch(() => null),
+            ]);
+            return `${pair} (current: ${f(price)})\n  D1 daily candles (last 20): ${fmt(d1, 20)}\n  H1 hourly candles (last 24): ${fmt(h1, 24)}`;
+        } catch (e) {
+            return `${pair} (current: ${f(price)}) — OHLC fetch failed`;
+        }
+    }));
+    return 'REAL OHLC CANDLE DATA (base all pattern detection on these candles — never guess):\n' + entries.join('\n');
 }
 
 // ─── Main SP500_AI signal calculator ────────────────────────────────────────
