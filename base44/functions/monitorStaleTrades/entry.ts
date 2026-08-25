@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createAlertCapped } from "../../shared/alertCap.ts";
 
 // Default thresholds (used when no risk settings configured for an account)
 const DEFAULT_FOREX_STALE_HOURS = 24;
@@ -105,11 +106,10 @@ Deno.serve(async (req) => {
 
         // In-app alert
         alertPromises.push(
-            base44.asServiceRole.entities.Alert.create({
+            createAlertCapped(base44, {
                 title: `⚠️ ${staleTrades.length} Stale Trade(s) Detected`,
                 message: `${staleTrades.length} trade(s) have been open too long with losses exceeding $${Math.abs(DEFAULT_NEGATIVE_PNL_THRESHOLD)}. Review: ${staleTrades.map(t => `${t.type} ${t.pair} ($${(t.pnl||0).toFixed(2)})`).join(', ')}`,
                 type: 'WARNING',
-                is_read: false
             })
         );
 

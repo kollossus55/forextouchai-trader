@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createAlertCapped } from "../../shared/alertCap.ts";
 
 Deno.serve(async (req) => {
     try {
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
                     const resumeTitle = `✅ Trading Auto-Resumed (Acct ${acctKey})`;
                     if (!recentAlertTitles.has(resumeTitle) && !newAlertTitlesThisRun.has(resumeTitle)) {
                         newAlertTitlesThisRun.add(resumeTitle);
-                        await base44.asServiceRole.entities.Alert.create({
+                        await createAlertCapped(base44, {
                             title: resumeTitle,
                             message: `Account ${acctKey}: Trading automatically resumed after ${autoResumeHours}h cooldown.`,
                             type: 'SUCCESS',
@@ -209,7 +210,7 @@ Deno.serve(async (req) => {
                                 base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
                             ));
                         }
-                        await base44.asServiceRole.entities.Alert.create({
+                        await createAlertCapped(base44, {
                             title: todayAlertTitle,
                             message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused.`,
                             type: 'SUCCESS',
@@ -223,7 +224,7 @@ Deno.serve(async (req) => {
             for (const alert of alerts) {
                 if (!recentAlertTitles.has(alert.title) && !newAlertTitlesThisRun.has(alert.title)) {
                     newAlertTitlesThisRun.add(alert.title);
-                    await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
+                    await createAlertCapped(base44, { ...alert });
                     console.log(`[monitorRiskLimits] Alert for ${acctKey}: ${alert.title}`);
                     if (connOwner) {
                         base44.asServiceRole.integrations.Core.SendEmail({

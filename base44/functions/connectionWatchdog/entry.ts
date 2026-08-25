@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createAlertCapped } from "../../shared/alertCap.ts";
 
 // Alert throttle: max 1 alert per account per hour to avoid spam
 const lastAlertTs = {}; // keyed by account_number → timestamp
@@ -85,11 +86,10 @@ Deno.serve(async (req) => {
             const alertMessage = `No heartbeat received from MT4/MT5 EA for account ${acctKey} in ${silenceMinutes} minutes. Last seen: ${new Date(lastSync).toLocaleString()}. Check your Expert Advisor is running and WebRequest is allowed.`;
 
             // Create in-app alert
-            await base44.asServiceRole.entities.Alert.create({
+            await createAlertCapped(base44, {
                 title: alertTitle,
                 message: alertMessage,
                 type: 'ERROR',
-                is_read: false,
             }).catch(e => console.error('[WATCHDOG] Alert create error:', e.message));
 
             // Mark connection as DISCONNECTED

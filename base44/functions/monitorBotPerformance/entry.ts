@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createAlertCapped } from "../../shared/alertCap.ts";
 
 Deno.serve(async (req) => {
     try {
@@ -149,7 +150,7 @@ Deno.serve(async (req) => {
 
         // Create alerts in DB
         for (const alert of alerts) {
-            await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
+            await createAlertCapped(base44, { ...alert });
             console.log(`[monitorBotPerformance] Created alert: ${alert.title}`);
         }
 
