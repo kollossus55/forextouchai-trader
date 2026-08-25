@@ -59,12 +59,25 @@ const STRATEGY_INDICATOR_FIELDS = {
         const thirtyMinAgoIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
         const staleActive = activeSignals.filter(s => s.created_date < twentyMinAgoIso);
         const stalePending = pendingSignals.filter(s => s.created_date < thirtyMinAgoIso);
+        // Reclassify ACTIVE timeouts on live accounts as SKIPPED (EA saw it, chose not
+        // to execute) so Dispatch Efficiency isn't penalized for deliberate EA
+        // regulation. Dead-account timeouts and never-dispatched PENDING stay EXPIRED.
+        const _liveAcctsForExpiry = new Set();
+        const _fiveMinsAgoForExpiry = new Date(Date.now() - 5 * 60 * 1000);
+        for (const conn of brokerConnections) {
+            if (!conn.account_number) continue;
+            const lastSync = conn.last_sync ? new Date(conn.last_sync) : null;
+            if (conn.connection_status === 'CONNECTED' && lastSync && lastSync >= _fiveMinsAgoForExpiry) {
+                _liveAcctsForExpiry.add(conn.account_number);
+            }
+        }
         if (staleActive.length > 0 || stalePending.length > 0) {
             const toExpire = [...staleActive, ...stalePending];
             console.log(`[generateBotSignals] Expiring ${toExpire.length} stale signal(s) (${staleActive.length} ACTIVE >20min, ${stalePending.length} PENDING >30min)`);
-            await Promise.all(toExpire.map(s =>
-                base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' }).catch(e => console.warn(`[generateBotSignals] Expire error for ${s.id}:`, e.message))
-            ));
+            await Promise.all(toExpire.map(s => {
+                const eaRejected = staleActive.includes(s) && s.owner_email && _liveAcctsForExpiry.has(s.owner_email);
+                return base44.asServiceRole.entities.Signal.update(s.id, { status: eaRejected ? 'SKIPPED' : 'EXPIRED' }).catch(e => console.warn(`[generateBotSignals] Expire error for ${s.id}:`, e.message));
+            }));
         }
 
         // Build per-account risk map: account_number → risk settings (account-specific preferred, then global fallback)

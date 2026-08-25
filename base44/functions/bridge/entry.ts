@@ -385,9 +385,17 @@ Deno.serve(async (req) => {
             (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < twentyMinAgo)
         ); // expire stale signals
         if (stale.length > 0) {
-            Promise.all(stale.map(s =>
-                base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
-            )).then(() => { cache.signals = { data: null, ts: 0 }; })
+            // Distinguish "EA deliberately rejected" from "EA never responded":
+            // An ACTIVE signal for THIS account that timed out was re-dispatched on
+            // every heartbeat (ACTIVE bypasses cooldown). Since this heartbeat is
+            // happening, the EA is alive — it saw the signal and chose not to execute
+            // (spread, max trades, max per pair, etc.). Mark SKIPPED so Dispatch
+            // Efficiency measures genuine execution, not deliberate EA regulation.
+            // PENDING signals >30min (never dispatched) stay EXPIRED.
+            Promise.all(stale.map(s => {
+                const eaRejected = s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < twentyMinAgo;
+                return base44.asServiceRole.entities.Signal.update(s.id, { status: eaRejected ? 'SKIPPED' : 'EXPIRED' });
+            })).then(() => { cache.signals = { data: null, ts: 0 }; })
               .catch(e => console.error('[BRIDGE] Expire error:', e.message));
         }
 

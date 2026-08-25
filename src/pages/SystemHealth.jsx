@@ -421,7 +421,7 @@ export default function SystemHealth() {
                   color="text-slate-400"
                   bgBar="bg-slate-500"
                   icon={<TrendingDown className="w-4 h-4" />}
-                  description="Bridge skipped — cooldown, open pair, or risk block"
+                  description="Bridge skipped or EA rejected — not a failure"
                 />
 
                 {/* Dispatch efficiency bar */}
