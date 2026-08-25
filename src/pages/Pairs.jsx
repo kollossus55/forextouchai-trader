@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -38,7 +38,7 @@ import IndicatorPanel from '@/components/market/IndicatorPanel';
 import IndicatorCharts from '@/components/market/IndicatorCharts';
 import AdvancedChart from '@/components/charts/AdvancedChart';
 import { MarketDataService } from '@/components/services/MarketDataService';
-import { recordTick, computeSignal } from '@/components/services/SignalEngine';
+import { recordTick, computeSignal, computeSignalFromCandles } from '@/components/services/SignalEngine';
 import SignalSettingsPanel from '@/components/market/SignalSettingsPanel';
 import PairCard from '@/components/market/PairCard';
 import TopPicksStrip from '@/components/market/TopPicksStrip';
@@ -102,6 +102,47 @@ export default function Pairs() {
     MarketDataService.initialize();
   }, []);
 
+  // Real broker candles via the getMarketCandles backend function. Broker OHLC
+  // is the same data your orders execute against — true prices, not the
+  // 24h-old open.er-api.com reference rate. Falls back to Yahoo when the EA
+  // hasn't uploaded candles for a symbol. Refreshed every 60s.
+  const pairCandlesRef = useRef({});
+  useEffect(() => {
+    if (pairs.length === 0) return;
+    const norm = (s) => (s || '').replace('/', '').toUpperCase();
+    const symbols = Array.from(new Set(pairs.map(p => norm(p.symbol))));
+    const fetchCandles = async () => {
+      try {
+        const resp = await base44.functions.invoke('getMarketCandles', { symbols, timeframe });
+        const data = resp?.data?.results || {};
+        const map = {};
+        for (const p of pairs) {
+          const n = norm(p.symbol);
+          if (data[n]) map[n] = data[n];
+        }
+        pairCandlesRef.current = map;
+      } catch (e) {
+        console.warn('[Pairs] candle fetch failed', e?.message || e);
+      }
+    };
+    fetchCandles();
+    const interval = setInterval(fetchCandles, 60000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, timeframe]);
+
+  // Candle-aware signal lookup: real broker candles when available, else the
+  // in-memory tick engine (crypto / no EA attached).
+  const getSignalResult = (pair) => {
+    const n = (pair.symbol || '').replace('/', '').toUpperCase();
+    const cd = pairCandlesRef.current[n];
+    if (cd && cd.candles && cd.candles.length >= 60) {
+      return { price: cd.latestPrice, result: computeSignalFromCandles(n, timeframe, cd.candles) };
+    }
+    const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
+    return { price, result: computeSignal(pair.symbol, timeframe, price) };
+  };
+
   // Sync with MarketDataService & compute REAL indicator-based signals
   useEffect(() => {
     if (pairs.length === 0) return;
@@ -113,18 +154,26 @@ export default function Pairs() {
       setLiveData(prev => {
         const next = { ...prev };
         pairs.forEach(pair => {
-          const realPrice = MarketDataService.getPrice(pair.symbol);
-          // Record tick into SignalEngine history store
-          recordTick(pair.symbol, realPrice);
-
-          let current = next[pair.id];
-          if (!current || !Array.isArray(current.history)) {
-            const history = Array.from({ length: 20 }, (_, i) => ({
-              time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002)
-            }));
-            current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: current?.ai_confidence || 0, ai_signal: current?.ai_signal || 'NEUTRAL', signal_timestamp: current?.signal_timestamp || Date.now() };
+          const n = (pair.symbol || '').replace('/', '').toUpperCase();
+          const cd = pairCandlesRef.current[n];
+          let realPrice, newHistory;
+          if (cd && cd.candles && cd.candles.length >= 60) {
+            // Real broker candles — true price + sparkline from closes
+            realPrice = cd.latestPrice;
+            newHistory = cd.candles.slice(-50).map((c, i) => ({ time: i, price: c.close }));
+          } else {
+            realPrice = MarketDataService.getPrice(pair.symbol);
+            recordTick(pair.symbol, realPrice);
+            let current = next[pair.id];
+            if (!current || !Array.isArray(current.history)) {
+              const history = Array.from({ length: 20 }, (_, i) => ({
+                time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002)
+              }));
+              current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: current?.ai_confidence || 0, ai_signal: current?.ai_signal || 'NEUTRAL', signal_timestamp: current?.signal_timestamp || Date.now() };
+            }
+            newHistory = [...current.history.slice(-49), { time: Date.now(), price: realPrice }];
           }
-          const newHistory = [...current.history.slice(-49), { time: Date.now(), price: realPrice }];
+          const current = next[pair.id] || {};
           next[pair.id] = { ...current, current_price: realPrice, change_24h: pair.change_24h, history: newHistory };
         });
         return next;
@@ -134,10 +183,8 @@ export default function Pairs() {
     // Signal recalculator: fires every 30 seconds using real indicators
     const signalInterval = setInterval(() => {
       pairs.forEach(pair => {
-        const price = MarketDataService.getPrice(pair.symbol);
+        const { price, result } = getSignalResult(pair);
         if (!price || price <= 0) return;
-
-        const result = computeSignal(pair.symbol, timeframe, price);
 
         setLiveData(prev => {
           const current = prev[pair.id] || {};
@@ -165,8 +212,7 @@ export default function Pairs() {
     // Run signal calculation immediately on mount / timeframe change
     setTimeout(() => {
       pairs.forEach(pair => {
-        const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
-        const result = computeSignal(pair.symbol, timeframe, price);
+        const { price, result } = getSignalResult(pair);
         setLiveData(prev => ({
           ...prev,
           [pair.id]: {
@@ -191,8 +237,7 @@ export default function Pairs() {
   useEffect(() => {
     if (pairs.length === 0) return;
     pairs.forEach(pair => {
-      const price = MarketDataService.getPrice(pair.symbol) || pair.current_price || 1;
-      const result = computeSignal(pair.symbol, timeframe, price);
+      const { price, result } = getSignalResult(pair);
       setLiveData(prev => ({
         ...prev,
         [pair.id]: {
@@ -295,8 +340,7 @@ export default function Pairs() {
     // Indicators are already computed by the SignalEngine every 30s.
     // If not yet available (first open), compute immediately.
     if (!pairIndicators[pair.id]) {
-      const price = pair.current_price || 1;
-      const result = computeSignal(pair.symbol, timeframe, price);
+      const { result } = getSignalResult(pair);
       setPairIndicators(prev => ({ ...prev, [pair.id]: result.indicators }));
       setPairChartData(prev => ({ ...prev, [pair.id]: result.chartCandles }));
       setPairFactors(prev => ({ ...prev, [pair.id]: result.factors }));
