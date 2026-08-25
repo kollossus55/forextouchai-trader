@@ -285,6 +285,35 @@
     "owner_email": {
       "type": "string",
       "description": "Email of the user who owns this bot"
+    },
+    "use_llm_confirmation": {
+      "type": "boolean",
+      "default": false,
+      "description": "Send the COMPUTED indicator readings to a language model for a second opinion. The model cannot change direction and can only LOWER confidence or veto — it never sees or invents price data. Off by default: the deterministic path is the one the backtester measures, and adding a non-deterministic layer makes results harder to reproduce."
+    },
+    "require_htf_alignment": {
+      "type": "boolean",
+      "default": true,
+      "description": "Reject signals that fight the higher-timeframe bias. This is the single most effective filter in the system; turn it off only for genuine counter-trend strategies."
+    },
+    "min_adx": {
+      "type": "number",
+      "default": 20,
+      "minimum": 0,
+      "maximum": 60,
+      "description": "ADX below this contributes no trend weight to the confluence score."
+    },
+    "avoid_rollover": {
+      "type": "boolean",
+      "default": true,
+      "description": "Block entries in the 20:45-21:15 UTC rollover window, where spreads widen sharply and stops are hit by cost rather than price."
+    },
+    "min_session_quality": {
+      "type": "number",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Minimum session liquidity (1.0 London/NY overlap, 0.95 London, 0.9 NY, 0.75 Tokyo, 0.6 Sydney). 0 allows any session. Does not apply to crypto."
     }
   },
   "required": [

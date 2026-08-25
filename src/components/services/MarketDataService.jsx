@@ -58,7 +58,10 @@ export const MarketDataService = {
 
     async fetchForex() {
         try {
-            // Open Exchange Rates (Free tier / Public endpoint)
+            // WARNING: open.er-api.com refreshes ONCE PER 24 HOURS on the free
+            // tier. It is adequate for a rough reference rate and nothing else.
+            // It must never be used for entry prices, indicator input or any
+            // trading decision. Bot signals use broker candles server-side.
             const response = await fetch('https://open.er-api.com/v6/latest/USD');
             const data = await response.json();
             
@@ -76,7 +79,7 @@ export const MarketDataService = {
     getPrice(pair) {
         // 1. Check direct cache (Crypto usually)
         if (this.prices[pair]) {
-            return this.applyJitter(this.prices[pair]);
+            return this.prices[pair];
         }
 
         // 2. Try to calculate Forex Cross Rate
@@ -98,16 +101,20 @@ export const MarketDataService = {
             if (rateBase && rateQuote) {
                 const price = rateQuote / rateBase;
                 this.prices[pair] = price; // Cache it
-                return this.applyJitter(price);
+                return price;
             }
         }
 
-        // 3. Fallback
-        return this.applyJitter(1.0);
+        // 3. No rate available.
+        // The old code returned 1.0 here, so an unrecognised pair silently
+        // displayed a price of ~1.0000 as though it were real. Returning null
+        // lets the caller render "unavailable" instead.
+        return null;
     },
 
-    applyJitter(price) {
-        // Add 0.005% random jitter to simulate live ticks
-        return price * (1 + (Math.random() * 0.0001 - 0.00005));
-    }
+    // `applyJitter()` used to live here. It multiplied every displayed price by
+    // a small random factor "to simulate live ticks" — on top of a forex feed
+    // (open.er-api.com) that refreshes only ONCE PER 24 HOURS on the free tier.
+    // The result was a random walk around a day-old rate, presented as live.
+    // Removed: prices are now shown exactly as received, or not at all.
 };

@@ -210,6 +210,32 @@
           }
         }
       }
+    },
+    "flatten_on_breach": {
+      "type": "boolean",
+      "default": true,
+      "description": "On a daily-loss or drawdown breach, also close open positions rather than only blocking new ones. Previously a breach paused new signals while existing trades kept running past the limit, so the limit did not limit anything. Set false only if you deliberately want to hold through a breach."
+    },
+    "max_trades_per_currency": {
+      "type": "number",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Maximum simultaneous open trades sharing a currency. Ten USD-quoted longs are one large short-USD position, not ten independent trades — this is the cap that prevents that."
+    },
+    "max_risk_percent_per_currency": {
+      "type": "number",
+      "default": 4,
+      "minimum": 0.5,
+      "maximum": 50,
+      "description": "Maximum NET risk as a percent of balance on any single currency, aggregated across correlated pairs."
+    },
+    "max_total_risk_percent": {
+      "type": "number",
+      "default": 6,
+      "minimum": 0.5,
+      "maximum": 100,
+      "description": "Maximum combined risk across all open positions, as a percent of balance."
     }
   },
   "required": [],

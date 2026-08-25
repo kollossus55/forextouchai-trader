@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Play, RotateCcw, BarChart, FileText, ChevronRight, TrendingUp, TrendingDown, Clock, Activity, Calendar, DollarSign, Zap, Target } from 'lucide-react';
+import { Play, BarChart, FileText, TrendingUp, Clock, Activity, Calendar, DollarSign, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function BacktestPanel({ preselectedBot }) {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [walkForward, setWalkForward] = useState(null);
+  const [warnings, setWarnings] = useState([]);
   const [selectedBotId, setSelectedBotId] = useState(preselectedBot?.id || '');
   const [selectedSymbol, setSelectedSymbol] = useState('EURUSD');
   const [selectedTimeframe, setSelectedTimeframe] = useState('H1');
@@ -64,7 +67,15 @@ export default function BacktestPanel({ preselectedBot }) {
 
       if (response.data.success) {
         setResults(response.data.results);
-        toast.success('Backtest completed successfully');
+        setMeta(response.data.meta || null);
+        setWalkForward(response.data.walkForward || null);
+        setWarnings(response.data.warnings || []);
+        const wf = response.data.walkForward;
+        if (wf && !wf.consistent) {
+          toast.warning('Backtest complete — but it did not hold up across periods');
+        } else {
+          toast.success('Backtest completed');
+        }
       } else {
         throw new Error(response.data.error || 'Backtest failed');
       }
@@ -72,6 +83,9 @@ export default function BacktestPanel({ preselectedBot }) {
       console.error('Backtest error:', error);
       toast.error('Backtest failed: ' + (error.response?.data?.error || error.message));
       setResults(null);
+      setMeta(null);
+      setWalkForward(null);
+      setWarnings([]);
     } finally {
       setIsRunning(false);
     }
@@ -96,23 +110,59 @@ export default function BacktestPanel({ preselectedBot }) {
         }
       };
       
+      const wfLines = (walkForward?.windows || [])
+        .map(w => `  ${w.label} (${w.start} to ${w.end}): ${w.trades} trades, ` +
+                  `${w.winRate}% win, ${w.returnPercent}% return, ${w.maxDrawdown}% max DD`)
+        .join('\n') || '  (not available)';
+
       const reportText = `
-ForexTouchAI - Backtest Report
+ForexTouchAI — Backtest Report
 ================================
 
 Bot: ${reportData.botName}
 Strategy: ${reportData.strategy}
-Risk Level: ${reportData.riskLevel}
-Test Date: ${reportData.testDate}
+Symbol: ${meta?.symbol || selectedSymbol}   Timeframe: ${meta?.timeframe || selectedTimeframe}
+Period: ${meta?.periodStart?.slice(0, 10) || '?'} to ${meta?.periodEnd?.slice(0, 10) || '?'}
+Data source: ${meta?.dataSource || 'unknown'}
+Test date: ${reportData.testDate}
 
-PERFORMANCE METRICS
--------------------
-Total Trades: ${reportData.results.totalTrades}
-Win Rate: ${reportData.results.winRate}%
-Total Net Profit: $${reportData.results.totalPnl.toLocaleString()}
-Profit Factor: ${reportData.results.profitFactor}
-Max Drawdown: ${reportData.results.maxDrawdown}%
-Sharpe Ratio: ${reportData.results.sharpeRatio}
+METHODOLOGY
+-----------
+${meta?.methodology || 'Bar-by-bar historical replay.'}
+
+Costs applied per trade:
+  Spread: ${meta?.costsApplied?.spreadPips ?? '?'} pips
+  Commission: $${meta?.costsApplied?.commissionPerLotPerSide ?? '?'} per lot per side
+  Slippage: ${meta?.costsApplied?.slippagePips ?? '?'} pips
+  Swap: ${meta?.costsApplied?.swapLongPerLotPerDay ?? '?'} / ${meta?.costsApplied?.swapShortPerLotPerDay ?? '?'} per lot per day
+Risk per trade: ${meta?.riskPercent ?? '?'}% of balance
+
+PERFORMANCE
+-----------
+Total trades: ${results.totalTrades}
+Win rate: ${results.winRate}%
+Net P&L: $${Number(results.totalPnl).toLocaleString()}  (${results.returnPercent}%)
+Profit factor: ${results.profitFactor ?? 'n/a'}
+Expectancy: ${results.expectancyR}R per trade
+Max drawdown: ${results.maxDrawdown}%
+Longest losing streak: ${results.longestLosingStreak} trades
+Sharpe: ${results.sharpeRatio}   Sortino: ${results.sortinoRatio}
+Total costs paid: $${Number(results.totalCosts).toLocaleString()}
+Net P&L excluding best trade: $${Number(results.netPnlExcludingBestTrade).toLocaleString()}
+
+WALK-FORWARD (out-of-sample)
+----------------------------
+${walkForward?.summary || 'Not run.'}
+${wfLines}
+
+CAVEATS
+-------
+${(warnings || []).map(w => '  - ' + w).join('\n') || '  (none reported)'}
+
+Past performance on historical data does not predict future results. A backtest
+cannot model every real-world condition — liquidity gaps, requotes, widened
+news spreads and broker execution differences all degrade live results relative
+to simulation. Forward-test on a demo account before risking capital.
 
 Report generated by ForexTouchAI
       `.trim();

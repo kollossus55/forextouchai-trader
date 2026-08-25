@@ -465,7 +465,14 @@ string BuildGoldCandleJson(string tfName) {
 
     // Always report as XAUUSD regardless of the broker's suffix, so the app
     // stores one canonical series.
-    return StringConcatenate("{\"symbol\":\"XAUUSD\",\"timeframe\":\"", tfName, "\",\"bars\":[", bars, "]}");
+    // NOTE: built with the + operator, not StringConcatenate().
+    // In MQL5, StringConcatenate has the signature int StringConcatenate(string&, ...)
+    // - it writes into an output parameter and returns a character count, so it
+    // cannot be used as an expression ("lvalue expected"). MQL4's version returns
+    // a string, which is why the .mq4 build accepted it. The + operator behaves
+    // the same in both languages.
+    return "{\"symbol\":\"XAUUSD\",\"timeframe\":\"" + tfName +
+           "\",\"bars\":[" + bars + "]}";
 }
 
 string BuildGoldCandlePayload() {
@@ -490,5 +497,5 @@ string BuildGoldCandlePayload() {
 
     lastCandleUpload = TimeCurrent();
     Print("[GoldEA MT5] Uploading gold candles (", CandleTimeframes, ")");
-    return StringConcatenate(",\"candles\":[", entries, "]");
+    return ",\"candles\":[" + entries + "]";
 }

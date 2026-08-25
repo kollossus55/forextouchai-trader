@@ -74,6 +74,21 @@
       "type": "number",
       "default": 0,
       "description": "Number of currently open trades on this account (synced by bridge)"
+    },
+    "min_lot": {
+      "type": "number",
+      "default": 0.01,
+      "description": "Broker minimum volume (MODE_MINLOT), reported by the EA. Position sizing refuses a trade rather than rounding up past this."
+    },
+    "max_lot": {
+      "type": "number",
+      "default": 100,
+      "description": "Broker maximum volume (MODE_MAXLOT)."
+    },
+    "lot_step": {
+      "type": "number",
+      "default": 0.01,
+      "description": "Broker volume step (MODE_LOTSTEP). Sizing always rounds DOWN to this."
     }
   },
   "required": [

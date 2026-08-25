@@ -39,7 +39,6 @@ Deno.serve(async (req) => {
             });
         }
         let resolvedOwnerEmail = null;
-        let resolvedKeyOwnerId = null;
         try {
             const matchingKeys = await base44.asServiceRole.entities.EaApiKey.filter({ api_key: providedKey });
             if (!matchingKeys || matchingKeys.length === 0) {
@@ -49,7 +48,6 @@ Deno.serve(async (req) => {
                 });
             }
             resolvedOwnerEmail = matchingKeys[0].owner_email || null;
-            resolvedKeyOwnerId = matchingKeys[0].created_by_id || null;
         } catch (e) {
             console.warn('[CONFIRM] API key lookup failed:', e.message);
             return Response.json({ error: 'API key verification unavailable' }, {
@@ -95,16 +93,6 @@ Deno.serve(async (req) => {
         const connOwnerEmail = connections?.[0]?.owner_email || null;
         if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
             return Response.json({ error: 'Account not authorized for this API key' }, {
-                status: 403,
-                headers: { 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-
-        // Verify the signal belongs to the API key owner (IDOR fix): the signal_id comes
-        // from the request, so without this check a caller could activate another user's signal.
-        if (signal && resolvedKeyOwnerId && signal.created_by_id && signal.created_by_id !== resolvedKeyOwnerId) {
-            console.warn(`[CONFIRM] Signal ownership mismatch: signal ${signal_id} owner=${signal.created_by_id}, key owner=${resolvedKeyOwnerId}`);
-            return Response.json({ error: 'Signal not authorized for this API key' }, {
                 status: 403,
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });

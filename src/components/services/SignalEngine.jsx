@@ -3,8 +3,7 @@
  * Computes RSI, MACD, Bollinger Bands, Stochastic, EMA cross signals
  * and combines them into a weighted confidence score.
  */
-import { EMA, RSI, MACD, BollingerBands, ATR, Stochastic, SMA } from 'technicalindicators';
-import { MarketDataService } from './MarketDataService';
+import { EMA, RSI, MACD, BollingerBands, ATR, Stochastic } from 'technicalindicators';
 import {
   getSignalSettings, getDirectionalThreshold, getLockMs, getMinLockConfidence,
 } from './signalSettings';
@@ -56,57 +55,17 @@ function buildCandles(symbol, timeframe) {
         .map(k => ({ ...buckets[k], time: Number(k) }));
 }
 
-// Generate seeded-but-realistic OHLC history when ticks are insufficient
-// Uses real current price as anchor and applies a trending random walk with
-// momentum — real markets trend, and the indicators need that trend to produce
-// the confluence that reaches Top Pick confidence levels.
-function generateRealisticHistory(currentPrice, periods, timeframe, rng) {
-    const rand = rng || Math.random;
-    const tfVolatility = {
-        M1: 0.0003, M5: 0.0006, M15: 0.001,
-        H1: 0.0018, H4: 0.003, D1: 0.006
-    };
-    const vol = tfVolatility[timeframe] || 0.0018;
-
-    const candles = [];
-    // Market regime: 60% trending, 40% ranging — real markets mix both, and
-    // Top Picks should surface only the trending pairs with strong confluence
-    const isTrending = rand() < 0.6;
-    // Random trend direction: +1 = uptrend, -1 = downtrend
-    const trendDir = rand() > 0.5 ? 1 : -1;
-    // Trend magnitude: how far the price moves from start to end (as % of price)
-    // Varies so some pairs produce 75-90% confluence, others ~70%
-    const trendMagnitude = isTrending ? vol * (8 + rand() * 20) : vol * 2;
-    // Start price: opposite end of the trend from currentPrice
-    const startPrice = currentPrice * (1 - trendDir * trendMagnitude);
-    // Linear trend per step so price naturally arrives at currentPrice
-    const trendPerStep = (currentPrice - startPrice) / periods;
-    let price = startPrice;
-    let momentum = 0;
-
-    for (let i = 0; i < periods; i++) {
-        const phase = i / periods;
-        // Trend ramps up in first 20% then sustains — indicators see a mature trend
-        const trendScale = isTrending ? Math.min(1, phase * 5) : 0.3;
-        // Trend component: distributed linearly so price reaches currentPrice
-        const trend = trendPerStep * trendScale + (1 - trendScale) * trendPerStep * 0.5;
-        // Momentum: creates realistic waves on top of the trend
-        momentum = momentum * 0.8 + (rand() - 0.5) * vol * price * 0.5;
-        // Noise: random component — higher in ranging markets
-        const noiseScale = isTrending ? 1 : 2.5;
-        const noise = (rand() - 0.5) * 2 * vol * price * noiseScale;
-        const open = price;
-        const close = price + trend + momentum * 0.2 + noise;
-        const range = Math.abs(close - open) * (1 + rand()) + vol * price * 0.5;
-        const high = Math.max(open, close) + range * rand() * 0.5;
-        const low = Math.min(open, close) - range * rand() * 0.5;
-        candles.push({ time: Date.now() - (periods - i) * 3600000, open, high, low, close });
-        price = close;
-    }
-    // Patch last close to real price so live price is accurate
-    candles[candles.length - 1].close = currentPrice;
-    return candles;
-}
+// NOTE: `generateRealisticHistory()` used to live here.
+//
+// It fabricated a random-walk price series whenever there were not enough real
+// ticks, and its own comment admitted the walk was tuned so "the indicators
+// need that trend to produce the confluence that reaches Top Pick confidence
+// levels". RSI, MACD and Bollinger Bands were then computed correctly — on
+// invented candles — and surfaced to the user as analysis.
+//
+// It has been deleted. When there is not enough real history, the engine now
+// returns an explicit INSUFFICIENT_DATA result and the UI shows an empty state.
+// An empty state is infinitely better than a confident fabrication.
 
 // ─── Deterministic D1 higher-timeframe bias ───────────────────────────────────
 // Seeded by symbol so the D1 trend is STABLE across recalcs (it would flap
@@ -132,9 +91,15 @@ function _mulberry32(seed) {
     };
 }
 
-function computeD1Bias(symbol, currentPrice) {
-    const rng = _mulberry32(_hashString(symbol));
-    const candles = generateRealisticHistory(currentPrice, 250, 'D1', rng);
+function computeD1Bias(symbol) {
+    // Higher-timeframe bias requires real daily candles. The client does not
+    // have them — the backend does, via broker OHLC uploaded by the EA.
+    // Returning UNKNOWN is honest; the previous version seeded a random walk
+    // from a hash of the symbol name and reported the result as a D1 trend.
+    const candles = buildCandles(symbol, 'D1');
+    if (!candles || candles.length < 200) {
+        return { bias: 'UNKNOWN', ema20: null, ema50: null, ema200: null, price: null };
+    }
     const closes = candles.map(c => c.close);
     const ema20Arr = EMA.calculate({ period: 20, values: closes });
     const ema50Arr = EMA.calculate({ period: 50, values: closes });
@@ -146,10 +111,8 @@ function computeD1Bias(symbol, currentPrice) {
 
     let bias = 'NEUTRAL';
     if (ema20 != null && ema50 != null && ema200 != null) {
-        const bullStack = price > ema20 && ema20 > ema50 && price > ema200;
-        const bearStack = price < ema20 && ema20 < ema50 && price < ema200;
-        if (bullStack) bias = 'BULLISH';
-        else if (bearStack) bias = 'BEARISH';
+        if (price > ema20 && ema20 > ema50 && price > ema200) bias = 'BULLISH';
+        else if (price < ema20 && ema20 < ema50 && price < ema200) bias = 'BEARISH';
         else if (price > ema200) bias = 'BULLISH';
         else if (price < ema200) bias = 'BEARISH';
     }
@@ -158,13 +121,21 @@ function computeD1Bias(symbol, currentPrice) {
 
 // ─── Core Signal Calculation ────────────────────────────────────────────────
 export function computeSignal(symbol, timeframe, currentPrice) {
-    let candles = buildCandles(symbol, timeframe);
+    const candles = buildCandles(symbol, timeframe);
 
-    // Need at least 60 candles for reliable indicators
+    // Indicators need real history. If we do not have it, say so — do not
+    // manufacture candles to fill the gap.
     if (!candles || candles.length < 60) {
-        candles = generateRealisticHistory(currentPrice, 250, timeframe);
-        // Patch last close to real price
-        candles[candles.length - 1].close = currentPrice;
+        return {
+            signal: 'INSUFFICIENT_DATA',
+            confidence: 0,
+            available: false,
+            reason: `Only ${candles ? candles.length : 0} real ${timeframe} candles collected. ` +
+                    `Live indicator analysis needs 60+. Signals generated by your bots use broker ` +
+                    `candles server-side and are unaffected by this.`,
+            factors: [],
+            indicators: {},
+        };
     }
 
     const closes = candles.map(c => c.close);
@@ -320,7 +291,7 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     // Filters counter-trend signals: if the selected-timeframe signal fights
     // the D1 trend, confidence is capped below the Top Picks / bot threshold
     // so only trend-aligned setups surface as high-confidence picks.
-    const d1 = computeD1Bias(symbol, currentPrice);
+    const d1 = computeD1Bias(symbol);
     // Map signal direction to D1 bias terminology for comparison:
     // BUY = BULLISH, SELL = BEARISH. Without this mapping, 'BULLISH' !== 'BUY'
     // is always true and EVERY directional signal gets capped at 74.

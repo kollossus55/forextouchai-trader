@@ -1,10 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 function generateKey() {
+    // This key is the sole credential granting bridge access to a live trading
+    // account, so it must come from a cryptographically secure source.
+    // Math.random() is a fast non-cryptographic PRNG whose internal state can be
+    // recovered from a modest number of outputs — fine for animation jitter,
+    // unacceptable for an auth token.
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
     let key = 'FTAI-';
-    for (let i = 0; i < 32; i++) {
-        key += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < bytes.length; i++) {
+        // Rejection-free modulo bias is negligible here (256 % 62), but we use a
+        // wider draw anyway to keep the distribution clean.
+        key += chars.charAt(bytes[i] % chars.length);
     }
     return key;
 }

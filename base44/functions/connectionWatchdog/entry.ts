@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { createAlertCapped } from "../../shared/alertCap.ts";
 
 // Alert throttle: max 1 alert per account per hour to avoid spam
 const lastAlertTs = {}; // keyed by account_number → timestamp
@@ -50,27 +49,39 @@ Deno.serve(async (req) => {
                 continue;
             }
 
-            // ── Ghost-trade cleanup: auto-close trades flagged close_requested ──
-            // The bridge's close-command logic only runs during EA heartbeats, so
-            // if the EA is offline these trades stay OPEN forever even though the
-            // position is already gone from the broker (hit SL/TP or was flattened
-            // by the schedule OFF event before the EA disconnected).
+            // ── Unconfirmed closes while the EA is offline ──────────────────
+            // This block previously marked such trades CLOSED outright, on the
+            // assumption that the position was already gone from the broker.
+            //
+            // That assumption is unsafe, and it is unsafe in the one direction
+            // that costs money. A silent EA is exactly the situation in which we
+            // CANNOT know the position's state: the terminal may be shut while
+            // the position is still live on the broker's server. Writing CLOSED
+            // makes the app show a flat account, stops all monitoring, and
+            // records a fabricated P&L — while real money is still exposed.
+            //
+            // We now alert instead. An unresolved trade the user can see is far
+            // better than a resolved one that is a lie.
             try {
-                const ghostTrades = await base44.asServiceRole.entities.Trade.filter(
+                const unconfirmed = await base44.asServiceRole.entities.Trade.filter(
                     { status: 'OPEN', owner_email: acctKey, close_requested: true }, '-created_date', 100
                 );
-                if (ghostTrades.length > 0) {
-                    console.log(`[WATCHDOG] Auto-closing ${ghostTrades.length} ghost trade(s) for ${acctKey} (EA offline ${silenceMinutes}m)`);
-                    await Promise.all(ghostTrades.map(t =>
-                        base44.asServiceRole.entities.Trade.update(t.id, {
-                            status: 'CLOSED',
-                            close_price: t.close_price || 0,
-                            pnl: t.pnl || 0,
-                        }).catch(e => console.warn('[WATCHDOG] Ghost close error:', e.message))
-                    ));
+                if (unconfirmed.length > 0) {
+                    console.warn(`[WATCHDOG] ${unconfirmed.length} trade(s) on ${acctKey} were flagged to close `
+                        + `but the EA has been offline for ${silenceMinutes}m — state UNKNOWN, not auto-closing`);
+                    const title = `🚨 Unconfirmed Positions (Acct ${acctKey})`;
+                    await base44.asServiceRole.entities.Alert.create({
+                        title,
+                        message: `${unconfirmed.length} position(s) on account ${acctKey} were flagged to close, but `
+                            + `the EA has been offline for ${silenceMinutes} minutes so we cannot confirm whether they `
+                            + `actually closed. Tickets: ${unconfirmed.map(t => t.ticket).filter(Boolean).join(', ') || 'unknown'}. `
+                            + `CHECK YOUR TERMINAL — these may still be open at the broker. `
+                            + `The app will reconcile automatically when the EA reconnects.`,
+                        type: 'ERROR', is_read: false,
+                    }).catch(e => console.warn('[WATCHDOG] alert failed:', e.message));
                 }
             } catch (e) {
-                console.warn('[WATCHDOG] Ghost-trade cleanup error:', e.message);
+                console.warn('[WATCHDOG] unconfirmed-close check error:', e.message);
             }
 
             // Throttle: skip if we already alerted within the last hour
@@ -86,10 +97,11 @@ Deno.serve(async (req) => {
             const alertMessage = `No heartbeat received from MT4/MT5 EA for account ${acctKey} in ${silenceMinutes} minutes. Last seen: ${new Date(lastSync).toLocaleString()}. Check your Expert Advisor is running and WebRequest is allowed.`;
 
             // Create in-app alert
-            await createAlertCapped(base44, {
+            await base44.asServiceRole.entities.Alert.create({
                 title: alertTitle,
                 message: alertMessage,
                 type: 'ERROR',
+                is_read: false,
             }).catch(e => console.error('[WATCHDOG] Alert create error:', e.message));
 
             // Mark connection as DISCONNECTED

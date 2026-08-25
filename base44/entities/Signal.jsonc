@@ -59,6 +59,19 @@
     "calculated_indicators": {
       "type": "object",
       "description": "Technical indicator values at time of signal generation"
+    },
+    "risk_amount": {
+      "type": "number",
+      "description": "Account-currency amount risked if the stop is hit. Derived from risk_per_trade_percent and the real stop distance."
+    },
+    "stop_pips": {
+      "type": "number",
+      "description": "Stop distance in pips, using the correct pip size for this instrument."
+    },
+    "data_source": {
+      "type": "string",
+      "enum": ["BROKER", "YAHOO", "UNKNOWN"],
+      "description": "Which candle feed produced this signal. BROKER means your own terminal's data."
     }
   },
   "required": [

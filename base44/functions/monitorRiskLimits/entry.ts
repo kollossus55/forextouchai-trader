@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { createAlertCapped } from "../../shared/alertCap.ts";
 
 Deno.serve(async (req) => {
     try {
@@ -23,10 +22,18 @@ Deno.serve(async (req) => {
 
         // ── Step 2: Fetch trades per connected account (avoids full-table timeout) ──
         const acctNumbers = connectedAccounts.map(c => c.account_number).filter(Boolean);
+
+        // The old code capped closed trades at 50 per account. With 10 concurrent
+        // trades across several bots, 50 closes in a day is easily reached — and
+        // it is MOST reachable on a bad day of rapid stop-outs, which is exactly
+        // when the daily-loss limit has to be accurate. Beyond 50, the loss was
+        // understated and the limit fired late or not at all.
+        // We now pull a full day's worth and flag if we still hit the ceiling.
+        const CLOSED_PAGE = 500;
         const tradeResults = await Promise.all(
             acctNumbers.flatMap(acct => [
-                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acct }, '-created_date', 50),
-                base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED', owner_email: acct }, '-updated_date', 50),
+                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: acct }, '-created_date', 200),
+                base44.asServiceRole.entities.Trade.filter({ status: 'CLOSED', owner_email: acct }, '-updated_date', CLOSED_PAGE),
             ])
         );
         // Interleaved: [open0, closed0, open1, closed1, ...]
@@ -77,7 +84,7 @@ Deno.serve(async (req) => {
                     const resumeTitle = `✅ Trading Auto-Resumed (Acct ${acctKey})`;
                     if (!recentAlertTitles.has(resumeTitle) && !newAlertTitlesThisRun.has(resumeTitle)) {
                         newAlertTitlesThisRun.add(resumeTitle);
-                        await createAlertCapped(base44, {
+                        await base44.asServiceRole.entities.Alert.create({
                             title: resumeTitle,
                             message: `Account ${acctKey}: Trading automatically resumed after ${autoResumeHours}h cooldown.`,
                             type: 'SUCCESS',
@@ -168,7 +175,26 @@ Deno.serve(async (req) => {
                 const dailyLossPercent = (trackedLoss / balance) * 100;
                 const alertThreshold = (riskSettings.alert_threshold_percent || 80) / 100;
                 if (dailyLossPercent >= riskSettings.max_daily_loss_percent) {
-                    alerts.push({ title: `🚨 Daily Loss Limit Breached! (Acct ${acctKey})`, message: `Account ${acctKey}: Daily loss of ${dailyLossPercent.toFixed(2)}% exceeded the ${riskSettings.max_daily_loss_percent}% limit.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`, type: 'ERROR' });
+                    // Pausing new signals is not a loss limit. Open positions keep
+                    // running, so the floating loss carries on growing past the
+                    // number the user set. On a breach we now FLATTEN as well,
+                    // unless the account is explicitly configured not to.
+                    const shouldFlatten = riskSettings.stop_trading_on_limit
+                        && riskSettings.flatten_on_breach !== false;
+                    let flattened = 0;
+                    if (shouldFlatten) {
+                        flattened = await requestCloseAll(
+                            base44, acctOpenForAcct, 'DAILY_LOSS_LIMIT',
+                        );
+                    }
+                    alerts.push({
+                        title: `🚨 Daily Loss Limit Breached! (Acct ${acctKey})`,
+                        message: `Account ${acctKey}: Daily loss of ${dailyLossPercent.toFixed(2)}% exceeded the `
+                            + `${riskSettings.max_daily_loss_percent}% limit.`
+                            + (riskSettings.stop_trading_on_limit ? ' Trading paused.' : '')
+                            + (shouldFlatten ? ` Close requested for ${flattened} open position(s).` : ''),
+                        type: 'ERROR',
+                    });
                     if (riskSettings.stop_trading_on_limit) {
                         await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                     }
@@ -182,7 +208,22 @@ Deno.serve(async (req) => {
                 const drawdownPercent = ((newPeak - equity) / newPeak) * 100;
                 const alertThreshold = (riskSettings.alert_threshold_percent || 80) / 100;
                 if (drawdownPercent >= riskSettings.max_drawdown_percent) {
-                    alerts.push({ title: `🚨 Max Drawdown Breached! (Acct ${acctKey})`, message: `Account ${acctKey}: Drawdown of ${drawdownPercent.toFixed(2)}% exceeded the ${riskSettings.max_drawdown_percent}% limit.${riskSettings.stop_trading_on_limit ? ' Trading paused.' : ''}`, type: 'ERROR' });
+                    const shouldFlatten = riskSettings.stop_trading_on_limit
+                        && riskSettings.flatten_on_breach !== false;
+                    let flattened = 0;
+                    if (shouldFlatten) {
+                        flattened = await requestCloseAll(
+                            base44, acctOpenForAcct, 'MAX_DRAWDOWN',
+                        );
+                    }
+                    alerts.push({
+                        title: `🚨 Max Drawdown Breached! (Acct ${acctKey})`,
+                        message: `Account ${acctKey}: Drawdown of ${drawdownPercent.toFixed(2)}% exceeded the `
+                            + `${riskSettings.max_drawdown_percent}% limit.`
+                            + (riskSettings.stop_trading_on_limit ? ' Trading paused.' : '')
+                            + (shouldFlatten ? ` Close requested for ${flattened} open position(s).` : ''),
+                        type: 'ERROR',
+                    });
                     if (riskSettings.stop_trading_on_limit) {
                         await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                     }
@@ -204,15 +245,28 @@ Deno.serve(async (req) => {
                     if (!recentAlertTitles.has(todayAlertTitle) && !newAlertTitlesThisRun.has(todayAlertTitle)) {
                         await base44.asServiceRole.entities.RiskManagementSettings.update(riskSettings.id, { is_trading_paused: true, limit_hit_at: now.toISOString() });
                         newAlertTitlesThisRun.add(todayAlertTitle);
-                        // Close open trades in batches
-                        for (let i = 0; i < acctOpenForAcct.length; i += 3) {
-                            await Promise.all(acctOpenForAcct.slice(i, i + 3).map(t =>
-                                base44.asServiceRole.entities.Trade.update(t.id, { status: 'CLOSED', close_price: t.open_price, pnl: t.pnl || 0 })
-                            ));
-                        }
-                        await createAlertCapped(base44, {
+
+                        // CRITICAL FIX. The old code wrote `status: 'CLOSED'` with
+                        // `close_price: t.open_price` straight into the database.
+                        // That never reached the broker: the position stayed open
+                        // with real money at risk, while the app showed a flat
+                        // account and stopped monitoring it. The fabricated close
+                        // price also corrupted the P&L feeding this very function.
+                        //
+                        // The correct mechanism is `close_requested: true`, which
+                        // the bridge turns into a close_command for the EA. The
+                        // reconcile loop then writes the REAL close price and P&L
+                        // once the ticket disappears from the broker.
+                        const closeCount = await requestCloseAll(
+                            base44, acctOpenForAcct, 'DAILY_PROFIT_TARGET',
+                        );
+
+                        await base44.asServiceRole.entities.Alert.create({
                             title: todayAlertTitle,
-                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your ${riskSettings.daily_profit_target_percent}% target. Trading paused.`,
+                            message: `Account ${acctKey}: Daily profit of ${dailyProfitPercent.toFixed(2)}% reached your `
+                                + `${riskSettings.daily_profit_target_percent}% target. Trading paused and close `
+                                + `requested for ${closeCount} open position(s). Positions close at market via the EA — `
+                                + `check the Trades page to confirm they have actually closed.`,
                             type: 'SUCCESS',
                         });
                         console.log(`[monitorRiskLimits] Profit target alert fired for ${acctKey}`);
@@ -224,7 +278,7 @@ Deno.serve(async (req) => {
             for (const alert of alerts) {
                 if (!recentAlertTitles.has(alert.title) && !newAlertTitlesThisRun.has(alert.title)) {
                     newAlertTitlesThisRun.add(alert.title);
-                    await createAlertCapped(base44, { ...alert });
+                    await base44.asServiceRole.entities.Alert.create({ ...alert, is_read: false });
                     console.log(`[monitorRiskLimits] Alert for ${acctKey}: ${alert.title}`);
                     if (connOwner) {
                         base44.asServiceRole.integrations.Core.SendEmail({
@@ -236,8 +290,46 @@ Deno.serve(async (req) => {
                 }
             }
 
+            // ── Stuck-close watchdog ────────────────────────────────────────
+            // A close that silently fails is the worst failure mode in the
+            // system: the app believes it has flattened while the position is
+            // still live. Surface it loudly.
+            const stuckCloses = acctOpenForAcct.filter(t => {
+                if (!t.close_requested) return false;
+                const since = t.close_requested_at || t.updated_date;
+                return since && (now.getTime() - new Date(since).getTime()) > 5 * 60 * 1000;
+            });
+            if (stuckCloses.length) {
+                const title = `⚠️ Close Not Completing (Acct ${acctKey})`;
+                if (!recentAlertTitles.has(title) && !newAlertTitlesThisRun.has(title)) {
+                    newAlertTitlesThisRun.add(title);
+                    await base44.asServiceRole.entities.Alert.create({
+                        title,
+                        message: `Account ${acctKey}: ${stuckCloses.length} position(s) were flagged to close over `
+                            + `5 minutes ago and are still open at the broker `
+                            + `(tickets ${stuckCloses.map(t => t.ticket).filter(Boolean).join(', ') || 'unknown'}). `
+                            + `Check that the EA is running and that AutoTrading is enabled in the terminal. `
+                            + `Close them manually if the EA is offline.`,
+                        type: 'ERROR', is_read: false,
+                    });
+                    if (connOwner) {
+                        base44.asServiceRole.integrations.Core.SendEmail({
+                            to: connOwner,
+                            subject: `🚨 ForexTouchAI — positions not closing (Acct ${acctKey})`,
+                            body: `${stuckCloses.length} position(s) on account ${acctKey} were requested to close `
+                                + `more than 5 minutes ago and remain open at the broker.\n\n`
+                                + `This usually means the EA is not running or AutoTrading is disabled.\n\n`
+                                + `ForexTouchAI — Automated Risk Monitor`,
+                        }).catch((e: any) => console.error('[monitorRiskLimits] stuck-close email failed:', e.message));
+                    }
+                }
+            }
+
             totalAlerts.push(...alerts);
-            results.push({ account: acctKey, daily_pnl: totalDailyPnl, open_trades: acctOpenCount, alerts: alerts.length });
+            results.push({
+                account: acctKey, daily_pnl: totalDailyPnl, open_trades: acctOpenCount,
+                alerts: alerts.length, stuck_closes: stuckCloses.length,
+            });
         }
 
         return Response.json({
@@ -252,3 +344,41 @@ Deno.serve(async (req) => {
         return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// requestCloseAll
+// ════════════════════════════════════════════════════════════════════════════
+// Flags open trades for closure so the bridge dispatches a close_command to the
+// EA, which closes at market. This is the ONLY correct way to close a position
+// from the backend.
+//
+// Never write `status: 'CLOSED'` from here. The database is not the broker:
+// marking a trade closed locally leaves the real position open, unmonitored,
+// with money still at risk — and writes a fabricated close price that then
+// corrupts every P&L calculation downstream. Only the bridge reconcile loop,
+// which observes the ticket actually disappearing from the terminal, may set
+// a trade to CLOSED.
+// ════════════════════════════════════════════════════════════════════════════
+async function requestCloseAll(base44: any, trades: any[], reason: string): Promise<number> {
+    const pending = (trades || []).filter(t => t && !t.close_requested);
+    if (!pending.length) return 0;
+
+    let ok = 0;
+    // Small batches keep us inside Base44 rate limits.
+    for (let i = 0; i < pending.length; i += 3) {
+        const batch = pending.slice(i, i + 3);
+        const outcomes = await Promise.allSettled(batch.map(t =>
+            base44.asServiceRole.entities.Trade.update(t.id, {
+                close_requested: true,
+                close_requested_at: new Date().toISOString(),
+                close_reason: reason,
+            })
+        ));
+        for (const o of outcomes) {
+            if (o.status === 'fulfilled') ok++;
+            else console.error('[requestCloseAll] failed:', (o as PromiseRejectedResult).reason);
+        }
+    }
+    console.log(`[requestCloseAll] ${reason}: close requested for ${ok}/${pending.length} trade(s)`);
+    return ok;
+}

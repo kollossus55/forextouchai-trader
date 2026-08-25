@@ -52,6 +52,24 @@
       "type": "boolean",
       "default": false,
       "description": "Set by monitorBotPerformance (bot close-all-at-profit/loss). The bridge returns these OPEN trades as close_commands so the EA flattens the broker position; bridge reconcile then marks the trade CLOSED with the real fill pnl."
+    },
+    "close_requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When close_requested was set. If this is more than a few minutes old and the trade is still OPEN, the EA never executed the close and the position is still live at the broker — monitorRiskLimits raises an alert on this."
+    },
+    "close_reason": {
+      "type": "string",
+      "enum": ["DAILY_PROFIT_TARGET", "DAILY_LOSS_LIMIT", "MAX_DRAWDOWN", "AI_MAX_HOLD", "GLOBAL_SCHEDULE", "MANUAL", "DUPLICATE", "SL_TP"],
+      "description": "Why the close was requested. Populated by whichever function flagged it."
+    },
+    "risk_amount": {
+      "type": "number",
+      "description": "Account-currency amount at risk when the trade opened (lots x stop distance x pip value). Used for correlation-aware exposure limits; previously nothing recorded what a trade actually risked."
+    },
+    "stop_pips": {
+      "type": "number",
+      "description": "Stop distance in pips at entry, for post-trade analysis."
     }
   },
   "required": [

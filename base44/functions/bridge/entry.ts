@@ -1,4 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
+import { validateStops } from '../_shared/risk.ts';
 
 // ─── Global request lock: serialize bridge processing to prevent rate-limit exhaustion ──
 // When both MT4 and MT5 call simultaneously, the combined DB operations (10+ per call)
@@ -132,21 +134,37 @@ Deno.serve(async (req) => {
         // ── Ownership check: verify account_number belongs to the API key owner (IDOR fix) ──
         // An attacker with their own API key could otherwise spoof a victim's account_number
         // and read signals / overwrite balances / force-close trades via service-role queries.
+        // The previous implementation failed OPEN in three ways: it passed when
+        // no BrokerConnection existed yet (so any key could claim any new account
+        // number), it passed when owner_email was unset, and on a lookup error it
+        // logged a warning and carried on to full processing. All three are now
+        // closed. First-seen is first-claim, permanently.
         try {
             const existingConns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
-            const connOwnerEmail = existingConns?.[0]?.owner_email || null;
-            // Reject when an existing connection has no owner_email — ownership cannot be
-            // verified, so accepting traffic would let any API-key holder claim the account.
-            if (existingConns?.length > 0 && !connOwnerEmail) {
-                console.warn(`[BRIDGE] Unowned BrokerConnection for account ${acctKey} — rejecting until owner_email is set in Settings`);
-                return Response.json({ error: 'Account connection has no registered owner. Re-save it in Settings to assign ownership.' }, { status: 403, headers: corsHeaders() });
+            const existing = existingConns?.[0] || null;
+            const connOwnerEmail = existing?.owner_email || null;
+
+            if (!resolvedOwnerEmail) {
+                console.warn(`[BRIDGE] API key has no owner_email — rejecting account ${acctKey}`);
+                return Response.json({ error: 'API key is not bound to a user' }, { status: 403, headers: corsHeaders() });
             }
-            if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
-                console.warn(`[BRIDGE] Ownership mismatch for account ${acctKey}: key owner=${resolvedOwnerEmail}, conn owner=${connOwnerEmail}`);
+
+            if (existing && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
+                console.warn(`[BRIDGE] Ownership mismatch for ${acctKey}: key=${resolvedOwnerEmail} conn=${connOwnerEmail}`);
                 return Response.json({ error: 'Account not authorized for this API key' }, { status: 403, headers: corsHeaders() });
             }
+
+            if (existing && !connOwnerEmail) {
+                // Legacy record with no owner — bind it to this key now.
+                await base44.asServiceRole.entities.BrokerConnection.update(existing.id, {
+                    owner_email: resolvedOwnerEmail,
+                });
+                console.log(`[BRIDGE] Bound unowned account ${acctKey} to ${resolvedOwnerEmail}`);
+            }
         } catch (e) {
-            console.warn('[BRIDGE] BrokerConnection ownership lookup failed:', e.message);
+            // Fail closed: if we cannot verify ownership we do not process.
+            console.error('[BRIDGE] ownership verification unavailable:', e.message);
+            return Response.json({ error: 'Ownership verification unavailable' }, { status: 503, headers: corsHeaders() });
         }
 
         // Detect if this is a Gold EA heartbeat (only sends XAUUSD price).
@@ -208,6 +226,33 @@ Deno.serve(async (req) => {
         const lastCall = lastCallTs[rateLimitKey] || 0;
         const isRateLimited = (now - lastCall) < rateLimitInterval;
 
+        // ── Ingest broker OHLC uploaded by the EA (CopyRates) ────────────────
+        // Deliberately placed ABOVE the rate-limit return. The EA throttles
+        // uploads to once every ~15 minutes and marks its own cooldown as soon
+        // as it builds the payload — it cannot tell that a heartbeat was
+        // rate-limited. If ingest sat below this return, an upload that happened
+        // to coincide with a throttled beat would be discarded and the next
+        // attempt would not come for another 15 minutes.
+        //
+        // This is cheap: one entity write per symbol per 15 minutes, and it is
+        // not what the rate limiter exists to protect against (that is the
+        // reconcile read/write storm further down).
+        // Awaited, not fire-and-forget. `success: true` previously told the EA
+        // nothing about whether its candles were stored — so a missing
+        // CandleHistory entity, or an RLS rejection, looked identical to a
+        // healthy upload from the terminal's point of view. The cost is small:
+        // the EA throttles uploads to roughly once every 15 minutes, so only
+        // about one heartbeat in thirty pays for these writes.
+        let candlesStored = null;
+        if (Array.isArray(body.candles) && body.candles.length) {
+            try {
+                candlesStored = await ingestCandles(base44, body.candles);
+            } catch (e) {
+                console.error('[BRIDGE] candle ingest failed:', e.message);
+                candlesStored = { ok: false, error: e.message };
+            }
+        }
+
         if (isRateLimited) {
             if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
             return Response.json({
@@ -266,9 +311,10 @@ Deno.serve(async (req) => {
             (async () => {
                 const conns = await base44.asServiceRole.entities.BrokerConnection.filter({ account_number: acctKey });
                 if (conns?.length > 0) {
-                    // Do NOT backfill owner_email from the API key here — only the original
-                    // creator (via Settings) may own a connection. Ownership is enforced above.
-                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, updateData);
+                    // Backfill owner_email if missing and we resolved it from the API key
+                    const patch = { ...updateData };
+                    if (!conns[0].owner_email && resolvedOwnerEmail) patch.owner_email = resolvedOwnerEmail;
+                    await base44.asServiceRole.entities.BrokerConnection.update(conns[0].id, patch);
                 } else {
                     // New connection — set owner_email from the API key lookup
                     await base44.asServiceRole.entities.BrokerConnection.create({
@@ -385,17 +431,9 @@ Deno.serve(async (req) => {
             (s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < twentyMinAgo)
         ); // expire stale signals
         if (stale.length > 0) {
-            // Distinguish "EA deliberately rejected" from "EA never responded":
-            // An ACTIVE signal for THIS account that timed out was re-dispatched on
-            // every heartbeat (ACTIVE bypasses cooldown). Since this heartbeat is
-            // happening, the EA is alive — it saw the signal and chose not to execute
-            // (spread, max trades, max per pair, etc.). Mark SKIPPED so Dispatch
-            // Efficiency measures genuine execution, not deliberate EA regulation.
-            // PENDING signals >30min (never dispatched) stay EXPIRED.
-            Promise.all(stale.map(s => {
-                const eaRejected = s.status === 'ACTIVE' && s.owner_email === acctKey && s.created_date < twentyMinAgo;
-                return base44.asServiceRole.entities.Signal.update(s.id, { status: eaRejected ? 'SKIPPED' : 'EXPIRED' });
-            })).then(() => { cache.signals = { data: null, ts: 0 }; })
+            Promise.all(stale.map(s =>
+                base44.asServiceRole.entities.Signal.update(s.id, { status: 'EXPIRED' })
+            )).then(() => { cache.signals = { data: null, ts: 0 }; })
               .catch(e => console.error('[BRIDGE] Expire error:', e.message));
         }
 
@@ -767,10 +805,11 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v7d',
+            bridge_version: 'v8-candles',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
-            _deploy_check: 'v7d_active',
+            _deploy_check: 'v8_candles_active',
+            candles_stored: candlesStored,
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,
             close_commands: closeCommands,
@@ -912,7 +951,7 @@ function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
         const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
         const isIndex = !isCrypto && (INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000));
 
-        // Validate SL direction — reset if wrong side of price
+        // ── Direction validation ────────────────────────────────────────────
         if (type === 'BUY' && safeSL >= basePrice) safeSL = 0;
         if (type === 'SELL' && safeSL <= basePrice) safeSL = 0;
         if (type === 'BUY' && safeTP <= basePrice) safeTP = 0;
@@ -920,6 +959,26 @@ function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
         if (safeSL > 0 && safeTP > 0) {
             if (type === 'BUY' && safeSL >= safeTP) { safeSL = 0; safeTP = 0; }
             if (type === 'SELL' && safeSL <= safeTP) { safeSL = 0; safeTP = 0; }
+        }
+
+        // ── DISTANCE validation ─────────────────────────────────────────────
+        // Direction alone is not enough. The old code accepted a $0.30 stop on
+        // an index at 6000 (30 "pips" x the 0.01 pip size the price>50 heuristic
+        // produced) because it was on the correct side of price and below the
+        // target. The trade was stopped out on the first tick.
+        //
+        // The bridge is the last line of defence before real money, so it now
+        // checks that the distances are physically plausible for THIS
+        // instrument and rejects the levels back to 0 if they are not — the
+        // instrument-specific defaults below then fill them in properly.
+        if (safeSL > 0 && safeTP > 0 && isKnownInstrument(pair)) {
+            const spec = getInstrumentSpec(pair);
+            const check = validateStops(spec, basePrice, safeSL, safeTP, type === 'SELL' ? 'SELL' : 'BUY');
+            if (!check.ok) {
+                console.warn(`[BRIDGE] sanitizeSignal REJECTED levels for ${pair}: ${check.reason} `
+                    + `(entry ${basePrice}, SL ${safeSL}, TP ${safeTP}) — recomputing from instrument defaults`);
+                safeSL = 0; safeTP = 0;
+            }
         }
 
         if (isGold) {
@@ -997,7 +1056,12 @@ function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
             console.log(`[BRIDGE] sanitizeSignal ${pair} detected as INDEX — using % distances | SL dist: ${defaultSlDist.toFixed(2)} TP dist: ${defaultTpDist.toFixed(2)}`);
         } else {
             // Standard Forex: pip-based SL/TP
-            const pipSize = basePrice > 50 ? 0.01 : 0.0001; // JPY pairs use 0.01
+            // Use the real per-instrument pip size rather than the old
+            // `price > 50 ? 0.01 : 0.0001` guess, which was wrong for every
+            // instrument that is not a plain forex pair.
+            const pipSize = isKnownInstrument(pair)
+                ? getInstrumentSpec(pair).pipSize
+                : (basePrice > 50 ? 0.01 : 0.0001);
             const defaultSlPips = 30;
             const defaultTpPips = 60;
 
@@ -1345,11 +1409,25 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
                     }
                 } catch (_) { /* proceed with close even if verification fails */ }
                 const finalPnl = t.pnl || 0;
-                let closePrice = 0;
-                if (t.open_price > 0) {
-                    const lotMultiplier = (t.lot_size || 0.1) * 100000;
-                    const priceMove = lotMultiplier > 0 ? finalPnl / lotMultiplier : 0;
-                    closePrice = parseFloat((t.type === 'BUY' ? t.open_price + priceMove : t.open_price - priceMove).toFixed(5));
+                // Derive the close price from the LAST KNOWN PRICE, not by
+                // inverting P&L through a hardcoded 100,000 contract size. That
+                // multiplier is only correct for a standard forex lot — on gold,
+                // silver, indices and crypto it produced a nonsense close price
+                // that was then stored as fact.
+                let closePrice = Number(t.current_price) || 0;
+                if (!(closePrice > 0) && t.open_price > 0) {
+                    const spec = isKnownInstrument(t.pair || '') ? getInstrumentSpec(t.pair) : null;
+                    if (spec && Number.isFinite(spec.pipValuePerLot) && (t.lot_size || 0) > 0) {
+                        const pipsMoved = finalPnl / (spec.pipValuePerLot * t.lot_size);
+                        const move = pipsMoved * spec.pipSize;
+                        closePrice = parseFloat(
+                            (t.type === 'BUY' ? t.open_price + move : t.open_price - move)
+                                .toFixed(spec.digits));
+                    } else {
+                        // Unknown instrument: record the entry rather than invent
+                        // a price, and mark it so the row is auditable.
+                        closePrice = t.open_price;
+                    }
                 }
                 memTickets.delete(t.ticket);
                 return base44.asServiceRole.entities.Trade.update(t.id, {
@@ -1398,4 +1476,76 @@ async function updateCurrencyPrices(base44, eaPrices) {
         await Promise.all(ops.slice(i, i + 5)).catch(e => console.warn('[BRIDGE] Price batch error:', e.message));
     }
     console.log('[BRIDGE] Updated', ops.length, 'prices');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ingestCandles — store broker OHLC uploaded by the EA
+// ════════════════════════════════════════════════════════════════════════════
+// Payload shape from the EA:
+//   candles: [ { symbol, timeframe, bars: [ {t,o,h,l,c,v}, ... ] }, ... ]
+//
+// One CandleHistory row per (symbol, timeframe), overwritten on each upload.
+// Bars are validated before storage — a malformed bar that reaches the
+// indicator layer is far harder to diagnose than one rejected at the door.
+// ════════════════════════════════════════════════════════════════════════════
+async function ingestCandles(base44, payload) {
+    const stored = [];
+    const rejected = [];
+    for (const entry of payload.slice(0, 12)) {
+        const symbol = normalizeSymbol(entry?.symbol || '');
+        const timeframe = String(entry?.timeframe || '').toUpperCase();
+        const rawBars = Array.isArray(entry?.bars) ? entry.bars : [];
+        if (!symbol || !timeframe || rawBars.length < 50) {
+            rejected.push(`${symbol || '?'} ${timeframe || '?'}: ${rawBars.length} bars (need 50+)`);
+            continue;
+        }
+
+        const bars = [];
+        for (const b of rawBars) {
+            const t = Number(b.t), o = Number(b.o), h = Number(b.h), l = Number(b.l), c = Number(b.c);
+            if (![t, o, h, l, c].every(Number.isFinite)) continue;
+            if (h < l || h < o || h < c || l > o || l > c) continue;
+            if (t <= 0) continue;
+            bars.push({ t, o, h, l, c, v: Number(b.v) || 1 });
+        }
+        if (bars.length < 50) {
+            const msg = `${symbol} ${timeframe}: only ${bars.length}/${rawBars.length} bars passed validation`;
+            console.warn('[BRIDGE]', msg);
+            rejected.push(msg);
+            continue;
+        }
+        bars.sort((a, b) => a.t - b.t);
+
+        const record = {
+            symbol,
+            timeframe,
+            bars: JSON.stringify(bars),
+            bar_count: bars.length,
+            bar_time: new Date(bars[bars.length - 1].t * 1000).toISOString(),
+            source: 'BROKER',
+            updated_at: new Date().toISOString(),
+        };
+
+        try {
+            const existing = await base44.asServiceRole.entities.CandleHistory
+                .filter({ symbol, timeframe }, '-updated_date', 1);
+            if (existing?.length) {
+                await base44.asServiceRole.entities.CandleHistory.update(existing[0].id, record);
+            } else {
+                await base44.asServiceRole.entities.CandleHistory.create(record);
+            }
+            stored.push(`${symbol}:${timeframe}:${bars.length}`);
+        } catch (e) {
+            // The most common cause by far is the CandleHistory entity not
+            // existing yet in the app schema. Say so explicitly rather than
+            // leaving a bare database error in the logs.
+            const hint = /not found|unknown entity|does not exist/i.test(e.message || '')
+                ? ' — does the CandleHistory entity exist? Run `base44 entities push`.'
+                : '';
+            const msg = `${symbol} ${timeframe}: ${e.message}${hint}`;
+            console.error('[BRIDGE] CandleHistory write failed:', msg);
+            rejected.push(msg);
+        }
+    }
+    return { ok: rejected.length === 0, stored, rejected };
 }

@@ -441,7 +441,14 @@ string BuildSilverCandleJson(string tfName) {
     // timeframe) and overwrites the row on each upload, so shipping "XAUUSD"
     // here would replace gold's candles with silver bars and the gold bot would
     // then compute its ATR, stops and every indicator from silver prices.
-    return StringConcatenate("{\"symbol\":\"XAGUSD\",\"timeframe\":\"", tfName, "\",\"bars\":[", bars, "]}");
+    // NOTE: built with the + operator, not StringConcatenate().
+    // In MQL5, StringConcatenate has the signature int StringConcatenate(string&, ...)
+    // - it writes into an output parameter and returns a character count, so it
+    // cannot be used as an expression ("lvalue expected"). MQL4's version returns
+    // a string, which is why the .mq4 build accepted it. The + operator behaves
+    // the same in both languages.
+    return "{\"symbol\":\"XAGUSD\",\"timeframe\":\"" + tfName +
+           "\",\"bars\":[" + bars + "]}";
 }
 
 string BuildSilverCandlePayload() {
@@ -466,5 +473,5 @@ string BuildSilverCandlePayload() {
 
     lastCandleUpload = TimeCurrent();
     Print("[SilverEA] Uploading silver candles (", CandleTimeframes, ")");
-    return StringConcatenate(",\"candles\":[", entries, "]");
+    return ",\"candles\":[" + entries + "]";
 }

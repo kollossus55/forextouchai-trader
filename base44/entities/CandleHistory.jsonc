@@ -1,0 +1,46 @@
+{
+  "name": "CandleHistory",
+  "type": "object",
+  "description": "Broker OHLC uploaded by the Expert Advisor via CopyRates(). This is the price data the signal engine and backtester run on. Using the broker's own candles means indicators are computed against the same prices your orders execute at, with no third-party feed to rate-limit you or change format without warning. One row per (symbol, timeframe), overwritten on each upload.",
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Normalised symbol, e.g. EURUSD, XAUUSD, US500. Separators and broker suffixes are stripped before storage."
+    },
+    "timeframe": {
+      "type": "string",
+      "enum": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"],
+      "description": "Bar timeframe"
+    },
+    "bars": {
+      "type": "string",
+      "description": "JSON array of CLOSED bars, oldest first: [{t,o,h,l,c,v}]. `t` is epoch seconds of the bar OPEN. The currently forming bar is never included — computing indicators on an open candle produces repainting signals."
+    },
+    "bar_count": {
+      "type": "number",
+      "description": "Number of bars stored. 210+ is required for EMA200; 400+ for a meaningful backtest."
+    },
+    "bar_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Open time of the most recent stored bar. Used to detect a stale feed."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["BROKER", "YAHOO"],
+      "default": "BROKER",
+      "description": "Where the candles came from. BROKER is authoritative."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": ["symbol", "timeframe", "bars"],
+  "rls": {
+    "read": { "user_condition": { "role": "admin" } },
+    "create": { "user_condition": { "role": "admin" } },
+    "update": { "user_condition": { "role": "admin" } },
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}
