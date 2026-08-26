@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   risk_per_trade_percent: 2,
   alert_threshold_percent: 80,
   stop_trading_on_limit: true,
+  flatten_on_breach: true,
   daily_profit_target_percent: 0,
   daily_reset_hour: 0,
   auto_resume_hours: 0,
@@ -73,6 +74,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         risk_per_trade_percent: data.risk_per_trade_percent,
         alert_threshold_percent: data.alert_threshold_percent,
         stop_trading_on_limit: data.stop_trading_on_limit,
+        flatten_on_breach: data.flatten_on_breach,
         daily_profit_target_percent: data.daily_profit_target_percent,
         daily_reset_hour: data.daily_reset_hour,
         auto_resume_hours: data.auto_resume_hours,
@@ -357,10 +359,17 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
       <Separator className="bg-slate-800" />
 
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Switch checked={formData.stop_trading_on_limit} onCheckedChange={v => handleChange('stop_trading_on_limit', v)}
-            className="data-[state=checked]:bg-emerald-500" />
-          <Label className="text-sm text-slate-300">Auto-stop when limits breached</Label>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Switch checked={formData.stop_trading_on_limit} onCheckedChange={v => handleChange('stop_trading_on_limit', v)}
+              className="data-[state=checked]:bg-emerald-500" />
+            <Label className="text-sm text-slate-300">Auto-stop when limits breached</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={formData.flatten_on_breach ?? true} onCheckedChange={v => handleChange('flatten_on_breach', v)}
+              className="data-[state=checked]:bg-rose-500" />
+            <Label className="text-sm text-slate-300">Flatten all positions on breach</Label>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending || !existingRecord?.id}
