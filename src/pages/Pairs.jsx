@@ -106,7 +106,7 @@ export default function Pairs() {
   // hasn't uploaded candles for a symbol. Refreshed every 60s.
   const pairCandlesRef = useRef({});
   useEffect(() => {
-    if (pairs.length === 0) return;
+    if (!pairs || pairs.length === 0) return;
     const norm = (s) => (s || '').replace('/', '').toUpperCase();
     const symbols = Array.from(new Set(pairs.map(p => norm(p.symbol))));
     const fetchCandles = async () => {
@@ -143,7 +143,7 @@ export default function Pairs() {
 
   // Sync with MarketDataService & compute REAL indicator-based signals
   useEffect(() => {
-    if (pairs.length === 0) return;
+    if (!pairs || pairs.length === 0) return;
 
     // Tick accumulator: fires every second for live price feed
     const tickInterval = setInterval(async () => {
@@ -233,7 +233,7 @@ export default function Pairs() {
 
   // Recompute every pair's signal immediately when engine settings change
   useEffect(() => {
-    if (pairs.length === 0) return;
+    if (!pairs || pairs.length === 0) return;
     pairs.forEach(pair => {
       const { price, result } = getSignalResult(pair);
       setLiveData(prev => ({
@@ -442,7 +442,7 @@ export default function Pairs() {
   };
 
   // Merge Live Data with Static Data
-  const mergedPairs = pairs.map(pair => {
+  const mergedPairs = (pairs || []).map(pair => {
       const live = liveData[pair.id];
       return {
           ...pair,
