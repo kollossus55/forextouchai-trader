@@ -2,7 +2,13 @@
 // Risk validation (local copy for bridge function)
 // ════════════════════════════════════════════════════════════════════════════
 
-import { InstrumentSpec } from './instruments.ts';
+// Minimal spec shape — avoids cross-file type imports that break the bundler.
+interface SpecLike {
+    symbol: string;
+    category: string;
+    pipSize: number;
+    typicalSpread: number;
+}
 
 /**
  * Validate that a stop/target pair is physically sensible before it reaches a
@@ -10,7 +16,7 @@ import { InstrumentSpec } from './instruments.ts';
  * so a $0.30 stop on an index at 6000 passed every check.
  */
 export function validateStops(
-    spec: InstrumentSpec,
+    spec: SpecLike,
     entry: number,
     stop: number,
     target: number,
