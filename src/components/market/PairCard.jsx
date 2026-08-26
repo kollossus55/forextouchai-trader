@@ -118,9 +118,10 @@ function PairCardInner({ pair, topPickIds, factors, onViewDetails, onTrade }) {
               <Badge className={`text-[10px] h-5 px-2 font-bold ${
                 liveSig === 'BUY'  ? 'bg-emerald-500/20 text-emerald-400' :
                 liveSig === 'SELL' ? 'bg-rose-500/20 text-rose-400' :
+                liveSig === 'INSUFFICIENT_DATA' ? 'bg-amber-500/20 text-amber-400' :
                 'bg-slate-700/20 text-slate-400'
               }`}>
-                {liveSig || 'NEUTRAL'}
+                {liveSig === 'INSUFFICIENT_DATA' ? 'UPDATING DATA' : (liveSig || 'NEUTRAL')}
               </Badge>
             </div>
           </div>
