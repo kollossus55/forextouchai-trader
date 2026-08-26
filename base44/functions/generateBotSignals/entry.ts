@@ -328,13 +328,16 @@ Deno.serve(async (req) => {
 
                         // ── Risk-based sizing ───────────────────────────────
                         const rates = buildRateMap(candleCache);
+                        const botRiskPercent = Number(bot.risk_per_trade_percent) || 0;
                         const sizing = computeLotSize({
                             spec,
                             entryPrice: entry,
                             stopDistance: result.stopDistance,
                             balance,
                             accountCurrency: conn.currency || 'USD',
-                            riskPercent: acctRisk.risk_per_trade_percent ?? 1,
+                            riskPercent: botRiskPercent > 0
+                                ? botRiskPercent
+                                : (acctRisk.risk_per_trade_percent ?? 1),
                             maxPositionSizePercent: acctRisk.max_position_size_percent ?? 10,
                             leverage: parseLeverage(conn.leverage),
                             rates,

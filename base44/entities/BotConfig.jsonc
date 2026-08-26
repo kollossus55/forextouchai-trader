@@ -64,6 +64,13 @@
       "type": "number",
       "default": 0.1
     },
+    "risk_per_trade_percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0,
+      "description": "Bot-level risk per trade as % of balance. 0 = inherit from account/global RiskManagementSettings. When set (>0), overrides the account setting for this bot only."
+    },
     "min_confidence": {
       "type": "number",
       "minimum": 0,
@@ -289,7 +296,7 @@
     "use_llm_confirmation": {
       "type": "boolean",
       "default": false,
-      "description": "Send the COMPUTED indicator readings to a language model for a second opinion. The model cannot change direction and can only LOWER confidence or veto — it never sees or invents price data. Off by default: the deterministic path is the one the backtester measures, and adding a non-deterministic layer makes results harder to reproduce."
+      "description": "Send the COMPUTED indicator readings to a language model for a second opinion. The model cannot change direction and can only LOWER confidence or veto \u2014 it never sees or invents price data. Off by default: the deterministic path is the one the backtester measures, and adding a non-deterministic layer makes results harder to reproduce."
     },
     "require_htf_alignment": {
       "type": "boolean",

@@ -38,6 +38,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
     timeframe: 'H1',
     risk_level: 'MEDIUM',
     lot_size: 0.1,
+    risk_per_trade_percent: 0,
     min_confidence: 80,
     trading_start_time: '08:00',
     trading_end_time: '17:00',
@@ -84,7 +85,8 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         sp500_use_ha: initialData.sp500_use_ha !== false,
         sp500_use_ssl: initialData.sp500_use_ssl !== false,
         sp500_use_ai_rsi: initialData.sp500_use_ai_rsi !== false,
-        sp500_use_tmo: initialData.sp500_use_tmo !== false
+        sp500_use_tmo: initialData.sp500_use_tmo !== false,
+        risk_per_trade_percent: initialData.risk_per_trade_percent ?? 0
       });
     } else {
       setFormData({
@@ -113,7 +115,8 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         sp500_use_ha: true,
         sp500_use_ssl: true,
         sp500_use_ai_rsi: true,
-        sp500_use_tmo: true
+        sp500_use_tmo: true,
+        risk_per_trade_percent: 0
       });
     }
   }, [initialData, open]);
@@ -381,6 +384,28 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                              </div>
                         )}
                     </div>
+                </div>
+
+                {/* Bot-level Risk Override */}
+                <div className="p-4 rounded border border-rose-500/30 bg-slate-950/30 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <Label className="text-rose-200">Risk Per Trade (Bot Override)</Label>
+                        <span className="text-xs text-rose-400">
+                          {formData.risk_per_trade_percent > 0 ? `${formData.risk_per_trade_percent}%` : 'Inherit account'}
+                        </span>
+                    </div>
+                    <ColoredSlider
+                        value={[formData.risk_per_trade_percent ?? 0]}
+                        min={0}
+                        max={5}
+                        step={0.1}
+                        onValueChange={([v]) => setFormData({...formData, risk_per_trade_percent: v})}
+                        className="py-1"
+                        rangeClassName="bg-rose-500"
+                        thumbClassName="border-rose-500"
+                        trackClassName="bg-rose-500/20"
+                    />
+                    <p className="text-[10px] text-slate-500">Set above 0 to override the account/global risk-per-trade setting for this bot only. 0 = use account setting (currently 1%).</p>
                 </div>
 
                 {/* SL/TP Config Section */}
