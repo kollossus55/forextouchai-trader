@@ -429,11 +429,14 @@ export function evaluateStrategy(snap: MarketSnapshot, bot: BotSettings): Strate
     const winning = direction === 'BUY' ? bull : bear;
     const losing = direction === 'BUY' ? bear : bull;
 
-    // Confidence = share of available weight in agreement, penalised by
-    // opposing weight, then scaled by session liquidity.
+    // Confidence = share of available weight in the winning direction, scaled
+    // by session liquidity and data quality. The previous formula subtracted
+    // opposing weight, which made it nearly impossible to reach typical bot
+    // thresholds (60-75%) even with strong confluence — a setup with 70% of
+    // indicators agreeing and 30% opposing scored only ~36%.
     let confidence = 0;
     if (availableWeight > 0 && direction !== 'NEUTRAL') {
-        const agreement = (winning - losing) / availableWeight;
+        const agreement = winning / availableWeight;
         confidence = Math.max(0, Math.min(1, agreement)) * 100;
         if (snap.spec.category !== 'CRYPTO') confidence *= snap.sessionQuality;
         confidence *= snap.dataQuality.confidenceMultiplier;
