@@ -120,8 +120,7 @@ function computeD1Bias(symbol) {
 }
 
 // ─── Core Signal Calculation ────────────────────────────────────────────────
-export function computeSignal(symbol, timeframe, currentPrice) {
-    const candles = buildCandles(symbol, timeframe);
+function _computeFromCandles(symbol, timeframe, candles) {
 
     // Indicators need real history. If we do not have it, say so — do not
     // manufacture candles to fill the gap.
@@ -365,4 +364,13 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     });
 
     return { signal, confidence, liveSignal, liveConfidence, indicators: indicatorSnapshot, factors, chartCandles };
+}
+
+export function computeSignal(symbol, timeframe, currentPrice) {
+    const candles = buildCandles(symbol, timeframe);
+    return _computeFromCandles(symbol, timeframe, candles);
+}
+
+export function computeSignalFromCandles(symbol, timeframe, candles) {
+    return _computeFromCandles(symbol, timeframe, candles);
 }
