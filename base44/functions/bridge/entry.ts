@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
-import { validateStops } from '../_shared/risk.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { validateStops } from './risk.ts';
 
 // ─── Global request lock: serialize bridge processing to prevent rate-limit exhaustion ──
 // When both MT4 and MT5 call simultaneously, the combined DB operations (10+ per call)
