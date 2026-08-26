@@ -161,11 +161,14 @@ export default function Pairs() {
             newHistory = cd.candles.slice(-50).map((c, i) => ({ time: i, price: c.close }));
           } else {
             realPrice = MarketDataService.getPrice(pair.symbol);
+            if (!realPrice || realPrice <= 0) return;  // no real price — don't fabricate
             recordTick(pair.symbol, realPrice);
             let current = next[pair.id];
             if (!current || !Array.isArray(current.history)) {
+              // Flat line at the real price — no random jitter. The sparkline
+              // fills with true ticks as they arrive, not invented movement.
               const history = Array.from({ length: 20 }, (_, i) => ({
-                time: i, price: realPrice * (1 + (Math.random() - 0.5) * 0.002)
+                time: i, price: realPrice
               }));
               current = { current_price: realPrice, change_24h: pair.change_24h, history, ai_confidence: current?.ai_confidence || 0, ai_signal: current?.ai_signal || 'NEUTRAL', signal_timestamp: current?.signal_timestamp || Date.now() };
             }
