@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
         const alerts = [];
         const results = [];
 
-        for (const bot of bots) {
+        for (const bot of myBots) {
             const botClosedTrades = closedTrades.filter(t => t.bot_id === bot.id);
             const botOpenTrades = openTrades.filter(t => t.bot_id === bot.id);
 
