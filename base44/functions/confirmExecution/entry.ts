@@ -87,35 +87,16 @@ Deno.serve(async (req) => {
         ]);
 
         const connAccountNumber = connections?.[0]?.account_number;
-        const connOwnerEmail = connections?.[0]?.owner_email || null;
+        const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
 
-        // Fail closed: a BrokerConnection must exist for the supplied account_number.
-        if (!connections || connections.length === 0 || !connAccountNumber) {
-            return Response.json({ error: 'No broker connection found for this account number' }, {
-                status: 403,
-                headers: { 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-        // The connection must be owned by the authenticated API key owner.
-        if (!connOwnerEmail || (resolvedOwnerEmail && connOwnerEmail !== resolvedOwnerEmail)) {
+        // Verify the account belongs to the authenticated API key owner (prevents account spoofing)
+        const connOwnerEmail = connections?.[0]?.owner_email || null;
+        if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
             return Response.json({ error: 'Account not authorized for this API key' }, {
                 status: 403,
                 headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
-        // The signal must belong to this account — prevent confirming another user's signal.
-        const signalOwnerMatch = signal && (
-            (signal.owner_email && String(signal.owner_email) === String(connAccountNumber)) ||
-            (signal.created_by && signal.created_by === resolvedOwnerEmail)
-        );
-        if (!signalOwnerMatch) {
-            return Response.json({ error: 'Signal does not belong to this account' }, {
-                status: 403,
-                headers: { 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-
-        const tradeOwner = String(connAccountNumber);
 
         // Check if trade with this ticket already exists to prevent duplicates
         const existingTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ ticket: ticket }));

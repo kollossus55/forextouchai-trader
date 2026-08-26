@@ -32,7 +32,7 @@ input bool   UploadCandles     = true;   // Send broker OHLC to the app
 input string TrackedSymbols    = "";     // Comma list of pairs to send prices+candles for, e.g. "EURUSD,GBPUSD,USDJPY". Empty = chart symbol only. LIST YOUR BOT'S PAIRS HERE.
 input int    BarsToUpload      = 400;    // Bars per timeframe (needs >=210 for EMA200)
 input string CandleTimeframes  = "H1,H4,D1"; // Must include your bot's timeframe + one above
-input int    CandleUploadMins  = 15;     // Minutes between candle uploads
+input int    CandleUploadSecs  = 60;     // Seconds between candle uploads. One symbol+timeframe is sent per upload, rotating.
 input int    OrderRetries      = 3;      // Retries on requote / off-quotes
 
 // --- GLOBALS ---
@@ -620,9 +620,12 @@ string BuildCandleJson(string brokerSymbol, string tfName) {
           "\",\"bars\":[" + bars + "]}";
 }
 
+// Rotating cursor over (symbol x timeframe). See BuildCandlePayload.
+int candleCursor = 0;
+
 string BuildCandlePayload() {
    if(!UploadCandles) return "";
-   if(TimeCurrent() - lastCandleUpload < CandleUploadMins * 60) return "";
+   if(TimeCurrent() - lastCandleUpload < CandleUploadSecs) return "";
 
    string syms[];
    int symCount = GetTrackedSymbols(syms);
@@ -632,23 +635,38 @@ string BuildCandlePayload() {
    int tfCount = StringSplit(CandleTimeframes, ',', tfs);
    if(tfCount <= 0) return "";
 
-   string entries = "";
-   for(int a = 0; a < symCount; a++) {
-      for(int b = 0; b < tfCount; b++) {
-         string tf = tfs[b];
-         StringTrimLeft(tf); StringTrimRight(tf);
-         if(StringLen(tf) == 0) continue;
-         string entry = BuildCandleJson(syms[a], tf);
-         if(StringLen(entry) == 0) continue;
-         if(StringLen(entries) > 0) entries += ",";
-         entries += entry;
-      }
+   // ONE symbol+timeframe per heartbeat, rotating through the list.
+   //
+   // The first version sent every combination at once. With 5 pairs across 3
+   // timeframes that is 15 blocks of 400 bars — well over half a megabyte in a
+   // single POST, and dozens of database writes on the server. The request
+   // exceeded MT5's 20-second WebRequest limit and failed with 1003/5203.
+   //
+   // Rotating keeps each upload to roughly 35 KB and one write. With the
+   // default 60-second spacing, 15 combinations refresh completely every 15
+   // minutes — the same coverage as before, spread out instead of in a burst.
+   int total = symCount * tfCount;
+   string entry = "";
+   int attempts = 0;
+
+   // Skip combinations with insufficient history rather than stalling on them.
+   while(attempts < total && StringLen(entry) == 0) {
+      int idx = candleCursor % total;
+      candleCursor++;
+      attempts++;
+
+      string tf = tfs[idx % tfCount];
+      StringTrimLeft(tf); StringTrimRight(tf);
+      if(StringLen(tf) == 0) continue;
+
+      entry = BuildCandleJson(syms[idx / tfCount], tf);
    }
-   if(StringLen(entries) == 0) return "";
+
+   if(StringLen(entry) == 0) return "";
 
    lastCandleUpload = TimeCurrent();
-   Print("[BRIDGE MT5] Uploading candles for ", symCount, " symbol(s) x ", CandleTimeframes);
-   return ",\"candles\":[" + entries + "]";
+   Print("[BRIDGE MT5] Uploading candles (", candleCursor % total, "/", total, " through the rotation)");
+   return ",\"candles\":[" + entry + "]";
 }
 
 //+------------------------------------------------------------------+

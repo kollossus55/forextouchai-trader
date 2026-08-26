@@ -28,7 +28,7 @@ input double TrailingStopPoints  = 100;  // Trailing stop distance in points
 input bool   UploadCandles     = true;   // Send broker OHLC to the app
 input int    BarsToUpload      = 400;    // Bars per timeframe (needs >=210 for EMA200)
 input string CandleTimeframes  = "H1,H4,D1"; // Must include your silver bot's timeframe + one above
-input int    CandleUploadMins  = 15;     // Minutes between candle uploads
+input int    CandleUploadSecs  = 60;     // Seconds between candle uploads. One timeframe is sent per upload, rotating.
 input int    OrderRetries      = 3;      // Retries on requote / off-quotes
 
 // --- GLOBALS ---
@@ -451,27 +451,35 @@ string BuildSilverCandleJson(string tfName) {
            "\",\"bars\":[" + bars + "]}";
 }
 
+// Rotating cursor over the timeframe list.
+int candleCursor = 0;
+
 string BuildSilverCandlePayload() {
     if (!UploadCandles) return "";
-    if (TimeCurrent() - lastCandleUpload < CandleUploadMins * 60) return "";
+    if (TimeCurrent() - lastCandleUpload < CandleUploadSecs) return "";
 
     string tfs[];
     int n = StringSplit(CandleTimeframes, ',', tfs);
     if (n <= 0) return "";
 
-    string entries = "";
-    for (int i = 0; i < n; i++) {
-        string tf = tfs[i];
+    // ONE timeframe per upload, rotating. Sending H1+H4+D1 together meant three
+    // blocks of 400 bars in a single POST plus three database writes held open
+    // inside the request, which could exceed MT5's 20-second WebRequest limit
+    // and fail with 1003/5203. Rotating keeps each upload small.
+    string entry = "";
+    int attempts = 0;
+    while (attempts < n && StringLen(entry) == 0) {
+        string tf = tfs[candleCursor % n];
+        candleCursor++;
+        attempts++;
         StringTrimLeft(tf); StringTrimRight(tf);
         if (StringLen(tf) == 0) continue;
-        string entry = BuildSilverCandleJson(tf);
-        if (StringLen(entry) == 0) continue;
-        if (StringLen(entries) > 0) entries += ",";
-        entries += entry;
+        entry = BuildSilverCandleJson(tf);
     }
-    if (StringLen(entries) == 0) return "";
+    if (StringLen(entry) == 0) return "";
+    string entries = entry;
 
     lastCandleUpload = TimeCurrent();
-    Print("[SilverEA] Uploading silver candles (", CandleTimeframes, ")");
+    Print("[SilverEA] Uploading silver candles - timeframe ", candleCursor % n, "/", n, " in rotation");
     return ",\"candles\":[" + entries + "]";
 }

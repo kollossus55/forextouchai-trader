@@ -1,6 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
-import { validateStops } from './risk.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
+import { validateStops } from '../_shared/risk.ts';
+
+// Result of the most recent candle ingest, per account. Reported back on a
+// subsequent heartbeat so the EA can see whether storage is healthy without the
+// request having to wait for the writes to finish.
+const lastIngestResult = {};
 
 // ─── Global request lock: serialize bridge processing to prevent rate-limit exhaustion ──
 // When both MT4 and MT5 call simultaneously, the combined DB operations (10+ per call)
@@ -237,21 +242,25 @@ Deno.serve(async (req) => {
         // This is cheap: one entity write per symbol per 15 minutes, and it is
         // not what the rate limiter exists to protect against (that is the
         // reconcile read/write storm further down).
-        // Awaited, not fire-and-forget. `success: true` previously told the EA
-        // nothing about whether its candles were stored — so a missing
-        // CandleHistory entity, or an RLS rejection, looked identical to a
-        // healthy upload from the terminal's point of view. The cost is small:
-        // the EA throttles uploads to roughly once every 15 minutes, so only
-        // about one heartbeat in thirty pays for these writes.
-        let candlesStored = null;
+        // NOT awaited. An earlier version awaited this so the response could
+        // report the outcome — but with several symbols x three timeframes that
+        // is dozens of database writes held open inside the request, and the
+        // EA's 20-second WebRequest timeout fired before the bridge replied
+        // (MT5 error 1003/5203). The heartbeat must never wait on candle
+        // storage.
+        //
+        // The acknowledgement is preserved by caching the result and reporting
+        // it on a LATER heartbeat instead. It is one upload behind, which is
+        // fine for a health check.
         if (Array.isArray(body.candles) && body.candles.length) {
-            try {
-                candlesStored = await ingestCandles(base44, body.candles);
-            } catch (e) {
-                console.error('[BRIDGE] candle ingest failed:', e.message);
-                candlesStored = { ok: false, error: e.message };
-            }
+            ingestCandles(base44, body.candles)
+                .then(r => { lastIngestResult[acctKey] = { ...r, at: new Date().toISOString() }; })
+                .catch(e => {
+                    console.error('[BRIDGE] candle ingest failed:', e.message);
+                    lastIngestResult[acctKey] = { ok: false, stored: [], rejected: [e.message], at: new Date().toISOString() };
+                });
         }
+        const candlesStored = lastIngestResult[acctKey] || null;
 
         if (isRateLimited) {
             if (releaseLock) { clearTimeout(lockSafetyTimer); releaseLock(); } globalLockPromise = null;
@@ -805,10 +814,10 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v8-candles',
+            bridge_version: 'v8.1-candles',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
-            _deploy_check: 'v8_candles_active',
+            _deploy_check: 'v8_1_candles_active',
             candles_stored: candlesStored,
             last_risk_check: (now - (body.last_risk_check || 0)) > 60_000 ? now : (body.last_risk_check || 0),
             pending_signals: sanitizedSignals,

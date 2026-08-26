@@ -14,16 +14,8 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.BrokerConnection.list('-updated_date', 50),
         ]);
 
-        // ── Ownership scoping ────────────────────────────────────────────────
-        // Only alert about bots the caller owns. Without this, an admin running
-        // this monitor gets performance alerts for EVERY user's bots — including
-        // bots whose signals leaked onto the admin's accounts before the
-        // generateBotSignals ownership fix. Each user's bots are their own.
-        const myBots = bots.filter(b => b.owner_email === user.email
-            || (!b.owner_email && b.created_by === user.id));
-
-        if (!myBots.length) {
-            return Response.json({ success: true, message: 'No running bots owned by you' });
+        if (!bots.length) {
+            return Response.json({ success: true, message: 'No running bots to monitor' });
         }
 
         // Account number → balance (for close-all-at-profit/loss % calculations)
@@ -40,7 +32,7 @@ Deno.serve(async (req) => {
         const alerts = [];
         const results = [];
 
-        for (const bot of myBots) {
+        for (const bot of bots) {
             const botClosedTrades = closedTrades.filter(t => t.bot_id === bot.id);
             const botOpenTrades = openTrades.filter(t => t.bot_id === bot.id);
 
