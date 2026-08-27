@@ -55,7 +55,7 @@ const SPREAD_TABLE: Record<string, number> = {
     NZDCAD: 3.0, NZDCHF: 3.2, CADCHF: 2.6,
     XAUUSD: 3.0, XAGUSD: 3.0,
     US500: 0.6, US30: 3.0, NAS100: 1.5, UK100: 1.5, GER40: 1.2,
-    JPN225: 8.0, AUS200: 2.0, FRA40: 1.5, HK50: 8.0,
+    JPN225: 8.0, JP225: 8.0, AUS200: 2.0, FRA40: 1.5, EUSTX50: 1.5, HK50: 8.0,
     BTCUSD: 30.0, ETHUSD: 3.0, SOLUSD: 0.5, XRPUSD: 0.002, LTCUSD: 0.5,
     USOIL: 3.0, UKOIL: 3.0,
 };
@@ -74,7 +74,9 @@ const INDEX_SPECS: Record<string, { pipSize: number; contract: number; quote: st
     FRA40:  { pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     ESP35:  { pipSize: 1.0,  contract: 1,   quote: 'EUR' },
     JPN225: { pipSize: 1.0,  contract: 1,   quote: 'JPY' },
+    JP225:  { pipSize: 1.0,  contract: 1,   quote: 'JPY' },
     AUS200: { pipSize: 0.5,  contract: 1,   quote: 'AUD' },
+    EUSTX50:{ pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     HK50:   { pipSize: 1.0,  contract: 1,   quote: 'HKD' },
 };
 
