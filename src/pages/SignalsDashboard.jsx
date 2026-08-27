@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import {
-  RefreshCw, Shield, Zap, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Activity, Hourglass, Filter
+  RefreshCw, Shield, Zap, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Activity, Hourglass, Filter, Trash2
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
   PENDING:  { label: 'PENDING',  color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
@@ -56,6 +57,31 @@ export default function SignalsDashboard() {
     refetchInterval: 15000,
     initialData: [],
   });
+
+  const queryClient = useQueryClient();
+
+  const handleDeleteSignal = async (id) => {
+    try {
+      await base44.entities.Signal.delete(id);
+      toast.success('Signal deleted');
+      queryClient.invalidateQueries({ queryKey: ['signals-dashboard'] });
+    } catch (e) {
+      toast.error('Failed to delete signal');
+    }
+  };
+
+  const handleClearPending = async () => {
+    const pending = allSignals.filter(s => s.status === 'PENDING');
+    if (!pending.length) { toast.info('No pending signals to clear'); return; }
+    if (!window.confirm(`Delete ${pending.length} pending signal(s)? New ones will be generated on the next cycle.`)) return;
+    try {
+      await Promise.all(pending.map(s => base44.entities.Signal.delete(s.id)));
+      toast.success(`Cleared ${pending.length} pending signal(s)`);
+      queryClient.invalidateQueries({ queryKey: ['signals-dashboard'] });
+    } catch (e) {
+      toast.error('Failed to clear pending signals');
+    }
+  };
 
   if (user?.role !== 'admin') {
     return (
@@ -106,14 +132,23 @@ export default function SignalsDashboard() {
           </h1>
           <p className="text-slate-400 mt-1">All signals from 3rd party providers & bots — last 7 days</p>
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleClearPending}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-sm transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear Pending
+          </button>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -223,6 +258,7 @@ export default function SignalsDashboard() {
                     <TableHead className="text-slate-400">Confidence</TableHead>
                     <TableHead className="text-slate-400">Account</TableHead>
                     <TableHead className="text-slate-400 text-center">Status</TableHead>
+                    <TableHead className="text-slate-400 text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -282,6 +318,15 @@ export default function SignalsDashboard() {
                           <Badge variant="outline" className={`text-xs ${cfg.color}`}>
                             {s.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <button
+                            onClick={() => handleDeleteSignal(s.id)}
+                            className="text-slate-500 hover:text-rose-400 transition-colors"
+                            title="Delete signal"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </TableCell>
                       </TableRow>
                     );
