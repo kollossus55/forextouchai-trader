@@ -47,8 +47,11 @@ const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 const lastBridgeErrorAlert = {}; // keyed by acctKey → timestamp
 const BRIDGE_ERROR_ALERT_THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
 
-// In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
-const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
+// In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB.
+// Map<signalId, timestamp> — entries expire after 2 minutes so a signal is never permanently
+// trapped if the DB lock fails and the catch block doesn't clear it (e.g. isolate crash).
+const dispatchedSignalIds = new Map(); // signalId → dispatch timestamp
+const DISPATCHED_ID_TTL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
@@ -251,7 +254,7 @@ Deno.serve(async (req) => {
                     // Clear dispatchedSignalIds for this account's signals
                     // (we don't know which IDs belong to this account, so clear all)
                     dispatchedSignalIds.clear();
-                    cleared.dispatched = 'all';
+                    cleared.dispatched = 'all_cleared';
                     return Response.json({ success: true, message: 'Cleared in-memory dispatch state', account: diagAcct, cleared }, { headers: corsHeaders() });
                 }
                 if (!diagAcct) {
@@ -526,12 +529,16 @@ Deno.serve(async (req) => {
         }
         lastCallTs[rateLimitKey] = now;
 
-        // ── Periodic memory cleanup (every ~100 calls) to prevent unbounded growth ──
+        // ── Periodic memory cleanup: expire old dispatchedSignalIds entries ──
+        const dispatchedCutoff = now - DISPATCHED_ID_TTL_MS;
+        for (const [id, ts] of dispatchedSignalIds) {
+            if (ts < dispatchedCutoff) dispatchedSignalIds.delete(id);
+        }
         if (dispatchedSignalIds.size > MAX_DISPATCHED_IDS) {
-            // Keep only the most recent 200 IDs (convert to array, slice, back to set)
-            const arr = [...dispatchedSignalIds];
+            // Keep only the most recent 200 entries
+            const arr = [...dispatchedSignalIds.entries()].sort((a, b) => a[1] - b[1]);
             dispatchedSignalIds.clear();
-            arr.slice(-200).forEach(id => dispatchedSignalIds.add(id));
+            arr.slice(-200).forEach(([id, ts]) => dispatchedSignalIds.set(id, ts));
             console.log('[BRIDGE] Pruned dispatchedSignalIds to 200 entries');
         }
         // Clean pairDispatchCooldown entries older than the cooldown window
@@ -792,10 +799,14 @@ Deno.serve(async (req) => {
 
         const freshSignals = candidateSignals
             .filter(s => {
-                // Skip PENDING signals already dispatched this isolate session (prevents re-dispatch before DB write confirms).
+                // Skip PENDING signals already dispatched very recently (prevents re-dispatch before DB write confirms).
                 // ACTIVE signals are allowed through for re-dispatch — if the EA missed the first dispatch (network blip,
                 // OrderSend failure), the bridge gives it another chance. The openPairs check below prevents duplicate trades.
-                if (s.status === 'PENDING' && dispatchedSignalIds.has(s.id)) return false;
+                // Entries expire after 2 minutes so a signal is never permanently trapped if the DB lock fails.
+                if (s.status === 'PENDING') {
+                    const dispatchedAt = dispatchedSignalIds.get(s.id);
+                    if (dispatchedAt && (now - dispatchedAt) < DISPATCHED_ID_TTL_MS) return false;
+                }
 
                 // Global schedule OFF: block ALL signals (auto + manual) during the off-window
                 if (scheduleOffNow) {
@@ -954,7 +965,7 @@ Deno.serve(async (req) => {
         if (freshSignals.length > 0) {
             // Mark as dispatched BEFORE the async DB write to block any concurrent requests
             freshSignals.forEach(s => {
-                dispatchedSignalIds.add(s.id);
+                dispatchedSignalIds.set(s.id, now);
                 // Only set cooldown for non-manual signals — manual trades bypass cooldown entirely
                 if (s.strategy !== 'MANUAL_EXECUTION') {
                     const pairRaw = (s.pair || '').replace('/', '');
@@ -981,6 +992,7 @@ Deno.serve(async (req) => {
                         delete pairDispatchCooldown[`${acctKey}:${pairRaw}`];
                     }
                 });
+                console.log('[BRIDGE] Signal lock failed — cleared dispatchedSignalIds + cooldowns for', freshSignals.length, 'signals');
             }
             cache.signals = { data: null, ts: 0 };
         }
