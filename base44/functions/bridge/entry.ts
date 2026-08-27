@@ -609,9 +609,25 @@ Deno.serve(async (req) => {
                 // The EA can't execute trades on symbols it doesn't have — the signal would sit
                 // ACTIVE for 20 minutes and expire. This especially affects crypto pairs (BTCUSD,
                 // ETHUSD) on standard forex EAs that don't have crypto symbols in Market Watch.
+                //
+                // EXCEPTION: indices and crypto are often in Market Watch but don't report a
+                // price via SymbolInfoTick (market closed, no ticks, or the EA's ResolveSymbol
+                // failed on the broker suffix). Blocking them here leaves index signals PENDING
+                // forever. Instead, dispatch them and let the EA's ExecuteSignalObj handle it —
+                // it will either execute or print "Cannot get price" and the signal expires.
+                const _isIdxOrCrypto = (p) => {
+                    const u = (p || '').toUpperCase();
+                    const idxList = ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200','JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50','STOXX50','EU50','FTSE','DOW','DJI','NASDAQ'];
+                    const cryptoList = ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL','XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE','AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT'];
+                    return idxList.some(idx => u.includes(idx)) || cryptoList.includes(u);
+                };
                 if (eaTradablePairs.size > 0 && !eaTradablePairs.has(pairRaw.toUpperCase())) {
-                    console.log(`[BRIDGE] ${pairRaw} not in EA Market Watch for ${acctKey} — EA can't trade this symbol, skipping signal ${s.id}`);
-                    return false;
+                    if (_isIdxOrCrypto(pairRaw)) {
+                        console.log(`[BRIDGE] ${pairRaw} not in EA price report for ${acctKey} but is index/crypto — dispatching anyway (EA will execute or reject)`);
+                    } else {
+                        console.log(`[BRIDGE] ${pairRaw} not in EA Market Watch for ${acctKey} — EA can't trade this symbol, skipping signal ${s.id}`);
+                        return false;
+                    }
                 }
 
                 // If a DIFFERENT signal for this pair is already ACTIVE in DB, skip — trade likely already open.

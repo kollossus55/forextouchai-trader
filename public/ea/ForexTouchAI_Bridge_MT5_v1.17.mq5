@@ -27,7 +27,7 @@ input int    MagicNumber      = 12345;
 input string FilterByComment  = "";    // Only count trades with this exact comment (empty = use CountAllTrades/MagicNumber). e.g. "ForexTouchAI"
 input string SymbolSuffix     = "";    // Broker symbol suffix (e.g. ".PRO", ".r", ".m"). Leave empty if your broker uses no suffix.
 
-// --- v1.16: candle upload (REQUIRED by the app's v2 signal engine) ---
+// --- v1.17: candle upload (REQUIRED by the app's v2 signal engine) ---
 input bool   UploadCandles     = true;   // Send broker OHLC to the app
 input string TrackedSymbols    = "";     // Comma list of pairs to send prices+candles for, e.g. "EURUSD,GBPUSD,USDJPY". Empty = chart symbol only. LIST YOUR BOT'S PAIRS HERE.
 input int    BarsToUpload      = 400;    // Bars per timeframe (needs >=210 for EMA200)
@@ -178,7 +178,7 @@ string BuildJson() {
    }
    j += "]";
 
-   // v1.16: broker bid/ask so the app has live prices, and broker OHLC so it
+   // v1.17: broker bid/ask so the app has live prices, and broker OHLC so it
    // can compute real indicators. v1.15 sent neither, so the backend had no
    // price data of its own from this EA at all.
    j += BuildPricesJson();
@@ -423,7 +423,7 @@ void ExecuteSignalObj(string obj) {
       Print("[BRIDGE MT5] Trade opened! Signal=", id, " RetCode=", trade.ResultRetcode());
       lastSignalId = id;
       TradesToday++;
-      // v1.16: actually tell the app. v1.15 never called confirmExecution at
+      // v1.17: actually tell the app. v1.15 never called confirmExecution at
       // all, so the signal stayed ACTIVE until the reconcile loop happened to
       // notice the new ticket — or until it silently expired.
       ConfirmExecution(id, (long)trade.ResultOrder(), symbol, type, lot, price);
@@ -488,7 +488,7 @@ void CloseTicket(ulong ticket) {
 //+------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
-//| v1.16 additions                                                  |
+//| v1.17 additions                                                  |
 //+------------------------------------------------------------------+
 
 // Resolve the broker's actual symbol name for a bare pair, applying
