@@ -700,9 +700,12 @@ Deno.serve(async (req) => {
         const riskSettings = accountRisk || globalRiskRec;
         const lastRiskCheck = body.last_risk_check || 0;
 
-        // ── Global trading schedule: account overrides global default ──
-        // If the account has its own schedule enabled, use it; otherwise inherit the global default.
-        const scheduleSettings = (accountRisk?.global_schedule_enabled === true) ? accountRisk : globalRiskRec;
+        // ── Global trading schedule: account-specific settings take precedence ──
+        // If the account has its own risk record, use it (including global_schedule_enabled=false,
+        // which means "no schedule for this account"). Only fall back to the global default when
+        // the account has no risk record at all. This respects the user's explicit per-account setting
+        // rather than silently inheriting a global schedule they didn't enable on this account.
+        const scheduleSettings = accountRisk || globalRiskRec;
         const scheduleOffNow = isScheduleOff(scheduleSettings, now);
         // Bridge-side profit target check is DISABLED — monitorRiskLimits handles this exclusively
         // to avoid duplicate alerts from two separate code paths.
@@ -1140,7 +1143,7 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v8.1-candles',
+            bridge_version: 'v8.2-dispatch',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
             _deploy_check: 'v8_1_candles_active',
