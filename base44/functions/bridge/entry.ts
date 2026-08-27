@@ -17,7 +17,7 @@ let globalLockAcquiredAt = 0;
 
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
-const MIN_CALL_INTERVAL_MS = 45_000; // 45 seconds minimum between calls per account
+const MIN_CALL_INTERVAL_MS = 25_000; // 25 seconds — EA heartbeats every 30s, so this lets every heartbeat through
 
 // ─── In-memory state (survives across requests within same isolate) ───────────
 const cache = {
@@ -35,6 +35,12 @@ const knownTickets = {}; // keyed by account_number → Set<ticket>
 // Stores timestamp when locked — auto-released after RECONCILE_LOCK_TIMEOUT_MS to prevent stuck locks
 const reconcileLock = {}; // keyed by account_number → timestamp (0 = unlocked)
 const RECONCILE_LOCK_TIMEOUT_MS = 90_000; // 90s max — reconcile should finish in <30s
+
+// Server-side last reconcile timestamp per account — NOT reliant on the EA reporting last_reconcile.
+// The EA's body.last_reconcile defaults to 0 if the EA doesn't send it, which made _skipForDispatch
+// always false, so the bridge reconciled on EVERY non-rate-limited heartbeat (15+ DB ops),
+// exhausting the API budget and causing the signal fetch to fail — signals stayed PENDING forever.
+const lastReconcileTs = {}; // keyed by account_number → timestamp (0 = never)
 
 // Cold-start init: first reconcile per isolate per account loads all tickets from DB.
 // All concurrent requests await the SAME promise — prevents any races.
@@ -640,7 +646,11 @@ Deno.serve(async (req) => {
         // signals never get dispatched. Prioritising dispatch over reconcile      ─
         // breaks this vicious cycle. Reconcile still runs at least every 5 min.  ─
         const eaTrades = body.trades || acct.trades;
-        const lastReconcile = body.last_reconcile || 0;
+        const eaLastReconcile = body.last_reconcile || 0;
+        // Use the MORE RECENT of the EA-reported timestamp and our server-side tracker.
+        // The EA's value can be 0 if it doesn't send last_reconcile, which would make the
+        // bridge think it hasn't reconciled in 55 years and force a reconcile on every heartbeat.
+        const lastReconcile = Math.max(eaLastReconcile, lastReconcileTs[acctKey] || 0);
         const _earlyThirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString();
         const _earlyCandidates = (allPendingSignals || []).filter(s => s.created_date >= _earlyThirtyMinAgo);
 
@@ -655,7 +665,11 @@ Deno.serve(async (req) => {
             console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (value: ${lockVal})`);
             reconcileLock[acctKey] = 0;
         }
-        // Skip reconcile when there are signals to dispatch (unless > 5 min since last reconcile)
+        // Skip reconcile when there are signals to dispatch (unless > 5 min since last reconcile).
+        // This is the critical fix: when there are candidate signals, we SKIP the 15+ DB ops
+        // of the reconcile so the API budget is available for the signal dispatch. Without this,
+        // the reconcile exhausts the rate limit and the signal fetch returns empty — signals
+        // stay PENDING forever.
         const _skipForDispatch = _earlyCandidates.length > 0 && (now - lastReconcile) < 300_000;
         const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey] && !_skipForDispatch;
         console.log(`[BRIDGE] shouldReconcile=${shouldReconcile} | isGoldEA=${isGoldEA} isSilverEA=${isSilverEA} isColdStart=${isColdStart} lastReconcile=${lastReconcile} eaTradesArr=${Array.isArray(eaTrades)} eaTradesLen=${Array.isArray(eaTrades) ? eaTrades.length : 0} lockVal=${reconcileLock[acctKey]} knownTicketsSize=${knownTickets[acctKey]?.size || 'undefined'}`);
@@ -663,7 +677,10 @@ Deno.serve(async (req) => {
             reconcileLock[acctKey] = now;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
-                .finally(() => { reconcileLock[acctKey] = 0; });
+                .finally(() => {
+                    reconcileLock[acctKey] = 0;
+                    lastReconcileTs[acctKey] = Date.now(); // server-side tracker
+                });
         }
 
         // ── 4. Update currency pair prices (throttled, cached pair map) ──────
@@ -1137,9 +1154,19 @@ Deno.serve(async (req) => {
                 isSilverEA,
                 isColdStart,
                 lastReconcile,
+                eaLastReconcile,
+                serverLastReconcileTs: lastReconcileTs[acctKey] || 0,
+                _skipForDispatch,
+                _earlyCandidates: _earlyCandidates.length,
                 eaTradesLen: Array.isArray(eaTrades) ? eaTrades.length : 0,
                 lockVal: reconcileLock[acctKey] || 0,
                 knownTicketsSize: knownTickets[acctKey]?.size || 0,
+                dispatchedSignalIdsSize: dispatchedSignalIds.size,
+                pairDispatchCooldownKeys: Object.keys(pairDispatchCooldown).filter(k => k.startsWith(`${acctKey}:`)),
+                freshSignalsCount: freshSignals.length,
+                freshSignals: freshSignals.map(s => ({ id: s.id?.slice(-8), pair: s.pair, status: s.status })),
+                candidateSignalsCount: candidateSignals.length,
+                allPendingSignalsCount: (allPendingSignals || []).length,
             },
 
         }, { headers: corsHeaders() });
