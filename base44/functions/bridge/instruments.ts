@@ -91,6 +91,30 @@ const ALIASES: Record<string, string> = {
     NASDAQ: 'NAS100', DOW: 'US30', FTSE: 'UK100', DAX: 'GER40',
     NIKKEI: 'JPN225', CAC: 'FRA40', HSI: 'HK50',
     WTI: 'USOIL', BRENT: 'UKOIL',
+    // Index broker-name aliases — brokers rarely use our canonical names.
+    // Euro Stoxx 50: IC Markets/Pepperstone use EU50, others use STOXX50/ESTX50/etc.
+    EU50: 'EUSTX50', STOXX50: 'EUSTX50', STOXX50E: 'EUSTX50', ESTX50: 'EUSTX50',
+    EUROSTOXX: 'EUSTX50', EURO50: 'EUSTX50', EUX50: 'EUSTX50', EUROSTOXX50: 'EUSTX50',
+    // S&P 500
+    SPX: 'SPX500', USA500: 'SPX500', SPX500C: 'SPX500',
+    // Nasdaq 100
+    USTEC: 'NAS100', USA100: 'NAS100', NASDAQ100: 'NAS100',
+    // Dow Jones
+    USA30: 'US30', WALLSTREET: 'US30', DJI30: 'US30',
+    // UK 100
+    UK100C: 'UK100', FTSE100: 'UK100',
+    // Germany 40
+    DE40C: 'GER40', DAX40: 'GER40', GER40C: 'GER40',
+    // France 40
+    FRA40C: 'FRA40', CAC40: 'FRA40',
+    // Spain 35
+    ESP35C: 'ESP35', SPAIN35: 'ESP35',
+    // Japan 225
+    JAPAN225: 'JP225', JAP225: 'JP225', JPN225C: 'JP225',
+    // Australia 200
+    ASX200: 'AUS200', AUSSIE200: 'AUS200', AUS200C: 'AUS200',
+    // Hong Kong 50
+    HSI50: 'HK50', HK50C: 'HK50',
 };
 
 /** Strip separators and broker suffixes: "XAU/USD.pro" → "XAUUSD" */

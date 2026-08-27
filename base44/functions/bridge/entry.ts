@@ -494,6 +494,10 @@ Deno.serve(async (req) => {
                 const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
                 eaTradablePairs.add(bare);
                 eaTradablePairs.add(base);
+                // Also add the normalized form so broker aliases (e.g. EU50 → EUSTX50)
+                // match the canonical pair names used in signals.
+                const normalized = normalizeSymbol(p.symbol);
+                eaTradablePairs.add(normalized);
             }
         }
 
@@ -706,7 +710,7 @@ Deno.serve(async (req) => {
         // Brokers like IC Markets use suffixes (.PRO, .r, .m, .raw) on every symbol;
         // without this remap, the EA receives "EURUSD" but Market Watch has "EURUSD.PRO",
         // so MarketInfo returns 0 and the trade is never placed.
-        const brokerSymbolMap = {}; // "EURUSD" → "EURUSD.PRO"
+        const brokerSymbolMap = {}; // "EURUSD" → "EURUSD.PRO", "EUSTX50" → "EU50.PRO"
         if (!isGoldEA && !isSilverEA && Array.isArray(eaPricesRaw)) {
             for (const p of eaPricesRaw) {
                 if (!p?.symbol) continue;
@@ -714,10 +718,16 @@ Deno.serve(async (req) => {
                 const bare = sym.replace('/', '').toUpperCase();
                 const dotIdx = bare.indexOf('.');
                 const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
-                // Only map if the base is a known-length forex/crypto/index symbol (6+ chars)
-                // to avoid false matches. Store the first match per base.
-                if (base.length >= 4 && !brokerSymbolMap[base]) {
-                    brokerSymbolMap[base] = sym;
+                if (base.length >= 4) {
+                    // Store the first match per base name.
+                    if (!brokerSymbolMap[base]) brokerSymbolMap[base] = sym;
+                    // Also key by the normalized/canonical name so a signal pair
+                    // "EUSTX50" maps to the broker's "EU50.PRO" when the broker
+                    // uses a different name for the same instrument.
+                    const normalized = normalizeSymbol(sym);
+                    if (normalized !== base && !brokerSymbolMap[normalized]) {
+                        brokerSymbolMap[normalized] = sym;
+                    }
                 }
             }
         }
@@ -897,9 +907,14 @@ function buildPriceMap(eaPrices) {
         const bare = p.symbol.replace('/', '');
         map[p.symbol] = p.bid;
         map[bare] = p.bid;
+        // Also key by the normalized/canonical name so a signal pair "EUSTX50"
+        // finds the live price when the broker reports it as "EU50.PRO".
+        const normalized = normalizeSymbol(p.symbol);
+        if (normalized && normalized !== bare) map[normalized] = p.bid;
         if (p.ask > 0) {
             map[p.symbol + '_ask'] = p.ask;
             map[bare + '_ask'] = p.ask;
+            if (normalized && normalized !== bare) map[normalized + '_ask'] = p.ask;
         }
     }
     return map;
@@ -957,7 +972,7 @@ function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
         const CRYPTO_SYMBOLS = ['BTCUSD', 'BITCOIN', 'BTC', 'ETHUSD', 'ETHEREUM', 'ETH', 'SOLUSD', 'SOL', 'XRPUSD', 'XRP', 'LTCUSD', 'LTC', 'ADAUSD', 'ADA', 'DOGEUSD', 'DOGE', 'AVAXUSD', 'AVAX', 'LINKUSD', 'LINK', 'MATICUSD', 'MATIC', 'DOTUSD', 'DOT'];
         const isCrypto = CRYPTO_SYMBOLS.includes(pairUpper);
         // Indices/CFDs: named instruments like UK100, US30, AUS200, GER40, NAS100, SPX500, etc.
-        const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
+        const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'JP225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'EUSTX50', 'STOXX50', 'EU50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
         const isIndex = !isCrypto && (INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000));
 
         // ── Direction validation ────────────────────────────────────────────
