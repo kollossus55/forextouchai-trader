@@ -49,12 +49,6 @@ export default function Settings() {
   const [isResetting, setIsResetting] = useState(false);
   const [isRegeneratingKey, setIsRegeneratingKey] = useState(false);
 
-  const [dataSources, setDataSources] = useState({
-    crypto: 'coincap',
-    forex: 'openex',
-    cryptoKey: '',
-    forexKey: ''
-  });
   const [connectionStatus, setConnectionStatus] = useState('DISCONNECTED');
   const [isSaving, setIsSaving] = useState(false);
   const [connectionId, setConnectionId] = useState(null);
@@ -755,160 +749,95 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="market_data" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <div className="flex justify-between">
-                  <div>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <Database className="w-5 h-5 text-amber-400" /> Crypto Feed
-                    </CardTitle>
-                    <CardDescription className="text-slate-400">Digital asset price sources</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="h-6 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                     <CheckCircle2 className="w-3 h-3 mr-1" /> Active
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-200">Provider</Label>
-                  <Select 
-                    value={dataSources.crypto} 
-                    onValueChange={(v) => setDataSources({...dataSources, crypto: v})}
-                  >
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="coincap">CoinCap (Free / Public)</SelectItem>
-                      <SelectItem value="coingecko">CoinGecko (Free / Public)</SelectItem>
-                      <SelectItem value="binance">Binance API (Requires Key)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {dataSources.crypto === 'binance' && (
-                  <div className="space-y-2 animate-in slide-in-from-top-2">
-                    <Label className="text-slate-200">API Key</Label>
-                    <Input 
-                      type="password"
-                      placeholder="Binance API Key"
-                      value={dataSources.cryptoKey}
-                      onChange={(e) => setDataSources({...dataSources, cryptoKey: e.target.value})}
-                      className="bg-slate-950 border-slate-800 text-slate-200" 
-                    />
-                  </div>
-                )}
-
-                <div className="bg-slate-950/30 p-3 rounded border border-slate-800/50 flex items-start gap-2">
-                   <RefreshCw className="w-4 h-4 text-slate-500 mt-0.5" />
-                   <div className="space-y-1">
-                     <p className="text-xs text-slate-300">Update Frequency: <strong>Real-time</strong></p>
-                     <p className="text-[10px] text-slate-500">Supports BTC, ETH, SOL, XRP and major alts.</p>
-                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <div className="flex justify-between">
-                  <div>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <Globe className="w-5 h-5 text-blue-400" /> Forex Feed
-                    </CardTitle>
-                    <CardDescription className="text-slate-400">Fiat currency exchange rates</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="h-6 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                     <CheckCircle2 className="w-3 h-3 mr-1" /> Active
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-200">Provider</Label>
-                  <Select 
-                    value={dataSources.forex} 
-                    onValueChange={(v) => setDataSources({...dataSources, forex: v})}
-                  >
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openex">Open Exchange Rates (Free)</SelectItem>
-                      <SelectItem value="alphavantage">Alpha Vantage (API Key)</SelectItem>
-                      <SelectItem value="fixer">Fixer.io (API Key)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(dataSources.forex === 'alphavantage' || dataSources.forex === 'fixer') && (
-                  <div className="space-y-2 animate-in slide-in-from-top-2">
-                    <Label className="text-slate-200">API Key</Label>
-                    <Input 
-                      type="password"
-                      placeholder={`Paste your ${dataSources.forex === 'alphavantage' ? 'Alpha Vantage' : 'Fixer.io'} Key`}
-                      value={dataSources.forexKey}
-                      onChange={(e) => setDataSources({...dataSources, forexKey: e.target.value})}
-                      className="bg-slate-950 border-slate-800 text-slate-200" 
-                    />
-                  </div>
-                )}
-
-                <div className="bg-slate-950/30 p-3 rounded border border-slate-800/50 flex items-start gap-2">
-                   <AlertCircle className="w-4 h-4 text-slate-500 mt-0.5" />
-                   <div className="space-y-1">
-                     <p className="text-xs text-slate-300">Update Frequency: <strong>15 min / Daily</strong></p>
-                     <p className="text-[10px] text-slate-500">Free tier providers may have rate limits or delayed data.</p>
-                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="flex justify-end">
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
-               Save Data Settings
-            </Button>
-          </div>
-
-          <Card className="bg-slate-900/50 border-slate-800 mt-6">
+          <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white text-base flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-500" /> Active Data Connections
+              <CardTitle className="text-white flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" /> Candle Data Pipeline
               </CardTitle>
+              <CardDescription className="text-slate-400">
+                The signal engine fetches OHLC bars in priority order. Broker data is always tried first.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
-                   <div className="flex items-center gap-3">
-                      <div className="p-2 bg-amber-500/10 rounded-full">
-                        <Database className="w-4 h-4 text-amber-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-200">Crypto Feed</p>
-                        <p className="text-xs text-slate-400 capitalize">{dataSources.crypto} API</p>
-                      </div>
-                   </div>
-                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Connected</Badge>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div className="p-2 bg-emerald-500/10 rounded-full mt-0.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
-                   <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-500/10 rounded-full">
-                        <Globe className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-200">Forex Feed</p>
-                        <p className="text-xs text-slate-400 capitalize">{dataSources.forex} API</p>
-                      </div>
-                   </div>
-                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Connected</Badge>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-200">1. Broker Feed <span className="text-emerald-400 text-xs ml-1">Primary</span></p>
+                  <p className="text-xs text-slate-400 mt-0.5">Your MT4/MT5 EA uploads real-time OHLC via CopyRates(). This is the data your orders execute against — free, no rate limit, no delay.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
+                <div className="p-2 bg-amber-500/10 rounded-full mt-0.5">
+                  <RefreshCw className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-200">2. Stooq <span className="text-amber-400 text-xs ml-1">Fallback</span></p>
+                  <p className="text-xs text-slate-400 mt-0.5">Free, no API key. Covers all index symbols (US30, NAS100, SPX500, GER40, UK100, FRA40, ESP35, AUS200, EUSTX50, JP225). ~15 min delayed.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
+                <div className="p-2 bg-blue-500/10 rounded-full mt-0.5">
+                  <Globe className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-200">3. Yahoo Finance <span className="text-blue-400 text-xs ml-1">Fallback</span></p>
+                  <p className="text-xs text-slate-400 mt-0.5">Free, no API key. Covers forex pairs, metals (XAU/XAG), and crypto. ~15 min delayed, unofficial endpoint.</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          </TabsContent>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-500" /> Active Data Connections
+              </CardTitle>
+              <CardDescription className="text-slate-400">All sources are free and require no configuration</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-emerald-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-500/10 rounded-full">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">Broker Feed (MT4/MT5 EA)</p>
+                      <p className="text-xs text-slate-400">Real-time · Primary source</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-500/10 rounded-full">
+                      <RefreshCw className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">Stooq</p>
+                      <p className="text-xs text-slate-400">~15 min delayed · Indices &amp; Forex</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-amber-400 border-amber-500/20">Standby</Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/10 rounded-full">
+                      <Globe className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">Yahoo Finance</p>
+                      <p className="text-xs text-slate-400">~15 min delayed · Forex, Metals &amp; Crypto</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-blue-400 border-blue-500/20">Standby</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="security" className="mt-6 space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">

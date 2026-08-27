@@ -20,7 +20,7 @@
 import { Candle } from './indicators.ts';
 import { normalizeSymbol } from './instruments.ts';
 
-export type CandleSource = 'BROKER' | 'YAHOO' | 'NONE';
+export type CandleSource = 'BROKER' | 'STOOQ' | 'YAHOO' | 'NONE';
 
 export interface CandleFetchResult {
     candles: Candle[];
@@ -76,7 +76,8 @@ function toYahooSymbol(symbol: string): string {
         GER40: '^GDAXI', DE40: '^GDAXI',
         UK100: '^FTSE',
         AUS200: '^AXJO',
-        JPN225: '^N225',
+        JPN225: '^N225', JP225: '^N225',
+        EUSTX50: '^STOXX50E',
         HK50: '^HSI',
         FRA40: '^FCHI',
         ESP35: '^IBEX',
@@ -132,32 +133,129 @@ export async function fetchYahooCandles(symbol: string, timeframe: string): Prom
     return candles;
 }
 
+// ─── 3. Stooq fallback ──────────────────────────────────────────────────────
+// Stooq is free, needs no API key, and covers all the index symbols Yahoo 404s
+// on (notably EUSTX50 and JP225). Intraday times are in each exchange's local
+// clock, so bars are aligned to themselves but the forming-bar trim is
+// approximate — acceptable for a fallback that exists to fill history.
+
+function toStooqSymbol(symbol: string): string | null {
+    const s = normalizeSymbol(symbol);
+    const map: Record<string, string> = {
+        US500: '^spx', SPX500: '^spx', SP500: '^spx',
+        NAS100: '^ndx', US100: '^ndx',
+        US30: '^dji', DJI: '^dji',
+        GER40: '^gdaxi', DE40: '^gdaxi',
+        UK100: '^ftse',
+        FRA40: '^cac',
+        JPN225: '^n225', JP225: '^n225',
+        AUS200: '^axjo',
+        ESP35: '^ibex',
+        EUSTX50: '^stoxx50e',
+        HK50: '^hsi',
+        XAUUSD: 'xauusd', XAGUSD: 'xagusd',
+    };
+    if (map[s]) return map[s];
+    if (/^[A-Z]{6}$/.test(s)) return s.toLowerCase();   // forex pairs
+    return null;   // crypto/energy not reliably covered
+}
+
+export async function fetchStooqCandles(symbol: string, timeframe: string): Promise<Candle[]> {
+    const stooqSym = toStooqSymbol(symbol);
+    if (!stooqSym) throw new Error(`Stooq: no symbol for ${symbol}`);
+
+    const intervalMap: Record<string, string> = {
+        M5: '5min', M15: '15min', M30: '30min', H1: '60min', H4: '60min', D1: 'd', W1: 'w',
+    };
+    const interval = intervalMap[timeframe] || '60min';
+    const isDaily = interval === 'd' || interval === 'w';
+
+    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&i=${interval}`;
+    const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!resp.ok) throw new Error(`Stooq ${resp.status} for ${stooqSym}`);
+    const text = await resp.text();
+    if (!text || text.trim().length === 0) throw new Error(`Stooq: empty for ${stooqSym}`);
+
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) throw new Error(`Stooq: no rows for ${stooqSym}`);
+
+    const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+    const iDate = header.indexOf('date');
+    const iTime = header.indexOf('time');
+    const iOpen = header.indexOf('open');
+    const iHigh = header.indexOf('high');
+    const iLow = header.indexOf('low');
+    const iClose = header.indexOf('close');
+    const iVol = header.indexOf('volume');
+    if (iDate < 0 || iOpen < 0 || iClose < 0) throw new Error(`Stooq: bad header for ${stooqSym}`);
+
+    const candles: Candle[] = [];
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const dateStr = cols[iDate]?.trim();
+        if (!dateStr || dateStr.length < 8) continue;
+        const y = parseInt(dateStr.slice(0, 4), 10);
+        const mo = parseInt(dateStr.slice(4, 6), 10) - 1;
+        const d = parseInt(dateStr.slice(6, 8), 10);
+        if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) continue;
+
+        let secs = 0;
+        if (!isDaily && iTime >= 0) {
+            const timeStr = cols[iTime]?.trim() || '0';
+            const padded = timeStr.padStart(6, '0');
+            const hh = parseInt(padded.slice(0, 2), 10);
+            const mm = parseInt(padded.slice(2, 4), 10);
+            const ss = parseInt(padded.slice(4, 6), 10);
+            secs = (hh || 0) * 3600 + (mm || 0) * 60 + (ss || 0);
+        }
+
+        const epoch = Math.floor(Date.UTC(y, mo, d) / 1000) + secs;
+        const o = parseFloat(cols[iOpen]);
+        const hi = parseFloat(cols[iHigh]);
+        const lo = parseFloat(cols[iLow]);
+        const c = parseFloat(cols[iClose]);
+        const v = parseFloat(cols[iVol]) || 1;
+        if (![o, hi, lo, c].every(Number.isFinite)) continue;
+        if (hi < lo || hi < o || hi < c || lo > o || lo > c) continue;
+        candles.push({ time: epoch, open: o, high: hi, low: lo, close: c, volume: v });
+    }
+
+    let deduped = dedupeByTime(candles);
+    deduped = dropFormingBar(deduped, timeframe);
+    if (timeframe === 'H4') deduped = aggregate(deduped, 4);
+    return deduped;
+}
+
 // ─── Combined accessor ──────────────────────────────────────────────────────
 
 export async function fetchCandlesDetailed(
     base44: any, symbol: string, timeframe: string,
 ): Promise<CandleFetchResult> {
-    // Broker data first
+    // 1. Broker data — your EA's uploads, real-time, the prices you execute at
     try {
         const broker = await fetchBrokerCandles(base44, symbol, timeframe);
         if (broker.length >= MIN_BARS) {
             return { candles: broker, source: 'BROKER', warning: null };
         }
-        if (broker.length > 0) {
-            const yahoo = await fetchYahooCandles(symbol, timeframe).catch(() => [] as Candle[]);
-            if (yahoo.length >= MIN_BARS) {
-                return {
-                    candles: yahoo, source: 'YAHOO',
-                    warning: `Broker history for ${symbol} ${timeframe} has only ${broker.length} bars — ` +
-                        `using Yahoo. Increase BarsToUpload in the EA to trade on broker data.`,
-                };
-            }
-        }
     } catch (e: any) {
         console.warn('[marketData] broker fetch failed:', e.message);
     }
 
-    // Yahoo fallback
+    // 2. Stooq fallback — free, no key, covers indices Yahoo 404s on
+    try {
+        const stooq = await fetchStooqCandles(symbol, timeframe);
+        if (stooq.length >= MIN_BARS) {
+            return {
+                candles: stooq, source: 'STOOQ',
+                warning: `Using Stooq for ${symbol} ${timeframe} — ~15min delayed. ` +
+                    `Attach the EA to this symbol so it uploads broker candles.`,
+            };
+        }
+    } catch (e: any) {
+        console.warn('[marketData] stooq fetch failed:', e.message);
+    }
+
+    // 3. Yahoo fallback — covers forex/metals/crypto
     try {
         const yahoo = await fetchYahooCandles(symbol, timeframe);
         if (yahoo.length >= MIN_BARS) {
