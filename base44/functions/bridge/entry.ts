@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
-import { validateStops } from '../_shared/risk.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { validateStops } from './risk.ts';
 
 // Result of the most recent candle ingest, per account. Reported back on a
 // subsequent heartbeat so the EA can see whether storage is healthy without the
