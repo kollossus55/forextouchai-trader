@@ -665,12 +665,14 @@ Deno.serve(async (req) => {
             console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (value: ${lockVal})`);
             reconcileLock[acctKey] = 0;
         }
-        // Skip reconcile when there are signals to dispatch (unless > 5 min since last reconcile).
-        // This is the critical fix: when there are candidate signals, we SKIP the 15+ DB ops
-        // of the reconcile so the API budget is available for the signal dispatch. Without this,
-        // the reconcile exhausts the rate limit and the signal fetch returns empty — signals
-        // stay PENDING forever.
-        const _skipForDispatch = _earlyCandidates.length > 0 && (now - lastReconcile) < 300_000;
+        // Skip reconcile ONLY for 60 seconds (not 5 minutes) when there are signals to dispatch.
+        // The original 5-minute skip caused a vicious cycle: the bridge never reconciled while
+        // signals were pending, so it never learned about trades the EA had already opened.
+        // Without DB trade records, the bridge kept dispatching signals for pairs that already
+        // had open positions, and the EA hit its max-open-trades limit and stopped executing.
+        // 60 seconds is enough to let the signal dispatch complete, but short enough that the
+        // reconcile runs on the next heartbeat to create DB records for newly opened trades.
+        const _skipForDispatch = _earlyCandidates.length > 0 && (now - lastReconcile) < 60_000;
         const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey] && !_skipForDispatch;
         console.log(`[BRIDGE] shouldReconcile=${shouldReconcile} | isGoldEA=${isGoldEA} isSilverEA=${isSilverEA} isColdStart=${isColdStart} lastReconcile=${lastReconcile} eaTradesArr=${Array.isArray(eaTrades)} eaTradesLen=${Array.isArray(eaTrades) ? eaTrades.length : 0} lockVal=${reconcileLock[acctKey]} knownTicketsSize=${knownTickets[acctKey]?.size || 'undefined'}`);
         if (shouldReconcile) {
@@ -1160,7 +1162,7 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v8.2-dispatch',
+            bridge_version: 'v8.3-reconcile',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
             _deploy_check: 'v8_1_candles_active',
