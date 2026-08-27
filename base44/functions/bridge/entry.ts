@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
-import { validateStops } from './risk.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
+import { validateStops } from '../_shared/risk.ts';
 
 // Result of the most recent candle ingest, per account. Reported back on a
 // subsequent heartbeat so the EA can see whether storage is healthy without the
@@ -17,7 +17,7 @@ let globalLockAcquiredAt = 0;
 
 // ─── Per-account rate limiter (min 10s between full bridge calls) ─────────────
 const lastCallTs = {}; // keyed by account_number → timestamp
-const MIN_CALL_INTERVAL_MS = 25_000; // 25 seconds — EA heartbeats every 30s, so this lets every heartbeat through
+const MIN_CALL_INTERVAL_MS = 45_000; // 45 seconds minimum between calls per account
 
 // ─── In-memory state (survives across requests within same isolate) ───────────
 const cache = {
@@ -36,12 +36,6 @@ const knownTickets = {}; // keyed by account_number → Set<ticket>
 const reconcileLock = {}; // keyed by account_number → timestamp (0 = unlocked)
 const RECONCILE_LOCK_TIMEOUT_MS = 90_000; // 90s max — reconcile should finish in <30s
 
-// Server-side last reconcile timestamp per account — NOT reliant on the EA reporting last_reconcile.
-// The EA's body.last_reconcile defaults to 0 if the EA doesn't send it, which made _skipForDispatch
-// always false, so the bridge reconciled on EVERY non-rate-limited heartbeat (15+ DB ops),
-// exhausting the API budget and causing the signal fetch to fail — signals stayed PENDING forever.
-const lastReconcileTs = {}; // keyed by account_number → timestamp (0 = never)
-
 // Cold-start init: first reconcile per isolate per account loads all tickets from DB.
 // All concurrent requests await the SAME promise — prevents any races.
 const initPromise = {}; // keyed by account_number → Promise<void> | null
@@ -53,11 +47,8 @@ const ticketCreateLock = {}; // keyed by "acctKey:ticket" → boolean
 const lastBridgeErrorAlert = {}; // keyed by acctKey → timestamp
 const BRIDGE_ERROR_ALERT_THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
 
-// In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB.
-// Map<signalId, timestamp> — entries expire after 2 minutes so a signal is never permanently
-// trapped if the DB lock fails and the catch block doesn't clear it (e.g. isolate crash).
-const dispatchedSignalIds = new Map(); // signalId → dispatch timestamp
-const DISPATCHED_ID_TTL_MS = 2 * 60 * 1000; // 2 minutes
+// In-flight dispatched signal IDs: prevents re-dispatching a signal before ACTIVE status is written to DB
+const dispatchedSignalIds = new Set(); // signal IDs already dispatched this isolate lifetime
 const MAX_DISPATCHED_IDS = 500; // cap to prevent unbounded growth
 
 // Per-account per-pair cooldown: prevents re-dispatching to same pair within 5 minutes
@@ -98,127 +89,6 @@ Deno.serve(async (req) => {
         return new Response(null, { headers: corsHeaders() });
     }
 
-    // ── Diagnostic GET endpoint — no API key required, read-only ──────────
-    // Usage: GET /functions/bridge?diag=1&account=744066
-    // Returns what signals would be dispatched for this account, plus the
-    // reasons any are filtered out. This is read-only — it never writes to
-    // the DB and never sends signals to the EA.
-    if (req.method === 'GET') {
-        try {
-            const url = new URL(req.url);
-            if (url.searchParams.get('diag') !== '1') {
-                return Response.json({ error: 'Use POST for heartbeats, or GET ?diag=1&account=NUMBER for diagnostics' }, { status: 400, headers: corsHeaders() });
-            }
-            const base44 = createClientFromRequest(req);
-            const diagAcct = String(url.searchParams.get('account') || '');
-            if (!diagAcct) {
-                return Response.json({ error: 'Missing account parameter' }, { status: 400, headers: corsHeaders() });
-            }
-
-            const now = Date.now();
-            const thirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString();
-
-            const [pendingSigs, activeSigs, riskSettings, openTrades, conn, runningBots] = await Promise.all([
-                base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50),
-                base44.asServiceRole.entities.Signal.filter({ status: 'ACTIVE' }, '-created_date', 50),
-                base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 100),
-                base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: diagAcct }, '-created_date', 200),
-                base44.asServiceRole.entities.BrokerConnection.filter({ account_number: diagAcct }),
-                base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50),
-            ]);
-
-            const allSigs = [...(pendingSigs || []), ...(activeSigs || [])];
-            const candidates = allSigs.filter(s => s.created_date >= thirtyMinAgo);
-
-            const accountRisk = (riskSettings || []).find(r => r.account_number === diagAcct) || null;
-            const globalRiskRec = (riskSettings || []).find(r => !r.account_number) || null;
-            const riskSettingsForAcct = accountRisk || globalRiskRec;
-            const scheduleSettings = (accountRisk?.global_schedule_enabled === true) ? accountRisk : globalRiskRec;
-            const scheduleOffNow = isScheduleOff(scheduleSettings, now);
-            const tradingPaused = riskSettingsForAcct?.is_trading_paused === true;
-            const autoTradeOff = riskSettingsForAcct?.auto_trade_enabled === false;
-            const blockAutoSignals = tradingPaused || autoTradeOff;
-
-            const botConfigMap = {};
-            for (const bot of (runningBots || [])) botConfigMap[bot.id] = bot;
-
-            const _barePair = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
-            const openPairs = new Set((openTrades || []).map(t => _barePair(t.pair || '')));
-
-            const _isIdxOrCrypto = (p) => {
-                const u = (p || '').toUpperCase();
-                const idxList = ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200','JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50','STOXX50','EU50','FTSE','DOW','DJI','NASDAQ'];
-                const cryptoList = ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL','XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE','AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT'];
-                return idxList.some(idx => u.includes(idx)) || cryptoList.includes(u);
-            };
-
-            // Analyze each candidate signal
-            const analysis = candidates.map(s => {
-                const pairRaw = (s.pair || '').replace('/', '');
-                const reasons = [];
-                if (scheduleOffNow) reasons.push('Schedule OFF');
-                if (blockAutoSignals && s.strategy !== 'MANUAL_EXECUTION') reasons.push(`Auto signals blocked (paused=${tradingPaused}, autoOff=${autoTradeOff})`);
-                if (s.owner_email && s.owner_email !== diagAcct) reasons.push(`Targeted to account ${s.owner_email}, not ${diagAcct}`);
-                if (openPairs.has(pairRaw.toUpperCase())) reasons.push(`Trade already open on ${pairRaw}`);
-                if (s.bot_id && botConfigMap[s.bot_id]) {
-                    const bot = botConfigMap[s.bot_id];
-                    if (bot.trading_start_time && bot.trading_end_time) {
-                        const nowUtc = new Date();
-                        const [startH, startM] = bot.trading_start_time.split(':').map(Number);
-                        const [endH, endM] = bot.trading_end_time.split(':').map(Number);
-                        const nowMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes();
-                        const startMins = startH * 60 + startM;
-                        const endMins = endH * 60 + endM;
-                        const inWindow = startMins <= endMins ? (nowMins >= startMins && nowMins < endMins) : (nowMins >= startMins || nowMins < endMins);
-                        if (!inWindow) reasons.push(`Outside trading hours ${bot.trading_start_time}–${bot.trading_end_time} UTC (now ${nowUtc.getUTCHours()}:${String(nowUtc.getUTCMinutes()).padStart(2,'0')})`);
-                    }
-                }
-                return {
-                    id: s.id.slice(-8),
-                    pair: s.pair,
-                    type: s.type,
-                    status: s.status,
-                    strategy: s.strategy,
-                    owner: s.owner_email,
-                    confidence: s.confidence,
-                    created: s.created_date,
-                    bot_id: s.bot_id?.slice(-8),
-                    bot_name: s.bot_id ? botConfigMap[s.bot_id]?.name : null,
-                    would_dispatch: reasons.length === 0,
-                    blocked_by: reasons,
-                };
-            });
-
-            return Response.json({
-                account: diagAcct,
-                timestamp: new Date().toISOString(),
-                connection: conn?.[0] ? {
-                    status: conn[0].connection_status,
-                    last_sync: conn[0].last_sync,
-                    balance: conn[0].balance,
-                    owner_email: conn[0].owner_email,
-                    platform: conn[0].platform,
-                } : 'NOT FOUND',
-                risk: {
-                    account_specific: accountRisk ? { auto_trade: accountRisk.auto_trade_enabled, paused: accountRisk.is_trading_paused, sched_enabled: accountRisk.global_schedule_enabled } : null,
-                    global: globalRiskRec ? { auto_trade: globalRiskRec.auto_trade_enabled, paused: globalRiskRec.is_trading_paused, sched_enabled: globalRiskRec.global_schedule_enabled } : null,
-                    scheduleOffNow,
-                    blockAutoSignals,
-                },
-                signals: {
-                    total_pending: (pendingSigs || []).length,
-                    total_active: (activeSigs || []).length,
-                    candidates: candidates.length,
-                    dispatchable: analysis.filter(a => a.would_dispatch).length,
-                    analysis,
-                },
-                open_trades: (openTrades || []).map(t => ({ pair: t.pair, type: t.type, ticket: t.ticket, status: t.status })),
-            }, { headers: corsHeaders() });
-        } catch (e) {
-            return Response.json({ error: e.message, stack: e.stack }, { status: 500, headers: corsHeaders() });
-        }
-    }
-
     // MUST be declared before try: if createClientFromRequest throws, the catch block
     // references these and would hit ReferenceError if they're not in scope yet
     let releaseLock = null;
@@ -237,136 +107,6 @@ Deno.serve(async (req) => {
         }
 
         body = JSON.parse(cleanText);
-
-        // ── Diagnostic mode — no API key required, read-only ──────────────────
-        // When the body contains { "diag": true, "account": "NUMBER" }, return
-        // what signals would be dispatched for this account plus the reasons any
-        // are filtered out. Read-only — never writes to the DB or sends to EA.
-        if (body.diag === true) {
-            try {
-                const diagAcct = String(body.account || '');
-
-                // ── Clear in-memory dispatch state for this account ──────────────
-                // When the signal lock fails (rate limited), the pairDispatchCooldown
-                // stays set and blocks re-dispatch for 5 minutes. This clears it.
-                if (body.clear_state === true) {
-                    const cleared = { cooldowns: 0, dispatched: 0 };
-                    for (const key of Object.keys(pairDispatchCooldown)) {
-                        if (key.startsWith(`${diagAcct}:`)) {
-                            delete pairDispatchCooldown[key];
-                            cleared.cooldowns++;
-                        }
-                    }
-                    // Clear dispatchedSignalIds for this account's signals
-                    // (we don't know which IDs belong to this account, so clear all)
-                    dispatchedSignalIds.clear();
-                    cleared.dispatched = 'all_cleared';
-                    return Response.json({ success: true, message: 'Cleared in-memory dispatch state', account: diagAcct, cleared }, { headers: corsHeaders() });
-                }
-                if (!diagAcct) {
-                    return Response.json({ error: 'Missing account parameter' }, { status: 400, headers: corsHeaders() });
-                }
-                const now = Date.now();
-                const thirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString();
-
-                const [pendingSigs, activeSigs, riskSettings, openTrades, conn, runningBots] = await Promise.all([
-                    base44.asServiceRole.entities.Signal.filter({ status: 'PENDING' }, '-created_date', 50),
-                    base44.asServiceRole.entities.Signal.filter({ status: 'ACTIVE' }, '-created_date', 50),
-                    base44.asServiceRole.entities.RiskManagementSettings.list('-created_date', 100),
-                    base44.asServiceRole.entities.Trade.filter({ status: 'OPEN', owner_email: diagAcct }, '-created_date', 200),
-                    base44.asServiceRole.entities.BrokerConnection.filter({ account_number: diagAcct }),
-                    base44.asServiceRole.entities.BotConfig.filter({ status: 'RUNNING' }, '-created_date', 50),
-                ]);
-
-                const allSigs = [...(pendingSigs || []), ...(activeSigs || [])];
-                const candidates = allSigs.filter(s => s.created_date >= thirtyMinAgo);
-
-                const accountRisk = (riskSettings || []).find(r => r.account_number === diagAcct) || null;
-                const globalRiskRec = (riskSettings || []).find(r => !r.account_number) || null;
-                const riskSettingsForAcct = accountRisk || globalRiskRec;
-                const scheduleSettings = (accountRisk?.global_schedule_enabled === true) ? accountRisk : globalRiskRec;
-                const scheduleOffNow = isScheduleOff(scheduleSettings, now);
-                const tradingPaused = riskSettingsForAcct?.is_trading_paused === true;
-                const autoTradeOff = riskSettingsForAcct?.auto_trade_enabled === false;
-                const blockAutoSignals = tradingPaused || autoTradeOff;
-
-                const botConfigMap = {};
-                for (const bot of (runningBots || [])) botConfigMap[bot.id] = bot;
-
-                const _barePair = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
-                const openPairs = new Set((openTrades || []).map(t => _barePair(t.pair || '')));
-
-                const _isIdxOrCrypto = (p) => {
-                    const u = (p || '').toUpperCase();
-                    const idxList = ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200','JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50','STOXX50','EU50','FTSE','DOW','DJI','NASDAQ'];
-                    const cryptoList = ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL','XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE','AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT'];
-                    return idxList.some(idx => u.includes(idx)) || cryptoList.includes(u);
-                };
-
-                // Build eaTradablePairs from CurrencyPair (proxy for EA's Market Watch)
-                const currencyPairs = await base44.asServiceRole.entities.CurrencyPair.list('-created_date', 100);
-                const eaTradablePairs = new Set();
-                for (const p of (currencyPairs || [])) {
-                    if (!p.symbol) continue;
-                    const bare = String(p.symbol).replace('/', '').toUpperCase();
-                    const dotIdx = bare.indexOf('.');
-                    const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
-                    eaTradablePairs.add(bare);
-                    eaTradablePairs.add(base);
-                    const normalized = normalizeSymbol(p.symbol);
-                    eaTradablePairs.add(normalized);
-                }
-
-                const analysis = candidates.map(s => {
-                    const pairRaw = (s.pair || '').replace('/', '');
-                    const reasons = [];
-                    if (scheduleOffNow) reasons.push('Schedule OFF');
-                    if (blockAutoSignals && s.strategy !== 'MANUAL_EXECUTION') reasons.push(`Auto signals blocked (paused=${tradingPaused}, autoOff=${autoTradeOff})`);
-                    if (s.owner_email && s.owner_email !== diagAcct) reasons.push(`Targeted to account ${s.owner_email}, not ${diagAcct}`);
-                    if (openPairs.has(pairRaw.toUpperCase())) reasons.push(`Trade already open on ${pairRaw}`);
-                    // eaTradablePairs check
-                    if (eaTradablePairs.size > 0 && !eaTradablePairs.has(pairRaw.toUpperCase())) {
-                        if (_isIdxOrCrypto(pairRaw)) {
-                            reasons.push(`NOT in EA Market Watch but is index/crypto — dispatching anyway`);
-                        } else {
-                            reasons.push(`NOT in EA Market Watch — EA can't trade this symbol`);
-                        }
-                    }
-                    if (s.bot_id && botConfigMap[s.bot_id]) {
-                        const bot = botConfigMap[s.bot_id];
-                        if (bot.trading_start_time && bot.trading_end_time) {
-                            const nowUtc = new Date();
-                            const [startH, startM] = bot.trading_start_time.split(':').map(Number);
-                            const [endH, endM] = bot.trading_end_time.split(':').map(Number);
-                            const nowMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes();
-                            const startMins = startH * 60 + startM;
-                            const endMins = endH * 60 + endM;
-                            const inWindow = startMins <= endMins ? (nowMins >= startMins && nowMins < endMins) : (nowMins >= startMins || nowMins < endMins);
-                            if (!inWindow) reasons.push(`Outside trading hours ${bot.trading_start_time}–${bot.trading_end_time} UTC (now ${nowUtc.getUTCHours()}:${String(nowUtc.getUTCMinutes()).padStart(2,'0')})`);
-                        }
-                    }
-                    return {
-                        id: s.id.slice(-8), pair: s.pair, type: s.type, status: s.status,
-                        strategy: s.strategy, owner: s.owner_email, confidence: s.confidence,
-                        created: s.created_date, bot_name: s.bot_id ? botConfigMap[s.bot_id]?.name : null,
-                        in_ea_tradable: eaTradablePairs.has(pairRaw.toUpperCase()),
-                        ea_tradable_count: eaTradablePairs.size,
-                        would_dispatch: reasons.length === 0, blocked_by: reasons,
-                    };
-                });
-
-                return Response.json({
-                    account: diagAcct,
-                    timestamp: new Date().toISOString(),
-                    connection: conn?.[0] ? { status: conn[0].connection_status, last_sync: conn[0].last_sync, balance: conn[0].balance, owner_email: conn[0].owner_email, platform: conn[0].platform } : 'NOT FOUND',
-                    risk: { account_specific: accountRisk ? { auto_trade: accountRisk.auto_trade_enabled, paused: accountRisk.is_trading_paused, sched_enabled: accountRisk.global_schedule_enabled } : null, global: globalRiskRec ? { auto_trade: globalRiskRec.auto_trade_enabled, paused: globalRiskRec.is_trading_paused, sched_enabled: globalRiskRec.global_schedule_enabled } : null, scheduleOffNow, blockAutoSignals },
-                    signals: { total_pending: (pendingSigs || []).length, total_active: (activeSigs || []).length, candidates: candidates.length, dispatchable: analysis.filter(a => a.would_dispatch).length, analysis },
-                    open_trades: (openTrades || []).map(t => ({ pair: t.pair, type: t.type, ticket: t.ticket })),
-                }, { headers: corsHeaders() });
-            } catch (e) {
-                return Response.json({ error: e.message, stack: e.stack }, { status: 500, headers: corsHeaders() });
-            }
-        }
 
         // ── API Key validation — reject missing or non-FTAI keys (auth bypass fix) ─
         const authHeader = req.headers.get('Authorization') || '';
@@ -535,16 +275,12 @@ Deno.serve(async (req) => {
         }
         lastCallTs[rateLimitKey] = now;
 
-        // ── Periodic memory cleanup: expire old dispatchedSignalIds entries ──
-        const dispatchedCutoff = now - DISPATCHED_ID_TTL_MS;
-        for (const [id, ts] of dispatchedSignalIds) {
-            if (ts < dispatchedCutoff) dispatchedSignalIds.delete(id);
-        }
+        // ── Periodic memory cleanup (every ~100 calls) to prevent unbounded growth ──
         if (dispatchedSignalIds.size > MAX_DISPATCHED_IDS) {
-            // Keep only the most recent 200 entries
-            const arr = [...dispatchedSignalIds.entries()].sort((a, b) => a[1] - b[1]);
+            // Keep only the most recent 200 IDs (convert to array, slice, back to set)
+            const arr = [...dispatchedSignalIds];
             dispatchedSignalIds.clear();
-            arr.slice(-200).forEach(([id, ts]) => dispatchedSignalIds.set(id, ts));
+            arr.slice(-200).forEach(id => dispatchedSignalIds.add(id));
             console.log('[BRIDGE] Pruned dispatchedSignalIds to 200 entries');
         }
         // Clean pairDispatchCooldown entries older than the cooldown window
@@ -639,23 +375,10 @@ Deno.serve(async (req) => {
             }, { headers: corsHeaders() });
         }
 
-        // ── Early candidate check — if there are signals to dispatch, SKIP the   ─
-        // expensive reconcile to avoid overwhelming the Base44 API rate limit.   ─
-        // The reconcile does 15+ DB ops per heartbeat; when it fails due to rate  ─
-        // limiting, the signal fetch also fails and returns empty data, so       ─
-        // signals never get dispatched. Prioritising dispatch over reconcile      ─
-        // breaks this vicious cycle. Reconcile still runs at least every 5 min.  ─
-        const eaTrades = body.trades || acct.trades;
-        const eaLastReconcile = body.last_reconcile || 0;
-        // Use the MORE RECENT of the EA-reported timestamp and our server-side tracker.
-        // The EA's value can be 0 if it doesn't send last_reconcile, which would make the
-        // bridge think it hasn't reconciled in 55 years and force a reconcile on every heartbeat.
-        const lastReconcile = Math.max(eaLastReconcile, lastReconcileTs[acctKey] || 0);
-        const _earlyThirtyMinAgo = new Date(now - 30 * 60 * 1000).toISOString();
-        const _earlyCandidates = (allPendingSignals || []).filter(s => s.created_date >= _earlyThirtyMinAgo);
-
         // ── 3. Reconcile trades (server-driven throttle, locked per account) ─
         // NOTE: Reconcile runs ALWAYS even when trading is paused, so DB stays in sync with EA
+        const eaTrades = body.trades || acct.trades;
+        const lastReconcile = body.last_reconcile || 0;
         // Force reconcile on cold start (isolate restart wiped knownTickets) even if lastReconcile looks recent
         const isColdStart = !knownTickets[acctKey];
         // Auto-release stuck reconcile locks (safety net — should never trigger with awaited reconcile)
@@ -665,24 +388,13 @@ Deno.serve(async (req) => {
             console.warn(`[BRIDGE] Stuck reconcile lock for ${acctKey} — force releasing (value: ${lockVal})`);
             reconcileLock[acctKey] = 0;
         }
-        // Skip reconcile ONLY for 60 seconds (not 5 minutes) when there are signals to dispatch.
-        // The original 5-minute skip caused a vicious cycle: the bridge never reconciled while
-        // signals were pending, so it never learned about trades the EA had already opened.
-        // Without DB trade records, the bridge kept dispatching signals for pairs that already
-        // had open positions, and the EA hit its max-open-trades limit and stopped executing.
-        // 60 seconds is enough to let the signal dispatch complete, but short enough that the
-        // reconcile runs on the next heartbeat to create DB records for newly opened trades.
-        const _skipForDispatch = _earlyCandidates.length > 0 && (now - lastReconcile) < 60_000;
-        const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey] && !_skipForDispatch;
+        const shouldReconcile = !isGoldEA && !isSilverEA && (isColdStart || (now - lastReconcile) > 30_000) && Array.isArray(eaTrades) && !reconcileLock[acctKey];
         console.log(`[BRIDGE] shouldReconcile=${shouldReconcile} | isGoldEA=${isGoldEA} isSilverEA=${isSilverEA} isColdStart=${isColdStart} lastReconcile=${lastReconcile} eaTradesArr=${Array.isArray(eaTrades)} eaTradesLen=${Array.isArray(eaTrades) ? eaTrades.length : 0} lockVal=${reconcileLock[acctKey]} knownTicketsSize=${knownTickets[acctKey]?.size || 'undefined'}`);
         if (shouldReconcile) {
             reconcileLock[acctKey] = now;
             await reconcileTrades(base44, eaTrades, acctKey, livePriceMap)
                 .catch(e => console.error('[BRIDGE] Reconcile error:', e.message))
-                .finally(() => {
-                    reconcileLock[acctKey] = 0;
-                    lastReconcileTs[acctKey] = Date.now(); // server-side tracker
-                });
+                .finally(() => { reconcileLock[acctKey] = 0; });
         }
 
         // ── 4. Update currency pair prices (throttled, cached pair map) ──────
@@ -702,12 +414,9 @@ Deno.serve(async (req) => {
         const riskSettings = accountRisk || globalRiskRec;
         const lastRiskCheck = body.last_risk_check || 0;
 
-        // ── Global trading schedule: account-specific settings take precedence ──
-        // If the account has its own risk record, use it (including global_schedule_enabled=false,
-        // which means "no schedule for this account"). Only fall back to the global default when
-        // the account has no risk record at all. This respects the user's explicit per-account setting
-        // rather than silently inheriting a global schedule they didn't enable on this account.
-        const scheduleSettings = accountRisk || globalRiskRec;
+        // ── Global trading schedule: account overrides global default ──
+        // If the account has its own schedule enabled, use it; otherwise inherit the global default.
+        const scheduleSettings = (accountRisk?.global_schedule_enabled === true) ? accountRisk : globalRiskRec;
         const scheduleOffNow = isScheduleOff(scheduleSettings, now);
         // Bridge-side profit target check is DISABLED — monitorRiskLimits handles this exclusively
         // to avoid duplicate alerts from two separate code paths.
@@ -785,28 +494,7 @@ Deno.serve(async (req) => {
                 const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
                 eaTradablePairs.add(bare);
                 eaTradablePairs.add(base);
-                // Also add the normalized form so broker aliases (e.g. EU50 → EUSTX50)
-                // match the canonical pair names used in signals.
-                const normalized = normalizeSymbol(p.symbol);
-                eaTradablePairs.add(normalized);
             }
-        }
-
-        // Always include known index and crypto symbols in the tradable set.
-        // The EA often doesn't report prices for indices via SymbolInfoTick (market
-        // closed, no ticks, or ResolveSymbol fails on the broker suffix), but the
-        // symbols ARE in Market Watch and the EA CAN trade them. Without this, the
-        // "not in EA Market Watch" check below blocks all index/crypto signals —
-        // they sit PENDING forever while forex signals dispatch fine.
-        for (const idx of ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200',
-                           'JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50',
-                           'STOXX50','EU50','FTSE','DOW','DJI','NASDAQ']) {
-            eaTradablePairs.add(idx);
-        }
-        for (const crypto of ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL',
-                             'XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE',
-                             'AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT']) {
-            eaTradablePairs.add(crypto);
         }
 
         // Load running bot configs for trading-hours enforcement at dispatch time
@@ -838,14 +526,10 @@ Deno.serve(async (req) => {
 
         const freshSignals = candidateSignals
             .filter(s => {
-                // Skip PENDING signals already dispatched very recently (prevents re-dispatch before DB write confirms).
+                // Skip PENDING signals already dispatched this isolate session (prevents re-dispatch before DB write confirms).
                 // ACTIVE signals are allowed through for re-dispatch — if the EA missed the first dispatch (network blip,
                 // OrderSend failure), the bridge gives it another chance. The openPairs check below prevents duplicate trades.
-                // Entries expire after 2 minutes so a signal is never permanently trapped if the DB lock fails.
-                if (s.status === 'PENDING') {
-                    const dispatchedAt = dispatchedSignalIds.get(s.id);
-                    if (dispatchedAt && (now - dispatchedAt) < DISPATCHED_ID_TTL_MS) return false;
-                }
+                if (s.status === 'PENDING' && dispatchedSignalIds.has(s.id)) return false;
 
                 // Global schedule OFF: block ALL signals (auto + manual) during the off-window
                 if (scheduleOffNow) {
@@ -921,25 +605,9 @@ Deno.serve(async (req) => {
                 // The EA can't execute trades on symbols it doesn't have — the signal would sit
                 // ACTIVE for 20 minutes and expire. This especially affects crypto pairs (BTCUSD,
                 // ETHUSD) on standard forex EAs that don't have crypto symbols in Market Watch.
-                //
-                // EXCEPTION: indices and crypto are often in Market Watch but don't report a
-                // price via SymbolInfoTick (market closed, no ticks, or the EA's ResolveSymbol
-                // failed on the broker suffix). Blocking them here leaves index signals PENDING
-                // forever. Instead, dispatch them and let the EA's ExecuteSignalObj handle it —
-                // it will either execute or print "Cannot get price" and the signal expires.
-                const _isIdxOrCrypto = (p) => {
-                    const u = (p || '').toUpperCase();
-                    const idxList = ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200','JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50','STOXX50','EU50','FTSE','DOW','DJI','NASDAQ'];
-                    const cryptoList = ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL','XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE','AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT'];
-                    return idxList.some(idx => u.includes(idx)) || cryptoList.includes(u);
-                };
                 if (eaTradablePairs.size > 0 && !eaTradablePairs.has(pairRaw.toUpperCase())) {
-                    if (_isIdxOrCrypto(pairRaw)) {
-                        console.log(`[BRIDGE] ${pairRaw} not in EA price report for ${acctKey} but is index/crypto — dispatching anyway (EA will execute or reject)`);
-                    } else {
-                        console.log(`[BRIDGE] ${pairRaw} not in EA Market Watch for ${acctKey} — EA can't trade this symbol, skipping signal ${s.id}`);
-                        return false;
-                    }
+                    console.log(`[BRIDGE] ${pairRaw} not in EA Market Watch for ${acctKey} — EA can't trade this symbol, skipping signal ${s.id}`);
+                    return false;
                 }
 
                 // If a DIFFERENT signal for this pair is already ACTIVE in DB, skip — trade likely already open.
@@ -996,7 +664,7 @@ Deno.serve(async (req) => {
                 dispatchedPairsThisCycle.add(pairRaw);
                 return true;
             })
-            .slice(0, 10);
+            .slice(0, 5);
         console.log(`[BRIDGE] ${acctKey} freshSignals=${freshSignals.length}`, freshSignals.map(s => ({id: s.id, pair: s.pair, status: s.status})));
 
         // Lock PENDING signals to ACTIVE before returning — skip ones already ACTIVE
@@ -1004,7 +672,7 @@ Deno.serve(async (req) => {
         if (freshSignals.length > 0) {
             // Mark as dispatched BEFORE the async DB write to block any concurrent requests
             freshSignals.forEach(s => {
-                dispatchedSignalIds.set(s.id, now);
+                dispatchedSignalIds.add(s.id);
                 // Only set cooldown for non-manual signals — manual trades bypass cooldown entirely
                 if (s.strategy !== 'MANUAL_EXECUTION') {
                     const pairRaw = (s.pair || '').replace('/', '');
@@ -1020,18 +688,8 @@ Deno.serve(async (req) => {
                 }
             } catch (e) {
                 console.error('[BRIDGE] Signal lock error:', e.message);
-                // On failure, remove from dispatched set AND clear cooldown so they can retry
-                // immediately on the next heartbeat. Without clearing the cooldown, the pair
-                // is blocked for 5 minutes even though the signal was never actually locked,
-                // which is why index signals get stuck PENDING while forex signals dispatch.
-                freshSignals.forEach(s => {
-                    dispatchedSignalIds.delete(s.id);
-                    if (s.strategy !== 'MANUAL_EXECUTION') {
-                        const pairRaw = (s.pair || '').replace('/', '');
-                        delete pairDispatchCooldown[`${acctKey}:${pairRaw}`];
-                    }
-                });
-                console.log('[BRIDGE] Signal lock failed — cleared dispatchedSignalIds + cooldowns for', freshSignals.length, 'signals');
+                // On failure, remove from dispatched set so they can retry
+                freshSignals.forEach(s => dispatchedSignalIds.delete(s.id));
             }
             cache.signals = { data: null, ts: 0 };
         }
@@ -1048,7 +706,7 @@ Deno.serve(async (req) => {
         // Brokers like IC Markets use suffixes (.PRO, .r, .m, .raw) on every symbol;
         // without this remap, the EA receives "EURUSD" but Market Watch has "EURUSD.PRO",
         // so MarketInfo returns 0 and the trade is never placed.
-        const brokerSymbolMap = {}; // "EURUSD" → "EURUSD.PRO", "EUSTX50" → "EU50.PRO"
+        const brokerSymbolMap = {}; // "EURUSD" → "EURUSD.PRO"
         if (!isGoldEA && !isSilverEA && Array.isArray(eaPricesRaw)) {
             for (const p of eaPricesRaw) {
                 if (!p?.symbol) continue;
@@ -1056,16 +714,10 @@ Deno.serve(async (req) => {
                 const bare = sym.replace('/', '').toUpperCase();
                 const dotIdx = bare.indexOf('.');
                 const base = dotIdx === -1 ? bare : bare.slice(0, dotIdx);
-                if (base.length >= 4) {
-                    // Store the first match per base name.
-                    if (!brokerSymbolMap[base]) brokerSymbolMap[base] = sym;
-                    // Also key by the normalized/canonical name so a signal pair
-                    // "EUSTX50" maps to the broker's "EU50.PRO" when the broker
-                    // uses a different name for the same instrument.
-                    const normalized = normalizeSymbol(sym);
-                    if (normalized !== base && !brokerSymbolMap[normalized]) {
-                        brokerSymbolMap[normalized] = sym;
-                    }
+                // Only map if the base is a known-length forex/crypto/index symbol (6+ chars)
+                // to avoid false matches. Store the first match per base.
+                if (base.length >= 4 && !brokerSymbolMap[base]) {
+                    brokerSymbolMap[base] = sym;
                 }
             }
         }
@@ -1162,7 +814,7 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v8.3-reconcile',
+            bridge_version: 'v8.1-candles',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
             _deploy_check: 'v8_1_candles_active',
@@ -1176,19 +828,9 @@ Deno.serve(async (req) => {
                 isSilverEA,
                 isColdStart,
                 lastReconcile,
-                eaLastReconcile,
-                serverLastReconcileTs: lastReconcileTs[acctKey] || 0,
-                _skipForDispatch,
-                _earlyCandidates: _earlyCandidates.length,
                 eaTradesLen: Array.isArray(eaTrades) ? eaTrades.length : 0,
                 lockVal: reconcileLock[acctKey] || 0,
                 knownTicketsSize: knownTickets[acctKey]?.size || 0,
-                dispatchedSignalIdsSize: dispatchedSignalIds.size,
-                pairDispatchCooldownKeys: Object.keys(pairDispatchCooldown).filter(k => k.startsWith(`${acctKey}:`)),
-                freshSignalsCount: freshSignals.length,
-                freshSignals: freshSignals.map(s => ({ id: s.id?.slice(-8), pair: s.pair, status: s.status })),
-                candidateSignalsCount: candidateSignals.length,
-                allPendingSignalsCount: (allPendingSignals || []).length,
             },
 
         }, { headers: corsHeaders() });
@@ -1255,14 +897,9 @@ function buildPriceMap(eaPrices) {
         const bare = p.symbol.replace('/', '');
         map[p.symbol] = p.bid;
         map[bare] = p.bid;
-        // Also key by the normalized/canonical name so a signal pair "EUSTX50"
-        // finds the live price when the broker reports it as "EU50.PRO".
-        const normalized = normalizeSymbol(p.symbol);
-        if (normalized && normalized !== bare) map[normalized] = p.bid;
         if (p.ask > 0) {
             map[p.symbol + '_ask'] = p.ask;
             map[bare + '_ask'] = p.ask;
-            if (normalized && normalized !== bare) map[normalized + '_ask'] = p.ask;
         }
     }
     return map;
@@ -1320,7 +957,7 @@ function sanitizeSignal(s, livePriceMap, botCfg, acct = {}) {
         const CRYPTO_SYMBOLS = ['BTCUSD', 'BITCOIN', 'BTC', 'ETHUSD', 'ETHEREUM', 'ETH', 'SOLUSD', 'SOL', 'XRPUSD', 'XRP', 'LTCUSD', 'LTC', 'ADAUSD', 'ADA', 'DOGEUSD', 'DOGE', 'AVAXUSD', 'AVAX', 'LINKUSD', 'LINK', 'MATICUSD', 'MATIC', 'DOTUSD', 'DOT'];
         const isCrypto = CRYPTO_SYMBOLS.includes(pairUpper);
         // Indices/CFDs: named instruments like UK100, US30, AUS200, GER40, NAS100, SPX500, etc.
-        const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'JP225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'EUSTX50', 'STOXX50', 'EU50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
+        const INDEX_SYMBOLS = ['UK100', 'US30', 'NAS100', 'SPX500', 'SP500', 'GER40', 'DAX', 'AUS200', 'JPN225', 'NIKKEI', 'HK50', 'FRA40', 'ITA40', 'ESP35', 'STOXX50', 'FTSE', 'DOW', 'DJI', 'NASDAQ'];
         const isIndex = !isCrypto && (INDEX_SYMBOLS.some(idx => pairUpper.includes(idx)) || (!isGold && !isSilver && basePrice > 1000));
 
         // ── Direction validation ────────────────────────────────────────────

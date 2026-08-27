@@ -76,8 +76,7 @@ function toYahooSymbol(symbol: string): string {
         GER40: '^GDAXI', DE40: '^GDAXI',
         UK100: '^FTSE',
         AUS200: '^AXJO',
-        JPN225: '^N225', JP225: '^N225',
-        EUSTX50: '^STOXX50E',
+        JPN225: '^N225',
         HK50: '^HSI',
         FRA40: '^FCHI',
         ESP35: '^IBEX',
@@ -138,17 +137,27 @@ export async function fetchYahooCandles(symbol: string, timeframe: string): Prom
 export async function fetchCandlesDetailed(
     base44: any, symbol: string, timeframe: string,
 ): Promise<CandleFetchResult> {
-    // 1. Broker data — your EA's uploads, real-time, the prices you execute at
+    // Broker data first
     try {
         const broker = await fetchBrokerCandles(base44, symbol, timeframe);
         if (broker.length >= MIN_BARS) {
             return { candles: broker, source: 'BROKER', warning: null };
         }
+        if (broker.length > 0) {
+            const yahoo = await fetchYahooCandles(symbol, timeframe).catch(() => [] as Candle[]);
+            if (yahoo.length >= MIN_BARS) {
+                return {
+                    candles: yahoo, source: 'YAHOO',
+                    warning: `Broker history for ${symbol} ${timeframe} has only ${broker.length} bars — ` +
+                        `using Yahoo. Increase BarsToUpload in the EA to trade on broker data.`,
+                };
+            }
+        }
     } catch (e: any) {
         console.warn('[marketData] broker fetch failed:', e.message);
     }
 
-    // 2. Yahoo fallback — covers forex/metals/crypto/indices
+    // Yahoo fallback
     try {
         const yahoo = await fetchYahooCandles(symbol, timeframe);
         if (yahoo.length >= MIN_BARS) {

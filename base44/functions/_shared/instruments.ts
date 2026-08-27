@@ -55,7 +55,7 @@ const SPREAD_TABLE: Record<string, number> = {
     NZDCAD: 3.0, NZDCHF: 3.2, CADCHF: 2.6,
     XAUUSD: 3.0, XAGUSD: 3.0,
     US500: 0.6, US30: 3.0, NAS100: 1.5, UK100: 1.5, GER40: 1.2,
-    JPN225: 8.0, JP225: 8.0, AUS200: 2.0, FRA40: 1.5, EUSTX50: 1.5, HK50: 8.0,
+    JPN225: 8.0, AUS200: 2.0, FRA40: 1.5, HK50: 8.0,
     BTCUSD: 30.0, ETHUSD: 3.0, SOLUSD: 0.5, XRPUSD: 0.002, LTCUSD: 0.5,
     USOIL: 3.0, UKOIL: 3.0,
 };
@@ -74,9 +74,7 @@ const INDEX_SPECS: Record<string, { pipSize: number; contract: number; quote: st
     FRA40:  { pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     ESP35:  { pipSize: 1.0,  contract: 1,   quote: 'EUR' },
     JPN225: { pipSize: 1.0,  contract: 1,   quote: 'JPY' },
-    JP225:  { pipSize: 1.0,  contract: 1,   quote: 'JPY' },
     AUS200: { pipSize: 0.5,  contract: 1,   quote: 'AUD' },
-    EUSTX50:{ pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     HK50:   { pipSize: 1.0,  contract: 1,   quote: 'HKD' },
 };
 
@@ -105,18 +103,6 @@ const ALIASES: Record<string, string> = {
     NASDAQ: 'NAS100', DOW: 'US30', FTSE: 'UK100', DAX: 'GER40',
     NIKKEI: 'JPN225', CAC: 'FRA40', HSI: 'HK50',
     WTI: 'USOIL', BRENT: 'UKOIL',
-    EU50: 'EUSTX50', STOXX50: 'EUSTX50', STOXX50E: 'EUSTX50', ESTX50: 'EUSTX50',
-    EUROSTOXX: 'EUSTX50', EURO50: 'EUSTX50', EUX50: 'EUSTX50', EUROSTOXX50: 'EUSTX50',
-    SPX: 'SPX500', USA500: 'SPX500', SPX500C: 'SPX500',
-    USTEC: 'NAS100', USA100: 'NAS100', NASDAQ100: 'NAS100',
-    USA30: 'US30', WALLSTREET: 'US30', DJI30: 'US30',
-    UK100C: 'UK100', FTSE100: 'UK100',
-    DE40C: 'GER40', DAX40: 'GER40', GER40C: 'GER40',
-    FRA40C: 'FRA40', CAC40: 'FRA40',
-    ESP35C: 'ESP35', SPAIN35: 'ESP35',
-    JAPAN225: 'JP225', JAP225: 'JP225', JPN225C: 'JP225',
-    ASX200: 'AUS200', AUSSIE200: 'AUS200', AUS200C: 'AUS200',
-    HSI50: 'HK50', HK50C: 'HK50',
 };
 
 /** Strip separators and broker suffixes: "XAU/USD.pro" → "XAUUSD" */

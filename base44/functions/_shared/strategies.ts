@@ -175,39 +175,6 @@ function divergenceFactor(tf: TimeframeSnapshot, weight: number): Factor {
     return { key: 'divergence', label: 'RSI divergence', weight, direction: d ?? 'NONE', detail: d ?? 'none' };
 }
 
-function fibonacciFactor(tf: TimeframeSnapshot, price: number, atrVal: number | null, weight: number): Factor {
-    if (atrVal === null || atrVal === 0) {
-        return { key: 'fibonacci', label: 'Fibonacci', weight, direction: 'NONE', detail: 'n/a' };
-    }
-    const supports = tf.structure.supportLevels;
-    const resistances = tf.structure.resistanceLevels;
-    if (!supports.length || !resistances.length) {
-        return { key: 'fibonacci', label: 'Fibonacci', weight, direction: 'NONE', detail: 'no swing levels' };
-    }
-    const swingHigh = Math.max(...resistances.slice(0, 3));
-    const swingLow = Math.min(...supports.slice(0, 3));
-    const range = swingHigh - swingLow;
-    if (range <= 0) {
-        return { key: 'fibonacci', label: 'Fibonacci', weight, direction: 'NONE', detail: 'no range' };
-    }
-    const fib382 = swingLow + range * 0.382;
-    const fib500 = swingLow + range * 0.500;
-    const fib618 = swingLow + range * 0.618;
-    const tol = atrVal * 0.3;
-    const near = (lvl: number) => Math.abs(price - lvl) <= tol;
-    const structDir = tf.structure.state;
-    let direction: Factor['direction'] = 'NONE';
-    let detail = 'no confluence';
-    if (structDir === 'BULLISH' && (near(fib618) || near(fib500) || near(fib382))) {
-        direction = 'BULLISH';
-        detail = near(fib618) ? '61.8% retracement confluence' : near(fib500) ? '50% retracement confluence' : '38.2% retracement';
-    } else if (structDir === 'BEARISH' && (near(fib618) || near(fib500) || near(fib382))) {
-        direction = 'BEARISH';
-        detail = near(fib618) ? '61.8% retracement confluence' : near(fib500) ? '50% retracement confluence' : '38.2% retracement';
-    }
-    return { key: 'fibonacci', label: 'Fibonacci', weight, direction, detail };
-}
-
 function vwapFactor(tf: TimeframeSnapshot, weight: number): Factor {
     const v = tf.vwap;
     const d = v === null ? 'NONE' : tf.close > v ? 'BULLISH' : 'BEARISH';
@@ -280,11 +247,10 @@ const FACTOR_SETS: Record<string, FactorSet> = {
     PRICE_ACTION: (s, b) => {
         const tf = s.entry;
         return [
-            enabled(b, 'ind_use_structure') ? structureFactor(tf, 4) : null,
+            structureFactor(tf, 4),
             enabled(b, 'ind_use_liquidity') ? liquidityFactor(tf, 3) : null,
             enabled(b, 'ind_use_candlestick') ? patternFactor(tf, 3) : null,
             enabled(b, 'ind_use_structure') ? zoneFactor(tf, s.price, tf.atr, 3) : null,
-            enabled(b, 'ind_use_fibonacci') ? fibonacciFactor(tf, s.price, tf.atr, 2) : null,
         ].filter(Boolean) as Factor[];
     },
 
@@ -463,16 +429,13 @@ export function evaluateStrategy(snap: MarketSnapshot, bot: BotSettings): Strate
     const winning = direction === 'BUY' ? bull : bear;
     const losing = direction === 'BUY' ? bear : bull;
 
-    // Confidence = share of available weight in the winning direction, scaled
-    // by session liquidity and data quality. The previous formula subtracted
-    // opposing weight, which made it nearly impossible to reach typical bot
-    // thresholds (60-75%) even with strong confluence — a setup with 70% of
-    // indicators agreeing and 30% opposing scored only ~36%.
+    // Confidence = share of available weight in agreement, penalised by
+    // opposing weight, then scaled by session liquidity.
     let confidence = 0;
     if (availableWeight > 0 && direction !== 'NEUTRAL') {
-        const agreement = winning / availableWeight;
+        const agreement = (winning - losing) / availableWeight;
         confidence = Math.max(0, Math.min(1, agreement)) * 100;
-        if (snap.spec.category !== 'CRYPTO' && bot.ind_use_session_timing !== false) confidence *= snap.sessionQuality;
+        if (snap.spec.category !== 'CRYPTO') confidence *= snap.sessionQuality;
         confidence *= snap.dataQuality.confidenceMultiplier;
     }
     confidence = Math.round(confidence);

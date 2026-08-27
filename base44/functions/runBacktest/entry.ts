@@ -13,11 +13,11 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { Candle } from './indicators.ts';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
-import { runBacktest, walkForward, DEFAULT_COSTS, BacktestConfig } from './backtest.ts';
-import { fetchCandlesDetailed } from './marketData.ts';
-import { BotSettings } from './strategies.ts';
+import { Candle } from '../_shared/indicators.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
+import { runBacktest, walkForward, DEFAULT_COSTS, BacktestConfig } from '../_shared/backtest.ts';
+import { fetchCandlesDetailed } from '../_shared/marketData.ts';
+import { BotSettings } from '../_shared/strategies.ts';
 
 const HIGHER_TF: Record<string, string> = {
     M1: 'M15', M5: 'M30', M15: 'H1', M30: 'H4',

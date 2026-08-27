@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-// generateBotSignals — v2.1 (confidence formula fix)
+// generateBotSignals — v2
 // ════════════════════════════════════════════════════════════════════════════
 // WHAT CHANGED AND WHY
 //
@@ -29,15 +29,15 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { Candle } from './indicators.ts';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
-import { buildMarketSnapshot, MarketSnapshot } from './analysis.ts';
-import { evaluateStrategy, BotSettings, StrategyResult } from './strategies.ts';
+import { Candle } from '../_shared/indicators.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
+import { buildMarketSnapshot, MarketSnapshot } from '../_shared/analysis.ts';
+import { evaluateStrategy, BotSettings, StrategyResult } from '../_shared/strategies.ts';
 import {
     computeLotSize, checkExposureLimits, validateStops,
     OpenPosition, ExposureLimits, DEFAULT_EXPOSURE_LIMITS,
-} from './risk.ts';
-import { fetchCandlesDetailed } from './marketData.ts';
+} from '../_shared/risk.ts';
+import { fetchCandlesDetailed } from '../_shared/marketData.ts';
 
 const HIGHER_TF: Record<string, string> = {
     M1: 'M15', M5: 'M30', M15: 'H1', M30: 'H4',
@@ -328,16 +328,13 @@ Deno.serve(async (req) => {
 
                         // ── Risk-based sizing ───────────────────────────────
                         const rates = buildRateMap(candleCache);
-                        const botRiskPercent = Number(bot.risk_per_trade_percent) || 0;
                         const sizing = computeLotSize({
                             spec,
                             entryPrice: entry,
                             stopDistance: result.stopDistance,
                             balance,
                             accountCurrency: conn.currency || 'USD',
-                            riskPercent: botRiskPercent > 0
-                                ? botRiskPercent
-                                : (acctRisk.risk_per_trade_percent ?? 1),
+                            riskPercent: acctRisk.risk_per_trade_percent ?? 1,
                             maxPositionSizePercent: acctRisk.max_position_size_percent ?? 10,
                             leverage: parseLeverage(conn.leverage),
                             rates,

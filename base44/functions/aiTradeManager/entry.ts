@@ -22,7 +22,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, pipValueInAccountCurrency } from './instruments.ts';
+import { getInstrumentSpec, normalizeSymbol, pipValueInAccountCurrency } from '../_shared/instruments.ts';
 
 const CORS = {
     'Access-Control-Allow-Origin': '*',
