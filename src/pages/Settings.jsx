@@ -769,21 +769,12 @@ export default function Settings() {
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
-                <div className="p-2 bg-amber-500/10 rounded-full mt-0.5">
-                  <RefreshCw className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-200">2. Stooq <span className="text-amber-400 text-xs ml-1">Fallback</span></p>
-                  <p className="text-xs text-slate-400 mt-0.5">Free, no API key. Covers all index symbols (US30, NAS100, SPX500, GER40, UK100, FRA40, ESP35, AUS200, EUSTX50, JP225). ~15 min delayed.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800/50">
                 <div className="p-2 bg-blue-500/10 rounded-full mt-0.5">
                   <Globe className="w-4 h-4 text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-200">3. Yahoo Finance <span className="text-blue-400 text-xs ml-1">Fallback</span></p>
-                  <p className="text-xs text-slate-400 mt-0.5">Free, no API key. Covers forex pairs, metals (XAU/XAG), and crypto. ~15 min delayed, unofficial endpoint.</p>
+                  <p className="text-sm font-medium text-slate-200">2. Yahoo Finance <span className="text-blue-400 text-xs ml-1">Fallback</span></p>
+                  <p className="text-xs text-slate-400 mt-0.5">Free, no API key. Covers forex, metals (XAU/XAG), crypto and all indices. ~15 min delayed, unofficial endpoint.</p>
                 </div>
               </div>
             </CardContent>
@@ -812,24 +803,12 @@ export default function Settings() {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-amber-500/10 rounded-full">
-                      <RefreshCw className="w-4 h-4 text-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">Stooq</p>
-                      <p className="text-xs text-slate-400">~15 min delayed · Indices &amp; Forex</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-amber-400 border-amber-500/20">Standby</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
-                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-500/10 rounded-full">
                       <Globe className="w-4 h-4 text-blue-500" />
                     </div>
                     <div>
                       <p className="text-sm font-medium text-slate-200">Yahoo Finance</p>
-                      <p className="text-xs text-slate-400">~15 min delayed · Forex, Metals &amp; Crypto</p>
+                      <p className="text-xs text-slate-400">~15 min delayed · Forex, Metals, Crypto &amp; Indices</p>
                     </div>
                   </div>
                   <Badge variant="outline" className="text-blue-400 border-blue-500/20">Standby</Badge>
