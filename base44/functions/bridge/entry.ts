@@ -790,6 +790,23 @@ Deno.serve(async (req) => {
             }
         }
 
+        // Always include known index and crypto symbols in the tradable set.
+        // The EA often doesn't report prices for indices via SymbolInfoTick (market
+        // closed, no ticks, or ResolveSymbol fails on the broker suffix), but the
+        // symbols ARE in Market Watch and the EA CAN trade them. Without this, the
+        // "not in EA Market Watch" check below blocks all index/crypto signals —
+        // they sit PENDING forever while forex signals dispatch fine.
+        for (const idx of ['UK100','US30','NAS100','SPX500','SP500','GER40','DAX','AUS200',
+                           'JPN225','JP225','NIKKEI','HK50','FRA40','ITA40','ESP35','EUSTX50',
+                           'STOXX50','EU50','FTSE','DOW','DJI','NASDAQ']) {
+            eaTradablePairs.add(idx);
+        }
+        for (const crypto of ['BTCUSD','BITCOIN','BTC','ETHUSD','ETHEREUM','ETH','SOLUSD','SOL',
+                             'XRPUSD','XRP','LTCUSD','LTC','ADAUSD','ADA','DOGEUSD','DOGE',
+                             'AVAXUSD','AVAX','LINKUSD','LINK','MATICUSD','MATIC','DOTUSD','DOT']) {
+            eaTradablePairs.add(crypto);
+        }
+
         // Load running bot configs for trading-hours enforcement at dispatch time
         let botConfigMap = {}; // bot_id → bot config (for trading hours check)
         if (candidateSignals.length > 0) {
