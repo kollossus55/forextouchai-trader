@@ -614,6 +614,21 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
 
                       <IndicatorToggles strategy={formData.strategy_type} formData={formData} setFormData={setFormData} />
 
+                      {/* HTF Alignment gate — the single most effective filter in the engine.
+                         Defaults ON; turn OFF for genuine counter-trend strategies (e.g. gold/silver
+                         mean-reversion) so signals aren't vetoed when the H4/D1 bias disagrees. */}
+                      <div className="flex items-center justify-between p-3 rounded bg-slate-950/50 border border-slate-800">
+                       <div className="flex flex-col min-w-0">
+                         <span className="text-xs font-medium text-slate-200">Higher-Timeframe Alignment</span>
+                         <span className="text-[10px] text-slate-500">Reject signals that fight the H4/D1 bias. Turn OFF for counter-trend strategies.</span>
+                       </div>
+                       <Switch
+                         checked={formData.require_htf_alignment !== false}
+                         onCheckedChange={v => setFormData({ ...formData, require_htf_alignment: v })}
+                         className="data-[state=checked]:bg-emerald-600 ml-2 shrink-0"
+                       />
+                      </div>
+
                       <div className="space-y-4">
                         <div className="flex justify-between">
                            <Label>Minimum AI Confidence</Label>
