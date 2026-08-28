@@ -86,17 +86,49 @@ Deno.serve(async (req) => {
                 : Promise.resolve([]),
         ]);
 
-        const connAccountNumber = connections?.[0]?.account_number;
-        const tradeOwner = connAccountNumber ? String(connAccountNumber) : (connections?.[0]?.created_by || signal?.created_by || null);
-
-        // Verify the account belongs to the authenticated API key owner (prevents account spoofing)
-        const connOwnerEmail = connections?.[0]?.owner_email || null;
-        if (resolvedOwnerEmail && connOwnerEmail && connOwnerEmail !== resolvedOwnerEmail) {
-            return Response.json({ error: 'Account not authorized for this API key' }, {
-                status: 403,
-                headers: { 'Access-Control-Allow-Origin': '*' }
+        // ── Authorization (IDOR fix) ──────────────────────────────────────────
+        // Two independent checks, both must pass:
+        //  1. The target signal must belong to the API key owner (owner_email or created_by).
+        //  2. If an account_number is supplied, it must resolve to an existing
+        //     BrokerConnection owned by the API key owner. A non-existent account
+        //     number yields no connection record — previously that meant connOwnerEmail
+        //     was null and the ownership check short-circuited, allowing any valid
+        //     key to confirm any victim's signal.
+        if (!resolvedOwnerEmail) {
+            return Response.json({ error: 'API key is not bound to a user' }, {
+                status: 403, headers: { 'Access-Control-Allow-Origin': '*' }
             });
         }
+        if (!signal) {
+            return Response.json({ error: 'Signal not found' }, {
+                status: 404, headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+        const signalOwnerEmail = signal.owner_email || null;
+        const signalCreatedBy = signal.created_by || null;
+        const signalOwnedByKey = (signalOwnerEmail && signalOwnerEmail === resolvedOwnerEmail)
+            || (signalCreatedBy && signalCreatedBy === resolvedOwnerEmail);
+        if (!signalOwnedByKey) {
+            return Response.json({ error: 'Signal does not belong to this API key' }, {
+                status: 403, headers: { 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+        if (account_number) {
+            if (!connections || connections.length === 0) {
+                return Response.json({ error: 'Account not found for this API key' }, {
+                    status: 403, headers: { 'Access-Control-Allow-Origin': '*' }
+                });
+            }
+            const connOwnerEmail = connections[0].owner_email || null;
+            if (!connOwnerEmail || connOwnerEmail !== resolvedOwnerEmail) {
+                return Response.json({ error: 'Account not authorized for this API key' }, {
+                    status: 403, headers: { 'Access-Control-Allow-Origin': '*' }
+                });
+            }
+        }
+
+        const connAccountNumber = connections?.[0]?.account_number;
+        const tradeOwner = connAccountNumber ? String(connAccountNumber) : (signalCreatedBy || null);
 
         // Check if trade with this ticket already exists to prevent duplicates
         const existingTrades = await withRetry(() => base44.asServiceRole.entities.Trade.filter({ ticket: ticket }));
