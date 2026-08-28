@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import DailyPerformanceCard from '@/components/dashboard/DailyPerformanceCard';
+import AccountRiskCard from '@/components/dashboard/AccountRiskCard';
 
 
 
@@ -67,6 +68,21 @@ export default function Overview() {
     initialData: []
   });
 
+  // Account-level risk budget: cap comes from RiskManagementSettings (keyed by
+  // account_number); current usage is the sum of risk_amount across OPEN trades.
+  // Trades route by account number stored in owner_email (see bridge entry).
+  const { data: riskSettings } = useQuery({
+    queryKey: ['risk-management-settings'],
+    queryFn: () => base44.entities.RiskManagementSettings.list(),
+    initialData: []
+  });
+
+  const { data: openTrades } = useQuery({
+    queryKey: ['open-trades-risk'],
+    queryFn: () => base44.entities.Trade.filter({ status: 'OPEN' }),
+    initialData: []
+  });
+
 
 
 
@@ -78,6 +94,15 @@ export default function Overview() {
     const margin = conn.margin || 0;
     const freeMargin = conn.free_margin || (equity - margin);
     const marginLevel = conn.margin_level || (margin > 0 ? (equity / margin) * 100 : 0);
+
+    // Risk budget for this account: match RiskManagementSettings by account_number.
+    const riskSetting = (riskSettings || []).find(r => r.account_number === conn.account_number);
+    const maxTotalRiskPercent = riskSetting?.max_total_risk_percent ?? 6;
+    // Sum risk_amount of OPEN trades routed to this account (owner_email = account number).
+    const usedRiskAmount = (openTrades || [])
+      .filter(t => t.owner_email === conn.account_number)
+      .reduce((sum, t) => sum + (t.risk_amount || 0), 0);
+
     return {
       id: conn.id,
       broker: conn.server_name || "Demo Broker",
@@ -88,6 +113,8 @@ export default function Overview() {
       balance, equity, margin, freeMargin, marginLevel,
       profit: equity - balance,
       isConnected: conn.connection_status === 'CONNECTED',
+      usedRiskAmount,
+      maxTotalRiskPercent,
     };
   });
 
@@ -144,8 +171,8 @@ export default function Overview() {
 
       {/* Per-Account Cards */}
       {accountList.length === 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[['Balance','emerald'],['Equity','cyan'],['Margin Level','purple'],['Free Margin','amber']].map(([label, color]) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+           {[['Balance','emerald'],['Equity','cyan'],['Margin Level','purple'],['Free Margin','amber'],['Risk Used','rose']].map(([label, color]) => (
             <Card key={label} className="bg-slate-900/50 border-slate-800/50 shadow-xl">
               <CardContent className="pt-6">
                 <p className="text-sm text-slate-500">{label}</p>
@@ -168,8 +195,8 @@ export default function Overview() {
                   {acct.isConnected ? 'Live' : 'Offline'}
                 </span>
               </div>
-              {/* 4 metric cards for this account */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 5 metric cards for this account */}
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-900/50 border-slate-800/50 backdrop-blur-sm hover:border-emerald-500/30 transition-all duration-300 group shadow-xl">
                   <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                     <DollarSign className="w-14 h-14 text-emerald-500" />
@@ -244,6 +271,13 @@ export default function Overview() {
                     <p className="text-[10px] text-slate-500 mt-1">Used: <span className="text-slate-300">${acct.margin.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></p>
                   </CardContent>
                 </Card>
+
+                {/* Risk Used — share of account's total-risk budget consumed */}
+                <AccountRiskCard
+                  usedRiskAmount={acct.usedRiskAmount}
+                  balance={acct.balance}
+                  maxTotalRiskPercent={acct.maxTotalRiskPercent}
+                />
               </div>
             </div>
           ))}
