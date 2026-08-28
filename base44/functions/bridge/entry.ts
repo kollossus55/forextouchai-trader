@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
-import { validateStops } from '../_shared/risk.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { validateStops } from './risk.ts';
 
 // Result of the most recent candle ingest, per account. Reported back on a
 // subsequent heartbeat so the EA can see whether storage is healthy without the
@@ -814,7 +814,7 @@ Deno.serve(async (req) => {
             account: acctKey,
             timestamp: new Date().toISOString(),
             heartbeat_interval_ms: HEARTBEAT_INTERVAL_MS,  // EA should respect this
-            bridge_version: 'v8.1-candles',
+            bridge_version: 'v8.2-orphan-fix',
             price_update_ts: (now - lastPriceUpdate) > 60_000 ? now : lastPriceUpdate,
             last_reconcile: shouldReconcile ? now : lastReconcile,
             _deploy_check: 'v8_1_candles_active',
@@ -1364,6 +1364,31 @@ async function reconcileTrades(base44, eaTrades, acctKey, livePriceMap = {}) {
             return base44.asServiceRole.entities.Trade.update(t.id, patch);
         })).catch(e => console.warn('[BRIDGE] PnL update error:', e.message));
         if (i + 2 < toUpdatePnl.length) await new Promise(r => setTimeout(r, 150));
+    }
+
+    // ── Close orphaned ACTIVE signals: if a trade is already open on a pair but the
+    //    signal is still ACTIVE (the initial signal-close call failed due to rate
+    //    limiting), close it now. Without this, a stuck ACTIVE signal blocks new
+    //    signals for that pair forever and shows as "kicked off" in the terminal
+    //    even though the trade is already live.
+    try {
+        const orphanedActiveSignals = await base44.asServiceRole.entities.Signal.filter({
+            status: 'ACTIVE',
+            owner_email: acctKey,
+        }, '-created_date', 50);
+        if (orphanedActiveSignals?.length > 0) {
+            const _bareNorm = (s) => { const u = (s || '').toUpperCase().replace('/', ''); const d = u.indexOf('.'); return d === -1 ? u : u.slice(0, d); };
+            const openPairSet = new Set(existingDbTrades.map(t => _bareNorm(t.pair || '')));
+            const toClose = orphanedActiveSignals.filter(s => openPairSet.has(_bareNorm(s.pair || '')));
+            if (toClose.length > 0) {
+                console.log('[BRIDGE] Closing', toClose.length, 'orphaned ACTIVE signal(s) with matching open trades for', acctKey);
+                await Promise.all(toClose.map(s =>
+                    base44.asServiceRole.entities.Signal.update(s.id, { status: 'CLOSED' })
+                )).catch(e => console.warn('[BRIDGE] Orphaned signal close error:', e.message));
+            }
+        }
+    } catch (e) {
+        console.warn('[BRIDGE] Orphaned signal check error:', e.message);
     }
 
     // ── Detect duplicate positions on same pair+type and flag extras for closure ──
