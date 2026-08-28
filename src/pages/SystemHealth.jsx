@@ -472,28 +472,40 @@ export default function SystemHealth() {
             ) : (
               <div className="space-y-2">
                 {bots.map(bot => {
-                  const isRunning = bot.status === 'RUNNING';
-                  const isPaused = bot.status === 'PAUSED';
-                  return (
-                    <div key={bot.id} className="flex items-center justify-between p-2 rounded-md bg-slate-950/50 border border-slate-800/50">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse' : isPaused ? 'bg-amber-500' : 'bg-slate-600'}`} />
-                        <span className="text-slate-200 text-sm">{bot.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 text-xs">{bot.strategy_type}</span>
-                        <Badge variant="outline" className={
-                          isRunning ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs' :
-                          isPaused ? 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs' :
-                          'border-slate-600 text-slate-400 text-xs'
-                        }>
-                          {isRunning && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
-                          {bot.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                })}
+                   const isRunning = bot.status === 'RUNNING';
+                   const isPaused = bot.status === 'PAUSED';
+                   const autoExec = bot.auto_execution === true;
+                   // A bot that is RUNNING but has auto_execution OFF is not actually
+                   // trading — it generates signals but never dispatches them to the EA.
+                   // Surface this so the user doesn't see a green "RUNNING" badge and
+                   // assume trades are flowing.
+                   const effectivelyIdle = isRunning && !autoExec;
+                   return (
+                     <div key={bot.id} className="flex items-center justify-between p-2 rounded-md bg-slate-950/50 border border-slate-800/50">
+                       <div className="flex items-center gap-2">
+                         <div className={`w-2 h-2 rounded-full ${effectivelyIdle ? 'bg-amber-500' : isRunning ? 'bg-emerald-500 animate-pulse' : isPaused ? 'bg-amber-500' : 'bg-slate-600'}`} />
+                         <span className="text-slate-200 text-sm">{bot.name}</span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <span className="text-slate-500 text-xs">{bot.strategy_type}</span>
+                         {effectivelyIdle && (
+                           <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs">
+                             <AlertTriangle className="w-3 h-3 mr-1" />
+                             Auto-Exec OFF
+                           </Badge>
+                         )}
+                         <Badge variant="outline" className={
+                           isRunning ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs' :
+                           isPaused ? 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs' :
+                           'border-slate-600 text-slate-400 text-xs'
+                         }>
+                           {isRunning && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
+                           {bot.status}
+                         </Badge>
+                       </div>
+                     </div>
+                   );
+                 })}
               </div>
             )}
           </CardContent>
