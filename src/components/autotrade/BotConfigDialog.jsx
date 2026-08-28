@@ -58,6 +58,9 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
 
   // Strategy-to-Timeframe mapping
   const strategyTimeframes = {
+  // Supply & Demand: institutional zones form on higher timeframes; H4 gives
+  // clean, reliable S/D levels that don't repaint every few hours.
+  SUPPLY_DEMAND: 'H4',
     'SCALPING': 'M5',
     'SWING': 'H4',
     'DAY_TRADING': 'H1',
@@ -238,6 +241,7 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                       <SelectItem value="SWING">Swing Trading</SelectItem>
                       <SelectItem value="DAY_TRADING">Day Trading</SelectItem>
                       <SelectItem value="PRICE_ACTION">Price Action Analysis</SelectItem>
+                      <SelectItem value="SUPPLY_DEMAND">Supply &amp; Demand (Institutional + ADX)</SelectItem>
                       <SelectItem value="PATTERN_TRADING">Chart Pattern Trading</SelectItem>
                       <SelectItem value="CANDLESTICK">Candlestick Patterns</SelectItem>
                       <SelectItem value="HYBRID_ALL">Hybrid (All Strategies)</SelectItem>
@@ -279,6 +283,15 @@ Return ONLY the optimized numeric values as a flat JSON object with the same fie
                   <div>
                     <p className="font-semibold text-amber-200 mb-0.5">Gold Specialist Strategy</p>
                     <p className="text-amber-400/80">This bot uses a dedicated gold-optimised AI engine with session timing, ATR-based SL/TP, and XAU/USD-specific volatility analysis. Only XAUUSD trades will be opened.</p>
+                  </div>
+                </div>
+              )}
+              {formData.strategy_type === 'SUPPLY_DEMAND' && (
+                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-300 flex items-start gap-2">
+                  <span className="text-lg leading-none">🏦</span>
+                  <div>
+                    <p className="font-semibold text-indigo-200 mb-0.5">Supply &amp; Demand Strategy</p>
+                    <p className="text-indigo-400/80">Trades institutional supply/demand zones (order blocks &amp; fair-value gaps) confirmed by ADX trend strength. ADX is the primary directional signal — entries require price at a fresh (un-mitigated) zone with ADX above the minimum threshold, aligned market structure, and a candlestick confirmation trigger. Best on H4 where zones are cleanest.</p>
                   </div>
                 </div>
               )}

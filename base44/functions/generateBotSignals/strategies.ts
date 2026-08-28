@@ -277,6 +277,29 @@ const FACTOR_SETS: Record<string, FactorSet> = {
         ].filter(Boolean) as Factor[];
     },
 
+    SUPPLY_DEMAND: (s, b) => {
+        // Institutional Supply & Demand strategy.
+        // ADX is the PRIMARY directional signal — institutions move markets in
+        // trends, and a strong ADX confirms the impulsive move that created the
+        // zone is still in force. Price must be at a fresh (un-mitigated)
+        // institutional zone (order block / FVG), confirmed by market structure
+        // and a candlestick trigger. Liquidity sweeps add confluence (stop hunts
+        // at the zone are the highest-probability entry).
+        const tf = s.entry, htf = s.higher ?? s.entry;
+        return [
+            // Main signal: ADX trend strength (institutional direction)
+            enabled(b, 'ind_use_adx') ? adxFactor(tf, 5, b.min_adx ?? 22) : null,
+            // Location: institutional supply/demand zones (order blocks + FVGs)
+            enabled(b, 'ind_use_structure') ? zoneFactor(htf, s.price, htf.atr, 4) : null,
+            // Structure alignment (BOS/CHoCH on higher timeframe)
+            enabled(b, 'ind_use_structure') ? structureFactor(htf, 3) : null,
+            // Liquidity sweep / stop hunt at the zone
+            enabled(b, 'ind_use_liquidity') ? liquidityFactor(tf, 2) : null,
+            // Candlestick confirmation trigger at the zone
+            enabled(b, 'ind_use_candlestick') ? patternFactor(tf, 2) : null,
+        ].filter(Boolean) as Factor[];
+    },
+
     PRICE_ACTION: (s, b) => {
         const tf = s.entry;
         return [

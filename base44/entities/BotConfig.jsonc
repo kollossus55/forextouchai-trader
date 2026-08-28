@@ -13,6 +13,7 @@
         "DAY_TRADING",
         "AI_PREDICTIVE",
         "PRICE_ACTION",
+        "SUPPLY_DEMAND",
         "PATTERN_TRADING",
         "CANDLESTICK",
         "HYBRID_ALL",
@@ -289,7 +290,7 @@
     "use_llm_confirmation": {
       "type": "boolean",
       "default": false,
-      "description": "Send the COMPUTED indicator readings to a language model for a second opinion. The model cannot change direction and can only LOWER confidence or veto — it never sees or invents price data. Off by default: the deterministic path is the one the backtester measures, and adding a non-deterministic layer makes results harder to reproduce."
+      "description": "Send the COMPUTED indicator readings to a language model for a second opinion. The model cannot change direction and can only LOWER confidence or veto \u2014 it never sees or invents price data. Off by default: the deterministic path is the one the backtester measures, and adding a non-deterministic layer makes results harder to reproduce."
     },
     "require_htf_alignment": {
       "type": "boolean",
