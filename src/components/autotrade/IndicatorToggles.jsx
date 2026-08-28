@@ -8,6 +8,7 @@ const SP500_ITEMS = [
   ['sp500_use_ssl', 'SSL Channel', 'Trend direction gate'],
   ['sp500_use_ai_rsi', 'AI RSI', 'Momentum RSI gate'],
   ['sp500_use_tmo', 'TMO Momentum', 'Trend momentum oscillator gate'],
+  ['sp500_use_sd', 'Supply/Demand Zone', 'Only trade in the direction of a confirmed institutional zone'],
 ];
 
 // AI-driven strategies: tailored indicator sets per strategy (ind_use_* fields).
@@ -127,7 +128,7 @@ export default function IndicatorToggles({ strategy, formData, setFormData }) {
           <BarChart className="w-4 h-4 text-cyan-400" />
           <span className="text-sm font-medium text-cyan-300">SP500 Indicator Confluence</span>
         </div>
-        <p className="text-[11px] text-slate-400">Toggle which of the 4 indicators must confirm a signal. Keep all ON for the strict 4-gate confluence, or turn 1–2 OFF to trade on fewer confirmations.</p>
+        <p className="text-[11px] text-slate-400">Toggle which indicators must confirm a signal. Keep all ON for the strict confluence, or turn some OFF to trade on fewer confirmations. <span className="text-cyan-400">Supply/Demand</span> is a hard directional gate — when ON, the bot only trades in the direction of a confirmed institutional zone.</p>
         <div className="grid grid-cols-2 gap-3 pt-1">
           {SP500_ITEMS.map(([key, label, desc]) => (
             <div key={key} className="flex items-center justify-between p-2 rounded bg-slate-950/50 border border-slate-800">

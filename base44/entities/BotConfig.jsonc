@@ -208,6 +208,11 @@
       "default": true,
       "description": "SP500_AI: require TMO trend-momentum oscillator gate"
     },
+    "sp500_use_sd": {
+      "type": "boolean",
+      "default": false,
+      "description": "SP500_AI: require Supply & Demand zone confirmation. When ON, the bot only trades in the direction of a confirmed institutional zone (order block / FVG) on the higher timeframe \u2014 signals without a confirmed zone, or fighting the zone direction, are blocked."
+    },
     "ind_use_rsi": {
       "type": "boolean",
       "default": true,

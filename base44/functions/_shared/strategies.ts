@@ -348,6 +348,11 @@ const FACTOR_SETS: Record<string, FactorSet> = {
         });
         if (enabled(b, 'sp500_use_ai_rsi')) f.push(rsiFactor(tf, 2));
         if (enabled(b, 'sp500_use_tmo')) f.push(macdFactor(tf, 2));
+        if (enabled(b, 'sp500_use_sd')) {
+            const htf = s.higher ?? s.entry;
+            const zf = zoneFactor(htf, s.price, htf.atr, 4);
+            f.push({ ...zf, key: 'sd_zone', label: 'Supply/Demand zone' });
+        }
         f.push({
             key: 'cmo', label: 'CMO', weight: 2,
             direction: tf.cmo === null ? 'NONE' : tf.cmo > 50 ? 'BEARISH' : tf.cmo < -50 ? 'BULLISH' : 'NONE',
@@ -446,6 +451,17 @@ export function evaluateStrategy(snap: MarketSnapshot, bot: BotSettings): Strate
         const want = direction === 'BUY' ? 'BULLISH' : 'BEARISH';
         if (snap.htfBias !== 'NEUTRAL' && snap.htfBias !== want) {
             blockedBy.push(`Higher-timeframe bias is ${snap.htfBias}, signal is ${direction}`);
+        }
+    }
+
+    // SP500_AI Supply & Demand directional gate — when enabled, only trade in
+    // the direction of a confirmed institutional zone (order block / FVG).
+    if (strategy === 'SP500_AI' && bot.sp500_use_sd !== false && direction !== 'NEUTRAL') {
+        const sdFactor = factors.find(f => f.key === 'sd_zone');
+        if (!sdFactor || sdFactor.direction === 'NONE') {
+            blockedBy.push('No confirmed Supply/Demand zone');
+        } else if (sdFactor.direction !== direction) {
+            blockedBy.push(`Supply/Demand zone is ${sdFactor.direction}, signal is ${direction}`);
         }
     }
 
