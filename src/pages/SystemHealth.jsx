@@ -488,6 +488,12 @@ export default function SystemHealth() {
                        </div>
                        <div className="flex items-center gap-2">
                          <span className="text-slate-500 text-xs">{bot.strategy_type}</span>
+                         {isRunning && autoExec && (
+                           <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs">
+                             <Zap className="w-3 h-3 mr-1" />
+                             Auto
+                           </Badge>
+                         )}
                          {effectivelyIdle && (
                            <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs">
                              <AlertTriangle className="w-3 h-3 mr-1" />
