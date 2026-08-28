@@ -120,9 +120,10 @@ function computeD1Bias(symbol) {
 }
 
 // ─── Core Signal Calculation ────────────────────────────────────────────────
-export function computeSignal(symbol, timeframe, currentPrice) {
-    const candles = buildCandles(symbol, timeframe);
-
+// Computes the full multi-factor signal from a pre-built candle array.
+// Called directly when broker candles are available (Pairs grid), and by
+// computeSignal() when only in-memory ticks exist.
+export function computeSignalFromCandles(symbol, timeframe, candles) {
     // Indicators need real history. If we do not have it, say so — do not
     // manufacture candles to fill the gap.
     if (!candles || candles.length < 60) {
@@ -365,4 +366,11 @@ export function computeSignal(symbol, timeframe, currentPrice) {
     });
 
     return { signal, confidence, liveSignal, liveConfidence, indicators: indicatorSnapshot, factors, chartCandles };
+}
+
+// Tick-store wrapper: builds candles from accumulated real ticks and delegates
+// to computeSignalFromCandles. Used when no broker candle feed is attached.
+export function computeSignal(symbol, timeframe, currentPrice) {
+    const candles = buildCandles(symbol, timeframe);
+    return computeSignalFromCandles(symbol, timeframe, candles);
 }
