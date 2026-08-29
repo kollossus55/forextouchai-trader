@@ -22,7 +22,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { getInstrumentSpec, normalizeSymbol, pipValueInAccountCurrency } from '../_shared/instruments.ts';
+import { getInstrumentSpec, normalizeSymbol, pipValueInAccountCurrency } from './instruments.ts';
 
 const CORS = {
     'Access-Control-Allow-Origin': '*',
@@ -54,6 +54,10 @@ Deno.serve(async (req) => {
         let closesRequested = 0;
 
         for (const trade of openTrades) {
+            // Defense-in-depth: RLS already filters reads to this user's trades,
+            // but never modify a record that doesn't belong to the caller (or an admin).
+            if (trade.owner_email && trade.owner_email !== user.email && user.role !== 'admin') continue;
+
             // Already flagged — don't re-request, the bridge has a resend cooldown
             if (trade.close_requested) continue;
 

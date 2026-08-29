@@ -13,11 +13,11 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { Candle } from '../_shared/indicators.ts';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
-import { runBacktest, walkForward, DEFAULT_COSTS, BacktestConfig } from '../_shared/backtest.ts';
-import { fetchCandlesDetailed } from '../_shared/marketData.ts';
-import { BotSettings } from '../_shared/strategies.ts';
+import { Candle } from './indicators.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { runBacktest, walkForward, DEFAULT_COSTS, BacktestConfig } from './backtest.ts';
+import { fetchCandlesDetailed } from './marketData.ts';
+import { BotSettings } from './strategies.ts';
 
 const HIGHER_TF: Record<string, string> = {
     M1: 'M15', M5: 'M30', M15: 'H1', M30: 'H4',
@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
         const bots = await base44.entities.BotConfig.filter({ id: botId });
         if (!bots?.length) return Response.json({ error: 'Bot not found' }, { status: 404 });
         const bot = bots[0];
+
+        // RLS already restricts the read to the caller's bots; enforce explicitly
+        // so a non-owner (non-admin) can never backtest someone else's configuration.
+        if (bot.owner_email && bot.owner_email !== user.email && user.role !== 'admin') {
+            return Response.json({ error: 'Forbidden: you do not own this bot' }, { status: 403 });
+        }
 
         const rawSymbol = symbol || (bot.pairs || [])[0];
         if (!rawSymbol) return Response.json({ error: 'No symbol on this bot to test' }, { status: 400 });
