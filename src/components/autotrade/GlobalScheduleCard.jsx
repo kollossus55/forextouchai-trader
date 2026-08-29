@@ -60,7 +60,7 @@ export default function GlobalScheduleCard() {
   return (
     <Card className="bg-slate-900 border-cyan-500/30 mb-4">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Clock className="w-5 h-5 text-cyan-400" /> Global Trading Schedule (App-Wide Default)</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-white text-lg font-semibold"><Clock className="w-5 h-5 text-cyan-400" /> Global Trading Schedule (App-Wide Default)</CardTitle>
         <CardDescription>Applies to ALL connected accounts. Each account inherits this unless it enables its own schedule as an override. Times are in UTC.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
