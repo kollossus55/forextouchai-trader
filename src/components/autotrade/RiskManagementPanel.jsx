@@ -457,7 +457,7 @@ export default function RiskManagementPanel() {
       <GlobalScheduleCard />
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management — Account #{conn.account_number}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-white font-semibold"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management — Account #{conn.account_number}</CardTitle>
           <CardDescription>Per-account risk parameters and real-time monitoring</CardDescription>
         </CardHeader>
         <CardContent>
@@ -474,7 +474,7 @@ export default function RiskManagementPanel() {
     <GlobalScheduleCard />
     <Card className="bg-slate-900 border-slate-800">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-white font-semibold"><Shield className="w-5 h-5 text-emerald-400" /> Risk Management</CardTitle>
         <CardDescription>Each account has independent risk limits — a breach on one account does not affect others</CardDescription>
       </CardHeader>
       <CardContent>

@@ -72,7 +72,7 @@ export default function AccountAutoTradeToggle() {
   return (
     <Card className="bg-slate-900/50 border-slate-800 mb-6">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
+        <CardTitle className="flex items-center gap-2 text-lg text-white font-semibold">
           <Power className="w-5 h-5 text-emerald-400" />
           Auto-Trade by Account
         </CardTitle>
