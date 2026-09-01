@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import {
-  RefreshCw, Shield, Zap, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Activity, Hourglass, Filter, Trash2
+  RefreshCw, Shield, Zap, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Activity, Hourglass, Filter, Trash2, Download
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
@@ -68,6 +68,32 @@ export default function SignalsDashboard() {
     } catch (e) {
       toast.error('Failed to delete signal');
     }
+  };
+
+  const handleExportCSV = () => {
+    if (!filtered.length) { toast.info('No signals to export'); return; }
+    const headers = ['Timestamp','Age','Source','Pair','Direction','Entry','StopLoss','TakeProfit','LotSize','Confidence','Strategy','Status','Account','BotId','ResultPnL','RiskAmount','StopPips','DataSource'];
+    const rows = filtered.map(s => [
+      s.created_date, formatAge(s.created_date), s.source, s.pair, s.type,
+      s.entry_price ?? '', s.stop_loss ?? '', s.take_profit ?? '', s.lot_size ?? '',
+      s.confidence ?? '', s.strategy ?? '', s.status, s.owner_email ?? '',
+      s.bot_id ?? '', s.result_pnl ?? '', s.risk_amount ?? '', s.stop_pips ?? '', s.data_source ?? ''
+    ]);
+    const escape = (v) => {
+      const str = String(v ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const csv = [headers.join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `signals_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filtered.length} signal(s) to CSV`);
   };
 
   const handleClearPending = async () => {
@@ -133,6 +159,13 @@ export default function SignalsDashboard() {
           <p className="text-slate-400 mt-1">All signals from 3rd party providers & bots — last 7 days</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-sm transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
           <button
             onClick={handleClearPending}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-sm transition-colors"
