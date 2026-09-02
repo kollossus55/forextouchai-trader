@@ -378,6 +378,8 @@ Deno.serve(async (req) => {
                         const limits: ExposureLimits = {
                             maxPerCurrency: acctRisk.max_trades_per_currency
                                 ?? DEFAULT_EXPOSURE_LIMITS.maxPerCurrency,
+                            maxPerIndexCurrency: acctRisk.max_trades_per_index_currency
+                                ?? DEFAULT_EXPOSURE_LIMITS.maxPerIndexCurrency,
                             maxRiskPercentPerCurrency: acctRisk.max_risk_percent_per_currency
                                 ?? DEFAULT_EXPOSURE_LIMITS.maxRiskPercentPerCurrency,
                             maxTotalRiskPercent: acctRisk.max_total_risk_percent

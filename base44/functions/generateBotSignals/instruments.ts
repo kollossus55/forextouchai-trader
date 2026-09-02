@@ -247,7 +247,7 @@ export function pipValueInAccountCurrency(
 
 /** Currencies whose exposure should be aggregated for correlation limits. */
 export function exposureLegs(spec: InstrumentSpec): string[] {
-    if (spec.category === 'INDEX') return [`IDX:${spec.symbol}`, `CUR:${spec.quote}`];
+    if (spec.category === 'INDEX') return [`IDX:${spec.symbol}`, `IDXCUR:${spec.quote}`];
     if (spec.category === 'CRYPTO') return ['CRYPTO'];
     if (spec.category === 'METAL') return ['METAL', `CUR:${spec.quote}`];
     if (spec.category === 'ENERGY') return ['ENERGY'];

@@ -125,13 +125,15 @@ export interface OpenPosition {
 }
 
 export interface ExposureLimits {
-    maxPerCurrency: number;          // max simultaneous trades sharing a currency leg
+    maxPerCurrency: number;          // max simultaneous forex trades sharing a currency leg
+    maxPerIndexCurrency: number;    // max simultaneous index trades sharing a quote currency
     maxRiskPercentPerCurrency: number;
     maxTotalRiskPercent: number;
 }
 
 export const DEFAULT_EXPOSURE_LIMITS: ExposureLimits = {
     maxPerCurrency: 3,
+    maxPerIndexCurrency: 3,
     maxRiskPercentPerCurrency: 4,
     maxTotalRiskPercent: 6,
 };
@@ -177,8 +179,12 @@ export function checkExposureLimits(
     for (const leg of candidateLegs) {
         const e = exposure[leg];
         if (!e) continue;
-        if (e.count > limits.maxPerCurrency) {
-            return { allowed: false, reason: `${e.count} open trades would share ${leg} (limit ${limits.maxPerCurrency})` };
+        const isIndexLeg = leg.startsWith('IDXCUR:');
+        const legLimit = isIndexLeg
+            ? (limits.maxPerIndexCurrency ?? limits.maxPerCurrency)
+            : limits.maxPerCurrency;
+        if (e.count > legLimit) {
+            return { allowed: false, reason: `${e.count} open trades would share ${leg} (limit ${legLimit})` };
         }
         const netPct = (Math.abs(e.net) / balance) * 100;
         if (netPct > limits.maxRiskPercentPerCurrency) {

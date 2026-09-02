@@ -45,6 +45,10 @@ const DEFAULT_SETTINGS = {
   limit_hit_at: null,
   global_schedule_enabled: false,
   weekly_schedule: { ...DEFAULT_WEEKLY },
+  max_trades_per_currency: 3,
+  max_trades_per_index_currency: 3,
+  max_risk_percent_per_currency: 4,
+  max_total_risk_percent: 6,
 };
 
 function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSaved }) {
@@ -83,6 +87,10 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         stale_loss_threshold: data.stale_loss_threshold,
         global_schedule_enabled: data.global_schedule_enabled,
         weekly_schedule: data.weekly_schedule || { ...DEFAULT_WEEKLY },
+        max_trades_per_currency: data.max_trades_per_currency,
+        max_trades_per_index_currency: data.max_trades_per_index_currency,
+        max_risk_percent_per_currency: data.max_risk_percent_per_currency,
+        max_total_risk_percent: data.max_total_risk_percent,
       };
       if (existingRecord?.id) {
         return await base44.entities.RiskManagementSettings.update(existingRecord.id, settingsData);
@@ -269,8 +277,12 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
           {[
             { label: 'Max Concurrent Trades', field: 'max_concurrent_trades', step: 1, min: 1 },
             { label: 'Max Position Size (%)', field: 'max_position_size_percent', step: 1 },
+            { label: 'Max Trades Per Currency (Forex)', field: 'max_trades_per_currency', step: 1, min: 1, max: 50 },
+            { label: 'Max Trades Per Index Currency', field: 'max_trades_per_index_currency', step: 1, min: 1, max: 20 },
+            { label: 'Max Risk % Per Currency', field: 'max_risk_percent_per_currency', step: 0.5, min: 0.5, max: 50 },
+            { label: 'Max Total Risk (%)', field: 'max_total_risk_percent', step: 0.5, min: 0.5, max: 100 },
             { label: 'Alert Threshold (%)', field: 'alert_threshold_percent', step: 5, min: 50 },
-          ].map(({ label, field, step, min = 0 }) => (
+          ].map(({ label, field, step, min = 0, max = 100 }) => (
             <div key={field} className="space-y-1">
               <Label className="text-xs text-slate-300">{label}</Label>
               <Input type="number" min={min} max={100} step={step} value={formData[field] ?? 0}
