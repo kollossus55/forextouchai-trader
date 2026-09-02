@@ -29,15 +29,15 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
-import { Candle } from '../_shared/indicators.ts';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from '../_shared/instruments.ts';
-import { buildMarketSnapshot, MarketSnapshot } from '../_shared/analysis.ts';
-import { evaluateStrategy, BotSettings, StrategyResult } from '../_shared/strategies.ts';
+import { Candle } from './indicators.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { buildMarketSnapshot, MarketSnapshot } from './analysis.ts';
+import { evaluateStrategy, BotSettings, StrategyResult } from './strategies.ts';
 import {
     computeLotSize, checkExposureLimits, validateStops,
     OpenPosition, ExposureLimits, DEFAULT_EXPOSURE_LIMITS,
-} from '../_shared/risk.ts';
-import { fetchCandlesDetailed } from '../_shared/marketData.ts';
+} from './risk.ts';
+import { fetchCandlesDetailed } from './marketData.ts';
 
 const HIGHER_TF: Record<string, string> = {
     M1: 'M15', M5: 'M30', M15: 'H1', M30: 'H4',
@@ -346,12 +346,29 @@ Deno.serve(async (req) => {
 
                         // ── Correlation-aware exposure ──────────────────────
                         const existing: OpenPosition[] = [
-                            ...acctOpen.map((t: any) => ({
-                                symbol: normalizeSymbol(t.pair || ''),
-                                direction: (t.type === 'SELL' ? 'SELL' : 'BUY') as 'BUY' | 'SELL',
-                                riskAmount: Number(t.risk_amount)
-                                    || balance * ((acctRisk.risk_per_trade_percent ?? 1) / 100),
-                            })),
+                            ...acctOpen.map((t: any) => {
+                                const sym = normalizeSymbol(t.pair || '');
+                                const spec = getInstrumentSpec(sym);
+                                const lots = Number(t.lot_size) || 0;
+                                // If risk_amount is recorded, use it. Otherwise estimate
+                                // from lot size and a conservative default stop distance —
+                                // NOT the full per-trade risk budget, which over-counts
+                                // small manual trades (8 × 0.1-lot trades would consume the
+                                // entire risk budget and block the account from new signals).
+                                let riskAmount = Number(t.risk_amount) || 0;
+                                if (!riskAmount && lots > 0 && spec) {
+                                    const defaultStopPips = Math.max(spec.typicalSpread * 5, 20);
+                                    riskAmount = lots * spec.pipValuePerLot * defaultStopPips;
+                                }
+                                if (!riskAmount) {
+                                    riskAmount = balance * ((acctRisk.risk_per_trade_percent ?? 1) / 100);
+                                }
+                                return {
+                                    symbol: sym,
+                                    direction: (t.type === 'SELL' ? 'SELL' : 'BUY') as 'BUY' | 'SELL',
+                                    riskAmount,
+                                };
+                            }),
                             ...acctQueued.map(d => ({
                                 symbol: normalizeSymbol(d.pair),
                                 direction: d.type,
