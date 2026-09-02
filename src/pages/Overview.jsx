@@ -68,6 +68,21 @@ export default function Overview() {
     initialData: []
   });
 
+  const [isFetchingNews, setIsFetchingNews] = useState(false);
+  const refreshNews = async () => {
+    setIsFetchingNews(true);
+    try {
+      await base44.functions.invoke('fetchMarketNews', {});
+      await queryClient.invalidateQueries({ queryKey: ['market-news'] });
+      await queryClient.invalidateQueries({ queryKey: ['economic-events'] });
+      toast.success('News refreshed from live feeds');
+    } catch (e) {
+      toast.error('News refresh failed', { description: e.message });
+    } finally {
+      setIsFetchingNews(false);
+    }
+  };
+
   // Account-level risk budget: cap comes from RiskManagementSettings (keyed by
   // account_number); current usage is the sum of risk_amount across OPEN trades.
   // Trades route by account number stored in owner_email (see bridge entry).
@@ -319,6 +334,17 @@ export default function Overview() {
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <Newspaper className="w-5 h-5 text-amber-400" /> Market News
+                <Badge variant="secondary" className="ml-2 bg-emerald-500/10 text-emerald-400 text-[10px] h-5 border border-emerald-500/20">LIVE</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={refreshNews}
+                  disabled={isFetchingNews}
+                  className="ml-auto h-7 px-2 text-slate-400 hover:text-emerald-400"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isFetchingNews ? 'animate-spin' : ''}`} />
+                  {isFetchingNews ? 'Fetching...' : 'Refresh'}
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -366,6 +392,7 @@ export default function Overview() {
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-purple-400" /> Economic Events
+                <Badge variant="secondary" className="ml-2 bg-emerald-500/10 text-emerald-400 text-[10px] h-5 border border-emerald-500/20">LIVE</Badge>
               </CardTitle>
               <CardDescription className="text-slate-400">Upcoming high impact events</CardDescription>
             </CardHeader>
