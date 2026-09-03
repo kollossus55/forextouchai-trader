@@ -306,7 +306,7 @@ export function classifyRegime(
         if (defined.length > 30) {
             const recent = defined.slice(-100);
             const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
-            if (mean > 0 && curAtr > mean * 1.8) return 'VOLATILE';
+            if (mean > 0 && curAtr > mean * 2.5) return 'VOLATILE';
         }
     }
 
