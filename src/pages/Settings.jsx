@@ -829,8 +829,8 @@ export default function Settings() {
               <Button className="w-full justify-start bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
                 <Key className="w-4 h-4 mr-2" /> Change Password
               </Button>
-              <Button className="w-full justify-start bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all">
-                <Smartphone className="w-4 h-4 mr-2" /> Enable 2FA
+              <Button disabled className="w-full justify-start bg-slate-500/10 text-slate-400 border border-slate-700/30 cursor-not-allowed transition-all">
+                <Smartphone className="w-4 h-4 mr-2" /> Enable 2FA — Coming Soon
               </Button>
             </CardContent>
           </Card>
