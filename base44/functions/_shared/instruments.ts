@@ -73,7 +73,7 @@ const INDEX_SPECS: Record<string, { pipSize: number; contract: number; quote: st
     DE40:   { pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     FRA40:  { pipSize: 0.5,  contract: 1,   quote: 'EUR' },
     ESP35:  { pipSize: 1.0,  contract: 1,   quote: 'EUR' },
-    JPN225: { pipSize: 1.0,  contract: 1,   quote: 'JPY' },
+    JPN225: { pipSize: 1.0, contract: 100, quote: 'JPY' },
     AUS200: { pipSize: 0.5,  contract: 1,   quote: 'AUD' },
     HK50:   { pipSize: 1.0,  contract: 1,   quote: 'HKD' },
 };
