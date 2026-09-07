@@ -30,7 +30,7 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.43';
 import { Candle } from './indicators.ts';
-import { getInstrumentSpec, normalizeSymbol, isKnownInstrument } from './instruments.ts';
+import { getInstrumentSpec, normalizeSymbol, isKnownInstrument, pipValueInAccountCurrency } from './instruments.ts';
 import { buildMarketSnapshot, MarketSnapshot } from './analysis.ts';
 import { evaluateStrategy, BotSettings, StrategyResult } from './strategies.ts';
 import {
@@ -326,22 +326,48 @@ Deno.serve(async (req) => {
                                 && normalizeSymbol(s.pair || '') === sym).length;
                         if (perPair >= (bot.max_trades_per_pair || 1)) continue;
 
-                        // ── Risk-based sizing ───────────────────────────────
+                        // ── Sizing ───────────────────────────────────────────
                         const rates = buildRateMap(candleCache);
-                        const sizing = computeLotSize({
-                            spec,
-                            entryPrice: entry,
-                            stopDistance: result.stopDistance,
-                            balance,
-                            accountCurrency: conn.currency || 'USD',
-                            riskPercent: acctRisk.risk_per_trade_percent ?? 1,
-                            maxPositionSizePercent: acctRisk.max_position_size_percent ?? 10,
-                            leverage: parseLeverage(conn.leverage),
-                            rates,
-                            minLot: conn.min_lot || 0.01,
-                            maxLot: conn.max_lot || 100,
-                            lotStep: conn.lot_step || 0.01,
-                        });
+                        const useRiskSizing = acctRisk.use_risk_based_sizing !== false;
+
+                        let sizing;
+                        if (useRiskSizing) {
+                            sizing = computeLotSize({
+                                spec,
+                                entryPrice: entry,
+                                stopDistance: result.stopDistance,
+                                balance,
+                                accountCurrency: conn.currency || 'USD',
+                                riskPercent: acctRisk.risk_per_trade_percent ?? 1,
+                                maxPositionSizePercent: acctRisk.max_position_size_percent ?? 10,
+                                leverage: parseLeverage(conn.leverage),
+                                rates,
+                                minLot: conn.min_lot || 0.01,
+                                maxLot: conn.max_lot || 100,
+                                lotStep: conn.lot_step || 0.01,
+                            });
+                        } else {
+                            // Use the bot's own fixed lot_size, clamped to broker limits
+                            const minLot = conn.min_lot || 0.01;
+                            const maxLot = conn.max_lot || 100;
+                            const lotStep = conn.lot_step || 0.01;
+                            let lots = bot.lot_size || 0.01;
+                            lots = Math.min(lots, maxLot);
+                            lots = Math.floor(lots / lotStep) * lotStep;
+                            lots = parseFloat(lots.toFixed(4));
+                            if (lots < minLot) {
+                                skipLog.push(`${bot.name} ${sym} @${acct}: bot lot_size ${bot.lot_size} below broker min ${minLot}`);
+                                continue;
+                            }
+                            const stopPips = result.stopDistance / spec.pipSize;
+                            const pv = pipValueInAccountCurrency(spec, entry, conn.currency || 'USD', rates);
+                            const riskPerLot = stopPips * pv.value;
+                            sizing = {
+                                lots, ok: true, reason: null, capped: null,
+                                riskAmount: lots * riskPerLot,
+                                stopPips, pipValue: pv.value,
+                            };
+                        }
                         if (!sizing.ok) { skipLog.push(`${bot.name} ${sym} @${acct}: ${sizing.reason}`); continue; }
 
                         // ── Correlation-aware exposure ──────────────────────

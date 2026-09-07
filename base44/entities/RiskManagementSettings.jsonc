@@ -243,6 +243,11 @@
       "minimum": 0.5,
       "maximum": 100,
       "description": "Maximum combined risk across all open positions, as a percent of balance."
+    },
+    "use_risk_based_sizing": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true, lot size is computed from risk_per_trade_percent and the stop distance. When false, each bot's own lot_size setting is used directly."
     }
   },
   "required": [],

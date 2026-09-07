@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS = {
   max_trades_per_index_currency: 3,
   max_risk_percent_per_currency: 4,
   max_total_risk_percent: 6,
+  use_risk_based_sizing: true,
 };
 
 function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSaved }) {
@@ -91,6 +92,7 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
         max_trades_per_index_currency: data.max_trades_per_index_currency,
         max_risk_percent_per_currency: data.max_risk_percent_per_currency,
         max_total_risk_percent: data.max_total_risk_percent,
+        use_risk_based_sizing: data.use_risk_based_sizing,
       };
       if (existingRecord?.id) {
         return await base44.entities.RiskManagementSettings.update(existingRecord.id, settingsData);
@@ -262,6 +264,28 @@ function AccountRiskSettings({ conn, riskSettings, allRiskSettings, trades, onSa
             { label: 'Daily Profit Target (%) — 0=off', field: 'daily_profit_target_percent', step: 0.5, min: 0 },
             { label: 'Risk Per Trade (%)', field: 'risk_per_trade_percent', step: 0.1, min: 0.1 },
             { label: 'Daily Reset Hour (UTC 0–23)', field: 'daily_reset_hour', step: 1, min: 0, max: 23 },
+          ].map(({ label, field, step, min = 0, max = 100 }) => (
+            <div key={field} className="space-y-1">
+              <Label className="text-xs text-slate-300">{label}</Label>
+              <Input type="number" min={min} max={100} step={step} value={formData[field] ?? 0}
+                onChange={e => handleChange(field, parseFloat(e.target.value))}
+                className="bg-slate-950 border-slate-700 text-white h-9" />
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-1">
+            <div>
+              <Label className="text-xs text-slate-300">Risk-Based Lot Sizing</Label>
+              <p className="text-[10px] text-slate-500">On = derive lot from risk % and stop distance. Off = use each bot's own lot size.</p>
+            </div>
+            <Switch checked={formData.use_risk_based_sizing !== false} onCheckedChange={v => handleChange('use_risk_based_sizing', v)}
+              className="data-[state=checked]:bg-emerald-500" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-slate-400 uppercase flex items-center gap-1"><Shield className="w-3 h-3" /> Position Limits</h4>
+          {[
+            { label: 'Max Concurrent Trades', field: 'max_concurrent_trades', step: 1, min: 1 },
+            { label: 'Max Position Size (%)', field: 'max_position_size_percent', step: 1 },
              { label: 'Auto-Resume Hours (0=off)', field: 'auto_resume_hours', step: 0.5, min: 0, max: 24 },
           ].map(({ label, field, step, min = 0, max = 100 }) => (
             <div key={field} className="space-y-1">
