@@ -34,52 +34,12 @@ export default function BotConfigAI({ currentConfig, onApplyRecommendation, back
         question: userMessage
       };
 
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are an expert forex trading assistant helping a user configure their trading bot.
-
-Current Bot Configuration:
-- Strategy: ${currentConfig.strategy_type || 'Not set'}
-- Risk Level: ${currentConfig.risk_level || 'MEDIUM'}
-- Lot Size: ${currentConfig.lot_size || 0.1}
-- Stop Loss: ${currentConfig.stop_loss_pips || 30} pips
-- Take Profit: ${currentConfig.take_profit_pips || 60} pips
-- AI Confidence Threshold: ${currentConfig.min_confidence || 80}%
-- Max Concurrent Trades: ${currentConfig.max_open_trades || 3}
-- Trading Pairs: ${currentConfig.pairs?.join(', ') || 'None selected'}
-- SL/TP Mode: ${currentConfig.sl_tp_mode || 'FIXED'}
-${currentConfig.sl_tp_mode === 'ATR' ? `- ATR Period: ${currentConfig.atr_period}, SL Multiplier: ${currentConfig.atr_multiplier_sl}, TP Multiplier: ${currentConfig.atr_multiplier_tp}` : ''}
-- Money Management: ${currentConfig.money_management || 'FIXED'}
-${currentConfig.money_management === 'MARTINGALE' ? `- Martingale Multiplier: ${currentConfig.martingale_multiplier}` : ''}
-
-${backtestResults ? `Recent Backtest Results:
-- Win Rate: ${backtestResults.winRate}%
-- Total Return: ${backtestResults.totalReturn}%
-- Max Drawdown: ${backtestResults.maxDrawdown}%
-- Total Trades: ${backtestResults.totalTrades}` : ''}
-
-User Question: ${userMessage}
-
-Provide helpful, concise advice. If suggesting parameter changes, explain WHY. If the user asks for recommendations, provide specific numeric values with reasoning. Format your response clearly with bullet points when listing recommendations.`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            answer: { type: "string" },
-            recommendations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  parameter: { type: "string" },
-                  current_value: { type: "string" },
-                  suggested_value: { type: "string" },
-                  reason: { type: "string" }
-                }
-              }
-            },
-            risk_assessment: { type: "string" }
-          }
-        }
+      const res = await base44.functions.invoke('aiBotAssistant', {
+        mode: 'advise',
+        config: currentConfig,
+        question: userMessage
       });
+      const response = res.data?.result;
 
       const aiMessage = {
         role: 'assistant',

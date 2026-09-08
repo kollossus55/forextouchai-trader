@@ -129,33 +129,11 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
   const handleOptimize = async () => {
     setIsOptimizing(true);
     try {
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are an expert forex trading bot optimizer. Given the following bot configuration, suggest optimal parameter values based on best practices for the strategy type.
-
-Current Config:
-- Strategy: ${formData.strategy_type}
-- Risk Level: ${formData.risk_level}
-- Timeframe: ${formData.timeframe}
-- Lot Size: ${formData.lot_size}
-- Stop Loss Pips: ${formData.stop_loss_pips}
-- Take Profit Pips: ${formData.take_profit_pips}
-- Min AI Confidence: ${formData.min_confidence}%
-- Max Open Trades: ${formData.max_open_trades}
-- Max Trades Per Pair: ${formData.max_trades_per_pair}
-
-Return ONLY the optimized numeric values as a flat JSON object with the same field names. Optimize for the best risk/reward ratio given the strategy type. Keep lot_size unchanged. Only include fields you are actually changing.`,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            stop_loss_pips: { type: 'number' },
-            take_profit_pips: { type: 'number' },
-            min_confidence: { type: 'number' },
-            max_open_trades: { type: 'number' },
-            max_trades_per_pair: { type: 'number' },
-            max_daily_trades: { type: 'number' }
-          }
-        }
+      const res = await base44.functions.invoke('aiBotAssistant', {
+        mode: 'optimize',
+        config: formData
       });
+      const response = res.data?.result;
       if (response && typeof response === 'object') {
         // Filter out null/undefined values
         const updates = Object.fromEntries(Object.entries(response).filter(([, v]) => v != null));

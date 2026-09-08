@@ -202,13 +202,10 @@ export default function Layout({ children }) {
         
         // Only send email if downtime was significant (> 2 minutes)
         if (user?.email && downSeconds > 120) {
-          const emailBody = `Your MT4/MT5 trading platform has successfully reconnected after being offline for ${downMinutes} minute(s).\n\nConnection Status: ONLINE\nReconnected At: ${new Date().toLocaleString()}\n\nYour trading bots can now resume operations.`;
-          
           console.log('[Connection Monitor] Sending reconnection email to:', user.email);
-          base44.integrations.Core.SendEmail({
-            to: user.email,
-            subject: '✅ ForexTouchAI - MT4/MT5 Connection Restored',
-            body: emailBody
+          base44.functions.invoke('sendConnectionEmail', {
+            type: 'reconnected',
+            downtimeMinutes: downMinutes
           }).then(() => {
             console.log('[Connection Monitor] Reconnection email sent successfully');
           }).catch(e => {

@@ -145,10 +145,9 @@ export default function Settings() {
             if (shouldSendEmail && user?.email) {
               sessionStorage.setItem('lastEmailAlert', Date.now().toString());
               try {
-                await base44.integrations.Core.SendEmail({
-                  to: user.email,
-                  subject: 'ALERT: MT4/MT5 Platform Disconnected',
-                  body: `Your trading platform has lost connection. Last sync: ${lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'}\n\nPlease check:\n1. MT4/MT5 is running\n2. ForexTouchAI EA is attached to a chart\n3. Internet connection is stable`
+                await base44.functions.invoke('sendConnectionEmail', {
+                  type: 'disconnected',
+                  lastSyncTime: lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'
                 });
 
                 // Create in-app alert
@@ -188,10 +187,10 @@ export default function Settings() {
                   const lastSyncTime = oldestConn?.last_sync ? new Date(oldestConn.last_sync) : null;
                   
                   try {
-                    await base44.integrations.Core.SendEmail({
-                      to: user.email,
-                      subject: 'REMINDER: MT4/MT5 Still Disconnected',
-                      body: `Your trading platform has been offline for ${minutesDisconnected} minutes.\n\nLast sync: ${lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'}`
+                    await base44.functions.invoke('sendConnectionEmail', {
+                      type: 'reminder',
+                      downtimeMinutes: minutesDisconnected,
+                      lastSyncTime: lastSyncTime ? lastSyncTime.toLocaleString() : 'Unknown'
                     });
                   } catch (e) {
                     console.error("Failed to send reminder:", e);
@@ -320,11 +319,7 @@ export default function Settings() {
     }
     setIsTestLoading(true);
     try {
-        await base44.integrations.Core.SendEmail({
-            to: user.email,
-            subject: "ForexTouchAI: Test Alert",
-            body: "This is a test email alert to verify your notification settings. You will receive alerts here for major market events and trade executions."
-        });
+        await base44.functions.invoke('sendConnectionEmail', { type: 'test' });
         toast.success(`Test email sent to ${user.email}`);
     } catch (e) {
         console.error(e);
