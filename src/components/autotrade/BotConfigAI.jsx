@@ -39,7 +39,7 @@ export default function BotConfigAI({ currentConfig, onApplyRecommendation, back
         config: currentConfig,
         question: userMessage
       });
-      const response = res.data?.result;
+      const response = res?.result;
 
       const aiMessage = {
         role: 'assistant',
