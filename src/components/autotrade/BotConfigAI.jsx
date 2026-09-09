@@ -41,9 +41,13 @@ export default function BotConfigAI({ currentConfig, onApplyRecommendation, back
       });
       const response = res?.result;
 
+      if (!response || typeof response !== 'object') {
+        throw new Error(res?.error || 'No response from AI service');
+      }
+
       const aiMessage = {
         role: 'assistant',
-        content: response.answer,
+        content: response.answer || 'No answer provided.',
         recommendations: response.recommendations || [],
         riskAssessment: response.risk_assessment
       };
@@ -51,9 +55,10 @@ export default function BotConfigAI({ currentConfig, onApplyRecommendation, back
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('AI Error:', error);
+      const errorMsg = error?.message || 'Unknown error';
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: `Sorry, I encountered an error: ${errorMsg}. Please try again.`,
         error: true
       }]);
     } finally {
