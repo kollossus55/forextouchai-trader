@@ -39,10 +39,10 @@ export default function BotConfigAI({ currentConfig, onApplyRecommendation, back
         config: currentConfig,
         question: userMessage
       });
-      const response = res?.result;
+      const response = res.data?.result;
 
       if (!response || typeof response !== 'object') {
-        throw new Error(res?.error || 'No response from AI service');
+        throw new Error(res.data?.error || 'No response from AI service');
       }
 
       const aiMessage = {

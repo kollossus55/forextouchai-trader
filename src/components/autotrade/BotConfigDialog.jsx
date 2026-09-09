@@ -133,7 +133,7 @@ export default function BotConfigDialog({ open, onOpenChange, onSubmit, initialD
         mode: 'optimize',
         config: formData
       });
-      const response = res?.result;
+      const response = res.data?.result;
       if (response && typeof response === 'object') {
         // Filter out null/undefined values
         const updates = Object.fromEntries(Object.entries(response).filter(([, v]) => v != null));
